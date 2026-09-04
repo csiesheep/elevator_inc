@@ -1,9 +1,20 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "elevator_inc",
+  "name": "elevator-inc",
   "compatibility_date": "2026-09-04",
   "main": "src/index.js",
-  "observability": { "enabled": true },
+  "observability": {
+    "enabled": true
+  },
+  // Attached to the shared hostname by path-scoped Routes, NOT a Custom Domain
+  // — the `games` hub Worker holds that. Cloudflare matches the most-specific
+  // route first, so these peel /elevator_inc off the hub.
+  // Two patterns: `/*` does not match the bare prefix, and the bare prefix is
+  // what src/index.js redirects to the trailing-slash form.
+  "routes": [
+    { "pattern": "games.csiesheep.com/elevator_inc", "zone_name": "csiesheep.com" },
+    { "pattern": "games.csiesheep.com/elevator_inc/*", "zone_name": "csiesheep.com" }
+  ],
   "assets": {
     "directory": ".",
     "binding": "ASSETS",

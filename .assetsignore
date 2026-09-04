@@ -4,3 +4,8 @@
 .wrangler
 node_modules
 src
+README.md
+wrangler.jsonc
+.gitattributes
+.gitignore
+.assetsignore
