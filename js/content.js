@@ -36,6 +36,7 @@ export const CONFIG = {
   WEEK_DAYS:      7,      // 9 一週作息：一天 3 分鐘 → 一週 21 分鐘
   EVENT_EVERY:    75,     // 8 突發事件：平均幾秒檢查一次
   EVENT_CHANCE:   0.55,   // 檢查時發生的機率
+  EVAC_SECONDS:   14,     // 疏散模式持續幾秒
   LOBBY_SHARE:    0.40,   // 2 OD：有多少比例的行程一端是大廳
 
   // --- 10 入住率 ---
@@ -170,11 +171,63 @@ export const SKILLS = [
   { id:'o_shaft', branch:'營運', name:'預留井道',     max:3,  cost:l=>6+l*6,    detail:'起始電梯井 +1' },
   { id:'o_algo',  branch:'營運', name:'控制器韌體',   max:4,  cost:l=>3+l*2,    detail:'演算法效率 +8%（吞吐量與抽象樓層收益）' },
   { id:'o_fare',  branch:'營運', name:'動態票價',     max:8,  cost:l=>2+l,      detail:'所有票價 +6%' },
+  // 5.6 的 B：應付突發事件的工具
+  { id:'o_warn',  branch:'營運', name:'人流預警',     max:4,  cost:l=>2+l*2,
+    detail:'事件提前 8 秒預告（每級 +8 秒），畫面會倒數' },
+  { id:'o_surge', branch:'營運', name:'尖峰加給',     max:6,  cost:l=>2+l,
+    detail:'事件產生的乘客票價 +18%' },
+  { id:'o_evac',  branch:'營運', name:'疏散模式',     max:3,  cost:l=>4+l*3,
+    detail:'解鎖一鍵疏散：所有電梯立刻趕去爆量的那一層（冷卻 90/70/50 秒）' },
   // 建築
   { id:'a_floor', branch:'建築', name:'深基礎',       max:10, cost:l=>2+l,      detail:'起始樓層 +10' },
   { id:'a_cost',  branch:'建築', name:'預鑄工法',     max:6,  cost:l=>3+l*2,    detail:'加蓋樓層成本 -10%（相乘）' },
   { id:'a_rate',  branch:'建築', name:'招商部門',     max:6,  cost:l=>2+l,      detail:'起始評價 +0.3、評價上升快 20%' },
 ];
+
+// ---------------------------------------------------------------- 租戶類型（5.6 的 A）
+// 招商時選這一層要租給誰。租戶決定這一帶的「人流形狀」，不只是人流多少：
+//   fare = 這一帶的票價倍率, pop = 人流量倍率
+//   event = 這種租戶會週期性製造的突發事件, every = 幾秒一次（隨機區間）
+export const TENANTS = [
+  { id:'shop', plain:true,    name:'一般店面',   bands:['retail'], fare:1.00, pop:1.00, note:'平穩，沒有驚喜。' },
+  { id:'food',    name:'美食街',     bands:['retail'], fare:1.35, pop:1.45,
+    event:'lunch', every:[150,240], note:'人多、單價中等，中午會整層一起下樓。' },
+  { id:'cinema',  name:'電影院',     bands:['retail','office'], fare:1.70, pop:0.85,
+    event:'cinema', every:[170,260], note:'平常很安靜，散場時一次湧出一整廳。' },
+
+  { id:'desk', plain:true,    name:'一般辦公',   bands:['office'], fare:1.00, pop:1.00, note:'平穩的上下班潮。' },
+  { id:'conf',    name:'會議中心',   bands:['office'], fare:1.55, pop:1.10,
+    event:'meeting', every:[120,200], note:'單價高，但每場會議散場都是一次爆量。' },
+  { id:'callctr', name:'客服中心',   bands:['office'], fare:1.25, pop:1.60,
+    event:'shift', every:[140,220], note:'人非常多，而且整班一起換班。' },
+
+  { id:'room', plain:true,    name:'客房',       bands:['hotel'], fare:1.00, pop:1.00, note:'夜間到達、早晨退房。' },
+  { id:'banquet', name:'宴會廳',     bands:['hotel'], fare:1.85, pop:1.15,
+    event:'party', every:[160,260], note:'深夜散場，一次一大群，而且都很累。' },
+  { id:'expo',    name:'會展中心',   bands:['hotel','obs'], fare:1.60, pop:1.35,
+    event:'expo', every:[130,210], note:'整天都有人潮，開展與閉展各一波。' },
+
+  { id:'flat', plain:true,    name:'住宅',       bands:['resid'], fare:1.00, pop:1.00, note:'常客，作息穩定。' },
+  { id:'sublet',  name:'短租公寓',   bands:['resid'], fare:1.40, pop:1.25,
+    event:'moving', every:[180,280], note:'租金高，但三天兩頭有人搬家。' },
+
+  { id:'deck', plain:true,    name:'觀景台',     bands:['obs'], fare:1.00, pop:1.20, note:'觀光客單向朝聖。' },
+  { id:'skyrest', name:'空中餐廳',   bands:['obs'], fare:1.95, pop:0.90,
+    event:'seating', every:[150,240], note:'單價最高的觀光收入，整批帶位、整批離席。' },
+
+  { id:'lab', plain:true,     name:'實驗室',     bands:['exp'], fare:1.00, pop:1.00, note:'研究員趕時間。' },
+  { id:'server',  name:'資料中心',   bands:['exp','roof'], fare:2.40, pop:0.25,
+    note:'幾乎沒有人要搭電梯，但少數幾趟單價極高。想喘口氣的時候租這個。' },
+
+  { id:'sky', plain:true,     name:'屋頂設施',   bands:['roof'], fare:1.00, pop:1.00, note:'頂樓。' },
+];
+export const tenantsFor = key => TENANTS.filter(t => t.bands.includes(key));
+// 預設租戶（錨定租戶與舊存檔轉換用）＝這一帶標了 plain 的那個，不是表上的第一個
+export const defaultTenant = key => {
+  const list = tenantsFor(key);
+  return ((list.find(t => t.plain) || list[0] || TENANTS[0]).id);
+};
+export const tenantById = id => TENANTS.find(t => t.id === id);
 
 // ---------------------------------------------------------------- 突發流量事件（5.2 的 8）
 // n = 一次丟出幾個人；at 決定發生在哪一帶；to 決定他們要去哪
@@ -195,6 +248,22 @@ export const EVENTS = [
     hours:[20,24], text:'🎉 尾牙散場：{f} 樓 {n} 個人一起要走' },
   { id:'newyear', name:'跨年倒數', w:5, n:[16,26], at:'lobby', to:'roof',
     hours:[21,24], text:'🎆 跨年倒數：{n} 個人全都要上頂樓' },
+
+  // --- 由租戶類型觸發的事件（5.6 的 A）。不進隨機池，只有租了對應租戶才會發生。
+  { id:'lunch',   name:'午餐時間', byTenant:true, n:[8,15],  to:'lobby',
+    text:'🍜 午餐時間：{f} 樓的美食街一次下來 {n} 個人' },
+  { id:'cinema',  name:'電影散場', byTenant:true, n:[12,22], to:'lobby',
+    text:'🎬 電影散場：{f} 樓一整廳 {n} 個人同時出來' },
+  { id:'shift',   name:'客服換班', byTenant:true, n:[10,18], to:'lobby',
+    text:'🎧 換班時間：{f} 樓 {n} 個人同時打卡下班' },
+  { id:'party',   name:'宴會散場', byTenant:true, n:[14,24], to:'lobby', panic:0.75,
+    text:'🥂 宴會散場：{f} 樓 {n} 個人，都累了' },
+  { id:'expo',    name:'會展人潮', byTenant:true, n:[10,20], to:'any',
+    text:'🎪 會展人潮：{n} 個人湧向 {f} 樓' },
+  { id:'moving',  name:'搬家日',   byTenant:true, n:[4,8],   to:'lobby',
+    text:'📦 搬家日：{f} 樓有 {n} 車家當要下樓' },
+  { id:'seating', name:'整批帶位', byTenant:true, n:[10,18], to:'lobby',
+    text:'🍽 空中餐廳換場：{f} 樓 {n} 個人要下去' },
 ];
 
 // ---------------------------------------------------------------- 成就

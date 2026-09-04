@@ -1,7 +1,9 @@
 // sim.js — 模擬。乘客、電梯井、調度演算法、過熱、評價、統計流量模型。
 // 這裡的東西都是暫時的：存檔只存 GameState，不存乘客陣列（設計 4.13）。
-import { CONFIG as C, PASSENGERS, BANDS, EVENTS, WEEKDAYS, bandOf, tierAt } from './content.js';
-import { derived, isLeased, occOf, builtInBand, leasedInBand, leasedTotal } from './state.js';
+import { CONFIG as C, PASSENGERS, BANDS, EVENTS, WEEKDAYS, bandOf, tierAt,
+         TENANTS, tenantById, defaultTenant } from './content.js';
+import { derived, isLeased, occOf, builtInBand, leasedInBand, leasedTotal,
+         bandLeases, tenantMix } from './state.js';
 
 let nextId = 1;
 const d0 = st => derived(st);
@@ -11,6 +13,7 @@ export function createSim(st){
     shafts: [], waiting: [], pops: [], toasts: [],
     spawnT: 0, boost: false,
     mood: 1, moodT: 0, eventT: 0,       // 7 今日人潮 / 8 突發事件
+    pending: [], evacUntil: 0, evacReady: 0,   // B 預警與疏散模式
     rateWin: 0, rateAcc: 0,
     abstract: { income: 0, ratio: 1, demand: 0, supply: 0 },
     lobby: 0,
@@ -69,7 +72,7 @@ function windowWeight(h, win){
 function floorWeight(st, f, h, role){
   if (!isLeased(st, f)) return 0;          // 10 空樓層不會產生任何乘客
   const b = bandOf(f + 1);
-  let w = (b.pop != null ? b.pop : 1);
+  let w = (b.pop != null ? b.pop : 1) * tenantMix(st, b).pop;   // A 租戶決定人流量
   w *= windowWeight(h, role === 'dest' ? b.up : b.down);
   if (isWeekend(st)) w *= (b.wknd != null ? b.wknd : 1);
   return w;
@@ -200,10 +203,50 @@ function floorInBand(st, key, simTopAll){
   return lo + ((Math.random() * Math.min(leased, hi - lo + 1)) | 0);
 }
 
+// A：你租了什麼租戶，就會發生什麼事件。每種租戶各自累積自己的計時器。
+function tenantEvents(st, sim, dt){
+  sim.tenantT = sim.tenantT || {};
+  const simTopAll = Math.min(st.floors, C.SIM_FLOORS) - 1;
+  for (const b of BANDS){
+    const m = bandLeases(st, b);
+    for (const id in m){
+      const count = m[id] || 0;
+      const t = tenantById(id);
+      if (!t || !t.event || count <= 0) continue;
+      const key = b.key + ':' + id;
+      if (sim.tenantT[key] == null) sim.tenantT[key] = rollGap(t);
+      // 租得越多，事件「稍微」更頻繁、而且規模更大。
+      // 一開始寫成線性（× 層數），20 層會議中心就變成每 9 秒一次散場，太吵。
+      sim.tenantT[key] -= dt * (1 + count / 8);
+      if (sim.tenantT[key] <= 0){
+        sim.tenantT[key] = rollGap(t);
+        const ev = EVENTS.find(e => e.id === t.event);
+        if (ev) schedule(st, sim, ev, b, t, 1 + count / 25);
+      }
+    }
+  }
+}
+// B 人流預警：有技能就先預告，時間到才真的湧出來
+function schedule(st, sim, ev, band, tenant, scale){
+  const lead = derived(st).warnLead;
+  const simTopAll = Math.min(st.floors, C.SIM_FLOORS) - 1;
+  if (lead <= 0){ runEvent(st, sim, ev, band, tenant, simTopAll, null, scale); return; }
+  const floor = band ? floorInBand(st, band.key, simTopAll) : floorInBand(st, ev.at, simTopAll);
+  if (floor < 0) return;
+  sim.pending.push({ ev, band, tenant, floor, at: st.t + lead, scale });
+  sim.toasts.push({ txt:`⏰ ${Math.round(lead)} 秒後：${tenant ? tenant.name : ev.name}（${floor + 1} 樓）`, life:3 });
+}
+
+function rollGap(t){
+  const [a, z] = t.every || [180, 260];
+  return a + Math.random() * (z - a);
+}
+
 function fireEvent(st, sim){
   const h = hourOf(st);
   const simTopAll = Math.min(st.floors, C.SIM_FLOORS) - 1;
   const pool = EVENTS.filter(e => {
+    if (e.byTenant) return false;              // 租戶事件不進隨機池
     if (h < e.hours[0] || h >= e.hours[1]) return false;
     return floorInBand(st, e.at, simTopAll) >= 0 && floorInBand(st, e.to, simTopAll) >= 0;
   });
@@ -211,22 +254,35 @@ function fireEvent(st, sim){
   let total = pool.reduce((a, e) => a + e.w, 0), r = Math.random() * total, ev = pool[0];
   for (const e of pool){ r -= e.w; if (r <= 0){ ev = e; break; } }
 
-  const from = floorInBand(st, ev.at, simTopAll);
-  const n = ev.n[0] + ((Math.random() * (ev.n[1] - ev.n[0] + 1)) | 0);
+  runEvent(st, sim, ev, null, null, simTopAll);
+}
+
+function runEvent(st, sim, ev, band, tenant, simTopAll, fixedFloor, scale){
+  const h = hourOf(st);
+  const d = derived(st);
+  // 租戶事件發生在該租戶所在的那一帶；隨機事件照原本的 at 決定
+  const from = fixedFloor != null ? fixedFloor
+    : (band ? floorInBand(st, band.key, simTopAll) : floorInBand(st, ev.at, simTopAll));
+  if (from < 0) return;
+  const base = ev.n[0] + ((Math.random() * (ev.n[1] - ev.n[0] + 1)) | 0);
+  const n = Math.min(40, Math.round(base * (scale || 1)));
   let made = 0;
   for (let i = 0; i < n; i++){
     let to = floorInBand(st, ev.to, simTopAll);
-    const o = ev.at === 'any' ? floorInBand(st, 'any', simTopAll) : from;
-    if (to === o) continue;
+    const o = (!band && ev.at === 'any') ? floorInBand(st, 'any', simTopAll) : from;
+    if (to === o || to < 0 || o < 0) continue;
     const weight = (o >= C.SIM_FLOORS || to >= C.SIM_FLOORS) ? C.SAMPLE_WEIGHT : 1;
     const p = makePassenger(st, sim, o, to, h, weight);
     if (ev.panic) p.left = p.patience = p.patience * ev.panic;
+    p.surge = d.surgeMult;                       // B 尖峰加給
+    p.fromEvent = true;
     made++;
   }
-  if (made){
-    sim.toasts.push({ txt: ev.text.replace('{n}', made).replace('{f}', from + 1), life: 4 });
-    sim.lastEvent = { name: ev.name, t: st.t };
-  }
+  if (!made) return;
+  const label = tenant ? `${tenant.name}：` : '';
+  sim.toasts.push({ txt: label + ev.text.replace('{n}', made).replace('{f}', from + 1), life: 4 });
+  sim.lastEvent = { name: ev.name, t: st.t, floor: from, n: made };
+  sim.surgeFloor = { f: from, until: st.t + 25 };   // B 疏散模式的目標
 }
 
 // ------------------------------------------------------------ 票價
@@ -234,10 +290,25 @@ function fareOf(st, d, p){
   const dist = Math.abs(p.dest - p.origin);
   // 樓層越高 = 租戶等級越高 = 同樣的距離值更多錢
   const tier = Math.max(tierAt(p.origin + 1), tierAt(p.dest + 1));
-  return C.FARE_BASE * dist * p.t.fare * tier * d.fareMult * (p.w || 1);
+  const mix = Math.max(tenantMix(st, bandOf(p.origin + 1)).fare,
+                       tenantMix(st, bandOf(p.dest + 1)).fare);   // A 租戶決定單價
+  const surge = p.surge || 1;                                     // B 尖峰加給
+  return C.FARE_BASE * dist * p.t.fare * tier * mix * d.fareMult * surge * (p.w || 1);
 }
 
 // ------------------------------------------------------------ 玩家點樓層
+// B 一鍵疏散
+export function evacuate(st, sim){
+  const d = derived(st);
+  if (!d.evacLevel || !sim.surgeFloor) return false;
+  if (st.t < sim.evacReady) return false;
+  sim.evacUntil = st.t + C.EVAC_SECONDS;
+  sim.evacReady = st.t + d.evacCool;
+  for (const s of sim.shafts){ s.queue.length = 0; if (s.mode === 'held') s.mode = 'idle'; }
+  sim.toasts.push({ txt:`🚨 疏散模式：全部電梯趕往 ${sim.surgeFloor.f + 1} 樓`, life:3 });
+  return true;
+}
+
 export function requestFloor(st, sim, f, shaftIdx){
   if (f < 0 || f >= st.floors) return;
   let s;
@@ -296,6 +367,10 @@ function groupAssign(st, sim, d){
 }
 
 function chooseTarget(st, sim, s){
+  // B 疏散模式：全部電梯先去爆量的那一層
+  if (sim.evacUntil > st.t && sim.surgeFloor && sim.surgeFloor.f >= s.from && sim.surgeFloor.f <= s.to){
+    if (Math.abs(s.pos - sim.surgeFloor.f) > 1e-6 || s.riders.length === 0) return sim.surgeFloor.f;
+  }
   if (s.queue.length) return s.queue.shift();          // 玩家手動點的最優先
   // 藍圖階的控制系統比 FIFO 更進階，本身就足以自己跑（Prestige 之後不會退回全手動）
   const advanced = st.auto.dest || st.auto.group || st.auto.shuttle || st.auto.double || st.auto.skylobby;
@@ -441,24 +516,50 @@ export function step(st, sim, dt){
       // 從最高（最貴）的那一帶開始跑掉——高租金的租戶最沒耐性
       for (let i = BANDS.length - 1; i >= 0; i--){
         const b = BANDS[i];
-        if (leasedInBand(st, b) > 0){
-          st.leased[b.key]--;
-          sim.toasts.push({ txt:`📉 ${b.name}層的租戶受不了搬走了（評價 ${st.rating.toFixed(1)}）`, life:4 });
-          break;
+        if (leasedInBand(st, b) <= 0) continue;
+        const m = bandLeases(st, b);
+        // 先走的是最貴的那種租戶
+        let pick = null, best = -1;
+        for (const id in m){
+          if (!m[id]) continue;
+          const t = tenantById(id);
+          const v = t ? t.fare : 1;
+          if (v > best){ best = v; pick = id; }
         }
+        if (!pick) continue;
+        m[pick]--; if (m[pick] <= 0) delete m[pick];
+        const t = tenantById(pick);
+        sim.toasts.push({ txt:`📉 ${b.name}層的${t ? t.name : '租戶'}受不了搬走了（評價 ${st.rating.toFixed(1)}）`, life:4 });
+        break;
       }
     } else if (st.rating > C.WOM_RATING && Math.random() < C.WOM_CHANCE){
       for (const b of BANDS){
-        if (leasedInBand(st, b) < builtInBand(st, b)){
-          st.leased[b.key] = (st.leased[b.key] || 0) + 1;
-          sim.toasts.push({ txt:`📈 口碑帶來新租戶：${b.name}層免費多租出一層`, life:4 });
-          break;
-        }
+        if (leasedInBand(st, b) >= builtInBand(st, b)) continue;
+        const m = bandLeases(st, b);
+        const id = defaultTenant(b.key);
+        m[id] = (m[id] || 0) + 1;
+        st.leased[b.key] = m;
+        sim.toasts.push({ txt:`📈 口碑帶來新租戶：${b.name}層免費多租出一層`, life:4 });
+        break;
       }
     }
   }
 
-  // --- 8 突發流量事件
+  // --- 8/A 租戶自己會製造的事件
+  tenantEvents(st, sim, dt);
+
+  // --- B 到期的預警事件
+  if (sim.pending.length){
+    const simTopAll = Math.min(st.floors, C.SIM_FLOORS) - 1;
+    for (let i = sim.pending.length - 1; i >= 0; i--){
+      if (st.t >= sim.pending[i].at){
+        const q = sim.pending.splice(i, 1)[0];
+        runEvent(st, sim, q.ev, q.band, q.tenant, simTopAll, q.floor, q.scale);
+      }
+    }
+  }
+
+  // --- 8 隨機突發事件（跟租戶無關的那些）
   sim.eventT += dt;
   if (sim.eventT >= C.EVENT_EVERY){
     sim.eventT = 0;

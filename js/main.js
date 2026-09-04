@@ -3,7 +3,7 @@ import { CONFIG as C, ACHIEVEMENTS, BANDS } from './content.js';
 import { newGame, load, save, wipe, applyOffline, derived, doPrestige, checkAchievements,
          buyUpgrade, buyAutomation, upgradeCost, prestigeGain, buyLease, leaseCost,
          occOf, fillLease } from './state.js';
-import { createSim, syncShafts, step, requestFloor, fmtShort } from './sim.js';
+import { createSim, syncShafts, step, requestFloor, evacuate, fmtShort } from './sim.js';
 import { layout, draw, floorAt, view } from './render.js';
 import { buildUI, refreshUI, toast, overlay } from './ui.js';
 
@@ -92,6 +92,19 @@ function beep(f, dur, g){
     o.start(); o.stop(actx.currentTime + dur + .02);
   }catch(e){}
 }
+const evacBtn = document.getElementById('evac');
+evacBtn.addEventListener('click', () => { if (evacuate(app.st, app.sim)) beep(880, .18, .12); });
+function refreshEvac(){
+  const d = derived(app.st);
+  if (!d.evacLevel || !app.sim.surgeFloor || app.sim.surgeFloor.until < app.st.t){
+    evacBtn.classList.add('off'); return;
+  }
+  evacBtn.classList.remove('off');
+  const cd = Math.ceil(app.sim.evacReady - app.st.t);
+  evacBtn.classList.toggle('cool', cd > 0);
+  evacBtn.textContent = cd > 0 ? `🚨 冷卻 ${cd}s` : `🚨 疏散 ${app.sim.surgeFloor.f + 1} 樓`;
+}
+
 document.getElementById('sound').addEventListener('click', e => {
   sound = !sound; e.currentTarget.textContent = sound ? '🔈' : '🔇';
 });
@@ -116,7 +129,7 @@ function frame(now){
   dingIfArrived();
 
   uiT += dt;
-  if (uiT > 0.2){ uiT = 0; refreshUI(); drawToasts(); }
+  if (uiT > 0.2){ uiT = 0; refreshUI(); drawToasts(); refreshEvac(); }
   saveT += dt;
   if (saveT > C.SAVE_EVERY){ saveT = 0; save(app.st); }
 

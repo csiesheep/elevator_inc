@@ -1,8 +1,10 @@
 // ui.js — 面板。手機用底部抽屜，桌機用右側欄。
-import { UPGRADES, AUTOMATION, SKILLS, PASSENGERS, BANDS, ACHIEVEMENTS, CONFIG as C } from './content.js';
+import { UPGRADES, AUTOMATION, SKILLS, PASSENGERS, BANDS, ACHIEVEMENTS, CONFIG as C,
+         tenantsFor, tenantById } from './content.js';
 import { derived, upgradeCost, upgradeMaxed, buyUpgrade, buyAutomation, skillCost, buySkill,
          prestigeGain, canPrestige, algoName,
-         builtInBand, leasedInBand, occOf, leaseCost, canLease, buyLease, leaseBlocked } from './state.js';
+         builtInBand, leasedInBand, occOf, leaseCost, canLease, buyLease, leaseBlocked,
+         tenantCount, tenantMix } from './state.js';
 import { fmtShort, dayName, hourOf } from './sim.js';
 
 const $ = s => document.querySelector(s);
@@ -26,7 +28,7 @@ export function buildUI(a){
     if (act === 'up')     { if (buyUpgrade(st, id)) app.onBuy(id); }
     if (act === 'auto')   { if (buyAutomation(st, id)) app.onBuy(id); }
     if (act === 'skill')  { buySkill(st, id); }
-    if (act === 'lease')  { buyLease(st, id); }
+    if (act === 'lease')  { buyLease(st, id, el.dataset.tenant); }
     if (act === 'prestige') app.onPrestige();
     if (act === 'orbit')  app.onOrbit();
     if (act === 'wipe')   app.onWipe();
@@ -95,14 +97,28 @@ function tabUpgrades(){
   else if (!vacant) h += `<div class="note">每一層都有租戶了。再蓋新的樓層就要重新招商。</div>`;
   for (const b of bands){
     const built = builtInBand(st, b), leased = leasedInBand(st, b);
-    const full = leased >= built, c = leaseCost(st, b);
+    const full = leased >= built;
     const pct = Math.round(occOf(st, b) * 100);
-    h += `<div class="card ${full ? 'owned' : (st.cash < c || blocked ? 'dis' : '')}"
-      ${full || st.cash < c || blocked ? '' : `data-act="lease" data-id="${b.key}"`}>
+    const mix = tenantMix(st, b);
+    h += `<div class="card plain">
       <div class="cardTop"><span class="cName">${b.name} <b>${leased}/${built}</b></span>
-        <span class="cCost">${full ? '滿租' : '$' + fmtShort(c)}</span></div>
+        <span class="cCost">${full ? '滿租' : `${built - leased} 層空著`}</span></div>
       <div class="occBar"><i style="width:${pct}%"></i></div>
-      <div class="cHint">入住率 ${pct}%${full ? '' : ' —— 空的樓層不會有任何乘客'}</div></div>`;
+      <div class="cHint">入住率 ${pct}%　租戶組合 ×${mix.fare.toFixed(2)} 單價 · ×${mix.pop.toFixed(2)} 人流</div>`;
+    if (!full && !blocked){
+      for (const t of tenantsFor(b.key)){
+        const c = leaseCost(st, b, t.id);
+        const have = tenantCount(st, b, t.id);
+        h += `<div class="tenant ${st.cash < c ? 'dis' : ''}"
+          ${st.cash < c ? '' : `data-act="lease" data-id="${b.key}" data-tenant="${t.id}"`}>
+          <div class="tRow"><b>${t.name}</b>${have ? `<span class="dim"> ×${have}</span>` : ''}
+            <span class="tCost">$${fmtShort(c)}</span></div>
+          <div class="tMeta">單價 ×${t.fare.toFixed(2)} · 人流 ×${t.pop.toFixed(2)}${
+            t.event ? ' · <span class="warn">會爆量</span>' : ''}</div>
+          <div class="tNote">${t.note}</div></div>`;
+      }
+    }
+    h += `</div>`;
   }
 
   h += `<div class="sect">電梯</div>`;

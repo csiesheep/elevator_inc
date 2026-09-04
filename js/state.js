@@ -1,5 +1,6 @@
 // state.js — 單一個可序列化的 GameState。無法 JSON.stringify 的東西不准進來。
-import { CONFIG as C, UPGRADES, AUTOMATION, SKILLS, ACHIEVEMENTS, BANDS, bandOf } from './content.js';
+import { CONFIG as C, UPGRADES, AUTOMATION, SKILLS, ACHIEVEMENTS, BANDS, bandOf,
+         TENANTS, tenantsFor, defaultTenant, tenantById } from './content.js';
 
 const SAVE_KEY = 'elevator_inc_v1';
 
@@ -40,8 +41,28 @@ export function builtInBand(st, b){
   const hi = Math.min(st.floors, b.to);
   return Math.max(0, hi - b.from + 1);
 }
+// st.leased[bandKey] = { tenantId: 幾層 }
+export function bandLeases(st, b){
+  const v = st.leased && st.leased[b.key];
+  return (v && typeof v === 'object') ? v : {};
+}
 export function leasedInBand(st, b){
-  return Math.min(st.leased && st.leased[b.key] || 0, builtInBand(st, b));
+  const m = bandLeases(st, b);
+  let n = 0; for (const k in m) n += m[k] || 0;
+  return Math.min(n, builtInBand(st, b));
+}
+export function tenantCount(st, b, id){ return bandLeases(st, b)[id] || 0; }
+
+// 這一帶的租戶組合平均出來的票價／人流倍率（樓層在模型裡是可互換的，所以取平均）
+export function tenantMix(st, b){
+  const m = bandLeases(st, b);
+  let n = 0, fare = 0, pop = 0;
+  for (const id in m){
+    const t = tenantById(id); const c = m[id] || 0;
+    if (!t || !c) continue;
+    n += c; fare += t.fare * c; pop += t.pop * c;
+  }
+  return n ? { fare: fare / n, pop: pop / n, n } : { fare: 1, pop: 1, n: 0 };
 }
 export function occOf(st, b){
   const built = builtInBand(st, b);
@@ -56,25 +77,43 @@ export function isLeased(st, f){
   const b = bandOf(f + 1);
   return (f + 1) - b.from < leasedInBand(st, b);
 }
-export function leaseCost(st, b){
-  return Math.ceil(C.LEASE_BASE * (b.tier || 1) * Math.pow(C.LEASE_GROWTH, leasedTotal(st)));
+export function leaseCost(st, b, tenantId){
+  const t = tenantById(tenantId || defaultTenant(b.key));
+  const mult = t ? (0.55 + 0.45 * t.fare + 0.25 * t.pop) : 1;   // 好租戶要花錢搶
+  return Math.ceil(C.LEASE_BASE * (b.tier || 1) * mult * Math.pow(C.LEASE_GROWTH, leasedTotal(st)));
 }
 export function canLease(st, b){ return leasedInBand(st, b) < builtInBand(st, b); }
 // 評價太差就招不到新租戶——比「趕走已經付過錢的租戶」溫和，但一樣擋住成長
 export function leaseBlocked(st){ return st.rating < C.LEASE_BLOCK; }
-export function buyLease(st, key){
+export function buyLease(st, key, tenantId){
   const b = BANDS.find(x => x.key === key);
   if (!b || !canLease(st, b) || leaseBlocked(st)) return false;
-  const c = leaseCost(st, b);
+  const id = tenantId || defaultTenant(key);
+  const t = tenantById(id);
+  if (!t || !t.bands.includes(key)) return false;
+  const c = leaseCost(st, b, id);
   if (st.cash < c) return false;
   st.cash -= c;
-  st.leased[key] = (st.leased[key] || 0) + 1;
+  const m = st.leased[key] = bandLeases(st, b);
+  m[id] = (m[id] || 0) + 1;
   return true;
 }
 // 把已蓋好的樓層全部標成已招商（開局與舊存檔轉換用）
 export function fillLease(st){
   st.leased = st.leased || {};
-  for (const b of BANDS) st.leased[b.key] = builtInBand(st, b);
+  for (const b of BANDS){
+    const built = builtInBand(st, b);
+    st.leased[b.key] = built ? { [defaultTenant(b.key)]: built } : {};
+  }
+}
+// 舊存檔的 leased 是純數字，轉成租戶表
+export function migrateLeases(st){
+  if (!st.leased) return;
+  for (const b of BANDS){
+    const v = st.leased[b.key];
+    if (typeof v === 'number') st.leased[b.key] = v ? { [defaultTenant(b.key)]: v } : {};
+    else if (!v) st.leased[b.key] = {};
+  }
 }
 
 // ------------------------------------------------------------ 衍生數值
@@ -98,6 +137,11 @@ export function derived(st){
   d.ratingGain = 1 + 0.2 * (sk.a_rate || 0);
   // 11 口碑迴圈：評價不只影響票價，也影響「有多少人願意上門」
   d.womMult = C.WOM_MIN + (C.WOM_MAX - C.WOM_MIN) * (st.rating / C.RATING_MAX);
+  // 5.6 的 B：事件工具
+  d.warnLead  = 8 * (sk.o_warn || 0);                       // 提前幾秒預告
+  d.surgeMult = 1 + 0.18 * (sk.o_surge || 0);               // 事件乘客的票價加給
+  d.evacLevel = sk.o_evac || 0;
+  d.evacCool  = d.evacLevel ? [0, 90, 70, 50][d.evacLevel] : 0;
   // 6 解除 clamp：人流不再由 min(floors, 40) 決定，改由 sim.js 依「真實樓數 × 每層人口
   // 權重」算出來，所以蓋高樓真的會變忙。
   return d;
@@ -152,7 +196,9 @@ export function buyUpgrade(st, id){
       const room = builtInBand(st, b) - leasedInBand(st, b);
       if (room <= 0) continue;
       const take = Math.min(room, left);
-      st.leased[b.key] = (st.leased[b.key] || 0) + take;
+      const m = st.leased[b.key] = bandLeases(st, b);
+      const id = defaultTenant(b.key);
+      m[id] = (m[id] || 0) + take;
       left -= take;
     }
   }
@@ -233,7 +279,7 @@ export function load(){
     for (const k in fresh) if (!(k in st)) st[k] = fresh[k];
     for (const u of UPGRADES) if (!(u.id in st.up)) st.up[u.id] = 0;
     for (const a of AUTOMATION) if (!(a.id in st.auto)) st.auto[a.id] = false;
-    if (!st.leased) fillLease(st);   // 舊存檔：已蓋的樓層視為已招商
+    if (!st.leased) fillLease(st); else migrateLeases(st);   // 舊存檔相容
     return st;
   } catch(e){ return null; }
 }
