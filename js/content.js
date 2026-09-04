@@ -25,7 +25,22 @@ export const CONFIG = {
   PRESTIGE_FLOOR: 60,     // 開放拆樓的門檻
   PRESTIGE_DIV:   1e6,    // 藍圖 = floor(sqrt(本輪總收入 / 這個數))
   ENDING_FLOOR:   200,
+
+  // --- 5.2 的六項人流改動 ---
+  SAMPLE_RATE:    0.05,   // 1 取樣模擬：SIM_FLOORS 以上只生成 5% 的乘客
+  SAMPLE_WEIGHT:  20,     // 每個被取樣的乘客身上帶幾人份（= 1 / SAMPLE_RATE）
+  MOOD_MIN:       0.55,   // 7「今日人潮」隨機遊走的上下限
+  MOOD_MAX:       1.60,
+  MOOD_DRIFT:     0.08,   // 每次抖動的幅度
+  MOOD_EVERY:     6,      // 幾秒抖一次
+  WEEK_DAYS:      7,      // 9 一週作息：一天 3 分鐘 → 一週 21 分鐘
+  EVENT_EVERY:    75,     // 8 突發事件：平均幾秒檢查一次
+  EVENT_CHANCE:   0.55,   // 檢查時發生的機率
+  LOBBY_SHARE:    0.40,   // 2 OD：有多少比例的行程一端是大廳
+  RATE_PER_WEIGHT: 0.0080, // 6 人流 = 每單位人口權重每秒幾個人（取代寫死的 spawnEvery）
 };
+
+export const WEEKDAYS = ['週一', '週二', '週三', '週四', '週五', '週六', '週日'];
 
 // ---------------------------------------------------------------- 現金升級
 // 五個屬性互相牽制，沒有一個是「全面更好」的（設計 4.6）
@@ -108,14 +123,24 @@ export const PASSENGERS = [
 ];
 
 // ---------------------------------------------------------------- 樓層類型（進度軸）
+// pop  = 每層的相對人口（決定這一帶有多少人要搭電梯）
+// peak = 一天之中什麼時候「往這裡去」：up 是進來的尖峰，down 是離開的尖峰（小時）
+// wknd = 週末的人流倍率
 export const BANDS = [
-  { key:'retail', from:1,   to:10,  name:'零售',     color:'#3a4a63', tier:1.0, unlock:'基礎流量' },
-  { key:'office', from:11,  to:30,  name:'辦公',     color:'#3f5a52', tier:1.5, unlock:'尖峰時段：早上 9 點與傍晚 6 點暴衝' },
-  { key:'hotel',  from:31,  to:60,  name:'飯店',     color:'#5c4a3a', tier:2.2, unlock:'行李（佔位）與夜間流量' },
-  { key:'resid',  from:61,  to:100, name:'住宅',     color:'#4a3f5c', tier:3.0, unlock:'常客、搬家公司' },
-  { key:'obs',    from:101, to:150, name:'觀景台',   color:'#3a5570', tier:4.0, unlock:'觀光客潮' },
-  { key:'exp',    from:151, to:199, name:'實驗樓層', color:'#5c3a4a', tier:5.5, unlock:'研究員與破壞平衡的東西' },
-  { key:'roof',   from:200, to:9999,name:'屋頂→軌道', color:'#2f4f6b', tier:7.0, unlock:'結局' },
+  { key:'retail', from:1,   to:10,  name:'零售',     color:'#3a4a63', tier:1.0,
+    pop:1.15, up:[11,20], down:[11,21], wknd:1.5, unlock:'基礎流量' },
+  { key:'office', from:11,  to:30,  name:'辦公',     color:'#3f5a52', tier:1.5,
+    pop:1.00, up:[8,10],  down:[17,19], wknd:0.22, unlock:'尖峰時段：早上 9 點與傍晚 6 點暴衝' },
+  { key:'hotel',  from:31,  to:60,  name:'飯店',     color:'#5c4a3a', tier:2.2,
+    pop:0.75, up:[20,24], down:[7,11],  wknd:1.6, unlock:'行李（佔位）、夜間到達與早晨退房' },
+  { key:'resid',  from:61,  to:100, name:'住宅',     color:'#4a3f5c', tier:3.0,
+    pop:0.90, up:[18,22], down:[7,9],   wknd:1.2, unlock:'常客、搬家公司；早上下樓、晚上回家' },
+  { key:'obs',    from:101, to:150, name:'觀景台',   color:'#3a5570', tier:4.0,
+    pop:0.55, up:[10,18], down:[12,21], wknd:2.0, unlock:'觀光客潮，單向朝聖' },
+  { key:'exp',    from:151, to:199, name:'實驗樓層', color:'#5c3a4a', tier:5.5,
+    pop:0.45, up:[6,23],  down:[6,23],  wknd:0.8, unlock:'研究員與破壞平衡的東西' },
+  { key:'roof',   from:200, to:9999,name:'屋頂→軌道', color:'#2f4f6b', tier:7.0,
+    pop:0.30, up:[10,20], down:[10,20], wknd:1.4, unlock:'結局' },
 ];
 
 export const bandOf = f => BANDS.find(b => f >= b.from && f <= b.to) || BANDS[0];
@@ -136,6 +161,27 @@ export const SKILLS = [
   { id:'a_floor', branch:'建築', name:'深基礎',       max:10, cost:l=>2+l,      detail:'起始樓層 +10' },
   { id:'a_cost',  branch:'建築', name:'預鑄工法',     max:6,  cost:l=>3+l*2,    detail:'加蓋樓層成本 -10%（相乘）' },
   { id:'a_rate',  branch:'建築', name:'招商部門',     max:6,  cost:l=>2+l,      detail:'起始評價 +0.3、評價上升快 20%' },
+];
+
+// ---------------------------------------------------------------- 突發流量事件（5.2 的 8）
+// n = 一次丟出幾個人；at 決定發生在哪一帶；to 決定他們要去哪
+export const EVENTS = [
+  { id:'meeting', name:'會議散場', w:30, n:[8,16], at:'office', to:'lobby',
+    hours:[10,18], text:'📣 會議散場：{f} 樓一次湧出 {n} 個人' },
+  { id:'checkin', name:'旅行團進房', w:22, n:[6,12], at:'lobby', to:'hotel',
+    hours:[15,23], text:'🧳 旅行團到了：大廳 {n} 個人要上飯店層' },
+  { id:'checkout', name:'退房潮', w:18, n:[6,12], at:'hotel', to:'lobby',
+    hours:[7,12], text:'🧳 退房潮：{n} 個人拖著行李要下樓' },
+  { id:'drill', name:'消防演習', w:10, n:[10,18], at:'any', to:'lobby',
+    hours:[9,17], panic:0.5, text:'🚨 消防演習：所有人要疏散到大廳，而且很不耐煩' },
+  { id:'tour', name:'觀景台人潮', w:16, n:[8,16], at:'lobby', to:'obs',
+    hours:[10,20], text:'📷 觀景台排隊人潮：大廳 {n} 個人要上去' },
+  { id:'delivery', name:'到貨潮', w:14, n:[5,9], at:'lobby', to:'any',
+    hours:[8,16], text:'📦 到貨潮：{n} 個送貨員同時進大廳' },
+  { id:'party', name:'尾牙散場', w:8, n:[12,22], at:'any', to:'lobby',
+    hours:[20,24], text:'🎉 尾牙散場：{f} 樓 {n} 個人一起要走' },
+  { id:'newyear', name:'跨年倒數', w:5, n:[16,26], at:'lobby', to:'roof',
+    hours:[21,24], text:'🎆 跨年倒數：{n} 個人全都要上頂樓' },
 ];
 
 // ---------------------------------------------------------------- 成就

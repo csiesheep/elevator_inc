@@ -1,7 +1,7 @@
 // render.js — 畫面。相機永遠框住整棟樓：樓越高，樓就越細，這本身就是獎勵（設計 4.12）。
 import { CONFIG as C, bandOf } from './content.js';
 import { derived } from './state.js';
-import { hourOf, fmtShort } from './sim.js';
+import { hourOf, dayName, fmtShort } from './sim.js';
 
 export const view = { W:0, H:0, pad:10, fh:0, shaftX:0, shaftW:0, colW:0 };
 
@@ -90,9 +90,26 @@ export function draw(ctx, st, sim){
     ctx.beginPath(); ctx.moveTo(pad, y + fh); ctx.lineTo(W - pad, y + fh); ctx.stroke();
   }
 
+  // ---- 取樣乘客（代表 20 人份）：不管樓層被壓得多扁都要看得見
+  const heavy = sim.waiting.filter(p => (p.w || 1) > 1);
+  for (const p of heavy){
+    const y = floorY(p.origin) + fh / 2;
+    const urgent = p.left / p.patience < 0.3;
+    ctx.fillStyle = urgent ? '#e2645a' : '#f0c04a';
+    ctx.beginPath(); ctx.arc(pad + 14, y, Math.max(3, Math.min(5, fh / 2)), 0, 7); ctx.fill();
+    ctx.font = '700 10px system-ui'; ctx.textAlign = 'left';
+    ctx.fillText(`×${p.w} → ${p.dest + 1}`, pad + 22, y + 3.5);
+    // 耐性條
+    const bw = 26, r = Math.max(0, p.left / p.patience);
+    ctx.fillStyle = '#2a2f3b'; ctx.fillRect(pad + 22, y + 6, bw, 2);
+    ctx.fillStyle = urgent ? '#e2645a' : '#5ddc9a';
+    ctx.fillRect(pad + 22, y + 6, bw * r, 2);
+  }
+
   // ---- 等待中的乘客
   const perFloor = new Map();
-  for (const p of sim.waiting) perFloor.set(p.origin, (perFloor.get(p.origin) || []).concat(p));
+  for (const p of sim.waiting){ if ((p.w || 1) > 1) continue;
+    perFloor.set(p.origin, (perFloor.get(p.origin) || []).concat(p)); }
   for (const [f, list] of perFloor){
     const y = floorY(f);
     if (detail){
@@ -134,6 +151,11 @@ export function draw(ctx, st, sim){
     ctx.lineWidth = s.mode === 'doors' ? 2 : 1;
     ctx.strokeRect(x + 1.5, y + .5, w - 3, carH - 1);
 
+    const heavyRiders = s.riders.filter(r => (r.w || 1) > 1).length;
+    if (heavyRiders){
+      ctx.fillStyle = '#f0c04a';
+      ctx.beginPath(); ctx.arc(x + w - 4, y + 4, 2.5, 0, 7); ctx.fill();
+    }
     if (detail && s.riders.length){
       const cap = derived(st).capacity;
       s.riders.slice(0, 6).forEach((p, k) => {
@@ -180,10 +202,13 @@ export function draw(ctx, st, sim){
   const hh = String(Math.floor(h)).padStart(2, '0');
   const mm = String(Math.floor((h % 1) * 60)).padStart(2, '0');
   ctx.textAlign = 'left'; ctx.font = '600 11px system-ui'; ctx.fillStyle = '#8d97ae';
-  ctx.fillText(`${hh}:${mm}`, pad + 2, pad + 10);
+  ctx.fillText(`${dayName(st)} ${hh}:${mm}`, pad + 2, pad + 10);
+  let hx = pad + 76;
   if ((h >= 8 && h < 10) || (h >= 17 && h < 19)){
-    ctx.fillStyle = '#f0a04a'; ctx.fillText('尖峰', pad + 38, pad + 10);
+    ctx.fillStyle = '#f0a04a'; ctx.fillText('尖峰', hx, pad + 10); hx += 30;
   }
+  if (sim.mood >= 1.25){ ctx.fillStyle = '#e2645a'; ctx.fillText('人潮洶湧', hx, pad + 10); }
+  else if (sim.mood <= 0.75){ ctx.fillStyle = '#6d7690'; ctx.fillText('冷清', hx, pad + 10); }
 }
 
 function drawPerson(ctx, x, y, label, inCar, p){

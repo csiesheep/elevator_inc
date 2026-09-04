@@ -51,7 +51,8 @@ export function derived(st){
   d.fareMult = (1 + 0.25 * st.rating) * (1 + 0.06 * (sk.o_fare || 0));
   d.algoEff  = algoEfficiency(st) * (1 + 0.08 * (sk.o_algo || 0));
   d.ratingGain = 1 + 0.2 * (sk.a_rate || 0);
-  d.spawnEvery = C.SPAWN_START / (1 + (Math.min(st.floors, C.SIM_FLOORS) - 10) * 0.05);
+  // 6 解除 clamp：人流不再由 min(floors, 40) 決定，改由 sim.js 依「真實樓數 × 每層人口
+  // 權重」算出來，所以蓋高樓真的會變忙。
   return d;
 }
 

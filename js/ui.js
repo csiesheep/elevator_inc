@@ -2,7 +2,7 @@
 import { UPGRADES, AUTOMATION, SKILLS, PASSENGERS, BANDS, ACHIEVEMENTS, CONFIG as C } from './content.js';
 import { derived, upgradeCost, upgradeMaxed, buyUpgrade, buyAutomation, skillCost, buySkill,
          prestigeGain, canPrestige, algoName } from './state.js';
-import { fmtShort } from './sim.js';
+import { fmtShort, dayName, hourOf } from './sim.js';
 
 const $ = s => document.querySelector(s);
 let app, tab = 'up';
@@ -47,8 +47,11 @@ function header(){
   const stars = Math.round(st.rating * 2) / 2;
   $('#rating').innerHTML = `★ ${st.rating.toFixed(2)} <span class="dim">×${d.fareMult.toFixed(2)} 票價</span>`;
   $('#rating').className = stars >= 4 ? 'good' : stars >= 2.5 ? '' : 'bad';
+  const mood = sim.mood >= 1.25 ? '人潮洶湧' : sim.mood <= 0.75 ? '冷清' : '平常';
+  const heavy = sim.waiting.filter(p => (p.w || 1) > 1).length;
   $('#hud').textContent =
-    `${st.floors} 樓 · ${sim.shafts.length} 井 · ${algoName(st)} · 等待 ${sim.waiting.length}`;
+    `${st.floors} 樓 · ${sim.shafts.length} 井 · ${algoName(st)} · 等待 ${sim.waiting.length}` +
+    (heavy ? `（高樓 ${heavy}）` : '') + ` · ${dayName(st)} ${mood}`;
 }
 
 // ------------------------------------------------------------ 分頁
