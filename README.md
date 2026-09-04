@@ -9,8 +9,12 @@ python -m http.server 8131
 
 或用專案內建的設定：`.claude/launch.json` 的 `elevator-proto`。
 
-- `index.html` —— 完整遊戲
+- `index.html` —— 首頁（開始／玩法說明／帳本／更多遊戲）
+- `game.html` —— 遊戲本體
 - `prototype.html` —— 最早的兩天原型（只有核心動詞：點樓層 → 電梯過去 → 開門 → 收錢），留著當手感基準
+
+介面有**繁體中文與英文**兩種語言，右上角切換，選擇會記在 localStorage。
+第一次進來看瀏覽器語言決定。
 
 ## 檔案結構
 
@@ -22,6 +26,9 @@ python -m http.server 8131
 | `js/render.js` | canvas 繪圖與相機 |
 | `js/ui.js` | 六個分頁面板 |
 | `js/main.js` | 固定時間步迴圈、輸入、音效 |
+| `js/landing.js` | 首頁：說明、帳本（直接讀存檔，不啟動遊戲迴圈） |
+| `js/i18n.js` | 語言狀態與 UI 字串字典 |
+| `js/i18n-content.js` | content.js 那些資料的英文對照；查不到就退回中文 |
 
 存檔只存 `GameState`（約 700 bytes）。乘客陣列**不進存檔**，重開時重新生成。
 

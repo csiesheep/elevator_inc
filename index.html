@@ -2,47 +2,40 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Elevator Inc.</title>
+<meta name="description" content="An incremental game about the vertical transport of a tower that keeps growing.">
 <link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/landing.css">
 </head>
-<body>
+<body class="landing">
 
-<header id="top">
-  <div class="money">
-    <div id="cash">$0</div>
-    <div id="rate" class="dim">$0/秒</div>
-  </div>
-  <div class="meta">
-    <div id="bp">📐 0</div>
-    <div id="rating">★ 3.00</div>
-  </div>
-  <div class="btns">
-    <button id="boost" title="按住超速（會過熱）">🔥</button>
-    <button id="sound">🔈</button>
-  </div>
-</header>
-<div id="hud"></div>
+<button id="lang" class="langBtn">EN</button>
 
-<main>
-  <div id="stage"><canvas id="c"></canvas></div>
+<main id="land">
+  <div class="hero">
+    <div class="tower" aria-hidden="true">
+      <div class="shaft"><div class="car"></div></div>
+    </div>
+    <h1>Elevator&nbsp;Inc.</h1>
+    <p class="tag" data-i18n="landTagline"></p>
+    <p class="save dim" id="saveLine"></p>
+  </div>
 
-  <aside id="panel">
-    <div id="grabber"></div>
-    <nav id="tabs">
-      <button data-tab="up"    class="on">升級</button>
-      <button data-tab="auto">自動化</button>
-      <button data-tab="skill">藍圖</button>
-      <button data-tab="codex">圖鑑</button>
-      <button data-tab="stats">統計</button>
-      <button data-tab="pres">拆樓</button>
-    </nav>
-    <div id="panelBody"></div>
-  </aside>
+  <nav class="menu">
+    <button class="big" id="btnStart"></button>
+    <button id="btnRules" data-i18n="btnRules"></button>
+    <button id="btnLedger" data-i18n="btnLedger"></button>
+    <a class="btn" href="https://games.csiesheep.com/" data-i18n="btnMore"></a>
+  </nav>
+
+  <footer class="foot dim">
+    <a href="https://github.com/csiesheep/elevator_inc">GitHub</a> ·
+    <a href="https://games.csiesheep.com/">games.csiesheep.com</a>
+  </footer>
 </main>
 
-<button id="evac" class="off">🚨 疏散模式</button>
-<div id="toasts"></div>
-<script type="module" src="js/main.js"></script>
+<div id="sheetHost"></div>
+<script type="module" src="js/landing.js"></script>
 </body>
 </html>

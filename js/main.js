@@ -6,6 +6,7 @@ import { newGame, load, save, wipe, applyOffline, derived, doPrestige, checkAchi
 import { createSim, syncShafts, step, requestFloor, evacuate, fmtShort } from './sim.js';
 import { layout, draw, floorAt, view } from './render.js';
 import { buildUI, refreshUI, toast, overlay } from './ui.js';
+import { t, L, getLang, toggleLang } from './i18n.js';
 
 const cv = document.getElementById('c');
 const ctx = cv.getContext('2d');
@@ -15,32 +16,28 @@ const app = {
   sim: null,
   onBuy(id){
     syncShafts(app.st, app.sim);
-    if (id === 'shaft') toast('新的電梯井上線了');
-    if (id === 'fifo')  toast('它開始自己跑了');
+    if (id === 'shaft') toast(t('newShaft'));
+    if (id === 'fifo')  toast(t('itRuns'));
     save(app.st);
   },
   onPrestige(){
     const { st, gain } = doPrestige(app.st);
     app.st = st; app.sim = createSim(st);
     save(st);
-    overlay('拆掉重蓋', `這一輪換到 <b>📐 ${gain}</b> 張藍圖。<br>樓沒了，圖紙還在。`, '蓋新的');
+    overlay(t('presTitle'), t('presBody', gain), t('presBtn'));
     refreshUI();
   },
   onOrbit(){
     app.st.cash -= 5e8; app.st.bp -= 20; app.st.ending = true;
     save(app.st);
-    overlay('離開大氣層',
-      `電梯沒有在屋頂停下來。<br><br>` +
-      `井道繼續往上，穿過雲層、穿過對流層頂，最後停在一個沒有樓層編號的地方。<br><br>` +
-      `你蓋了 <b>${app.st.floors}</b> 層，送了 <b>${fmtShort(app.st.stats.served)}</b> 個人，` +
-      `賺了 <b>$${fmtShort(app.st.lifetimeRevenue)}</b>。<br><br>` +
-      `<span class="dim">遊戲結束了。你還是可以繼續蓋，但它已經沒有更高的地方可以去。</span>`,
-      '好');
+    overlay(t('endTitle'),
+      t('endBody', app.st.floors, fmtShort(app.st.stats.served), fmtShort(app.st.lifetimeRevenue)),
+      t('endBtn'));
   },
   onWipe(){
-    if (!confirm('確定要清空存檔？藍圖、圖鑑、成就都會不見。')) return;
+    if (!confirm(t('wipeConfirm'))) return;
     wipe(); app.st = newGame(); app.sim = createSim(app.st); refreshUI();
-    toast('全部歸零');
+    toast(t('wiped'));
   },
 };
 app.sim = createSim(app.st);
@@ -49,9 +46,21 @@ app.sim = createSim(app.st);
 const off = applyOffline(app.st);
 if (off){
   const m = Math.floor(off.secs / 60);
-  overlay('你不在的時候', `大樓自己跑了 <b>${m >= 60 ? Math.floor(m/60) + ' 小時 ' + (m%60) + ' 分' : m + ' 分'}</b>。<br>` +
-    `離線收益（50% 效率、上限 ${C.OFFLINE_CAP_H} 小時）：<b>$${fmtShort(off.earned)}</b>`, '收下');
+  const dur = m >= 60 ? t('hours', Math.floor(m/60), m%60) : t('minutes', m);
+  overlay(t('offlineTitle'), t('offlineBody', dur, C.OFFLINE_CAP_H, fmtShort(off.earned)), t('offlineBtn'));
 }
+
+// ---- 語言：靜態文字 + 切換鍵
+function applyStaticText(){
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.getElementById('lang').textContent = getLang() === 'zh' ? 'EN' : '中';
+  document.getElementById('boost').title = t('boostTitle');
+  document.title = 'Elevator Inc.';
+}
+document.getElementById('lang').addEventListener('click', () => {
+  toggleLang(); applyStaticText(); refreshUI(); refreshEvac();
+});
+applyStaticText();
 
 buildUI(app);
 
@@ -102,7 +111,7 @@ function refreshEvac(){
   evacBtn.classList.remove('off');
   const cd = Math.ceil(app.sim.evacReady - app.st.t);
   evacBtn.classList.toggle('cool', cd > 0);
-  evacBtn.textContent = cd > 0 ? `🚨 冷卻 ${cd}s` : `🚨 疏散 ${app.sim.surgeFloor.f + 1} 樓`;
+  evacBtn.textContent = cd > 0 ? t('evacCool', cd) : t('evacGo', app.sim.surgeFloor.f + 1);
 }
 
 document.getElementById('sound').addEventListener('click', e => {
@@ -133,7 +142,7 @@ function frame(now){
   saveT += dt;
   if (saveT > C.SAVE_EVERY){ saveT = 0; save(app.st); }
 
-  checkAchievements(app.st, a => toast('🏆 ' + a.name));
+  checkAchievements(app.st, a => toast('🏆 ' + L(a, 'name', 'achievements')));
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

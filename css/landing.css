@@ -1,0 +1,97 @@
+/* landing.css — 首頁。只在 body.landing 生效，不干擾遊戲本身的版面。 */
+body.landing{
+  display:block; overflow:auto; user-select:text;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #1b2432 0%, transparent 60%),
+    var(--bg);
+}
+#land{
+  max-width:520px; margin:0 auto; min-height:100%;
+  padding:48px 22px 32px; display:flex; flex-direction:column; gap:26px;
+}
+
+.langBtn{
+  position:fixed; top:14px; right:14px; z-index:20;
+  background:var(--panel); border:1px solid var(--line); color:var(--text);
+  border-radius:9px; padding:7px 12px; font:inherit; font-size:12px; cursor:pointer;
+}
+.langBtn:hover{border-color:var(--hi)}
+
+/* ---- 標題區 */
+.hero{text-align:center}
+.hero h1{
+  margin:14px 0 6px; font-size:34px; letter-spacing:.01em; font-weight:800;
+}
+.tag{margin:0 auto; max-width:26em; font-size:13.5px; line-height:1.65; color:#c2c9da}
+.save{font-size:12px; margin:12px 0 0; font-variant-numeric:tabular-nums}
+
+/* 一根會動的井道，當作 logo */
+.tower{height:132px; display:flex; justify-content:center; align-items:flex-end}
+.shaft{
+  position:relative; width:34px; height:132px; border:1px solid var(--line);
+  border-radius:4px; background:linear-gradient(#12161d,#171c26);
+  overflow:hidden;
+}
+.shaft::before{
+  content:''; position:absolute; inset:0;
+  background:repeating-linear-gradient(#1d2531 0 1px, transparent 1px 22px);
+}
+.car{
+  position:absolute; left:3px; right:3px; height:18px; border-radius:2px;
+  background:#20242e; border:1px solid var(--gold);
+  animation:ride 6.5s cubic-bezier(.45,0,.35,1) infinite;
+}
+@keyframes ride{
+  0%   {top:110px}
+  12%  {top:110px}
+  45%  {top:6px}
+  57%  {top:6px}
+  90%  {top:110px}
+  100% {top:110px}
+}
+@media (prefers-reduced-motion: reduce){ .car{animation:none; top:56px} }
+
+/* ---- 選單 */
+.menu{display:flex; flex-direction:column; gap:9px}
+.menu button, .menu .btn{
+  display:block; width:100%; text-align:center; text-decoration:none;
+  background:var(--panel); border:1px solid var(--line); color:var(--text);
+  border-radius:11px; padding:14px; font:inherit; font-size:15px; cursor:pointer;
+}
+.menu button:hover, .menu .btn:hover{border-color:var(--hi); background:#1c2230}
+.menu .big{
+  background:var(--hi); border-color:var(--hi); color:#08121e; font-weight:800; font-size:16px;
+}
+.menu .big:hover{background:#63b6ff; border-color:#63b6ff}
+
+.foot{margin-top:auto; text-align:center; font-size:11.5px; padding-top:10px}
+.foot a{color:var(--dim)}
+
+/* ---- 說明 / 帳本的浮層 */
+.sheetWrap{
+  position:fixed; inset:0; background:#000b; z-index:40; overflow:auto;
+  display:flex; align-items:flex-start; justify-content:center; padding:24px 16px;
+  backdrop-filter:blur(3px);
+}
+.sheetBox{
+  background:var(--panel); border:1px solid var(--line); border-radius:14px;
+  max-width:520px; width:100%; padding:20px 20px 16px;
+}
+.sheetBox h2{margin:0 0 14px; font-size:20px}
+.sheetBox h3{margin:18px 0 6px; font-size:13px; color:var(--hi); letter-spacing:.04em}
+.sheetBox p, .sheetBox li{font-size:13px; line-height:1.7; color:#c2c9da}
+.sheetBox ul{margin:6px 0; padding-left:1.1em}
+.sheetBox .close{
+  width:100%; margin-top:18px; padding:11px; border-radius:9px; border:1px solid var(--line);
+  background:var(--card); color:var(--text); font:inherit; cursor:pointer;
+}
+.sheetBox .close:hover{border-color:var(--hi)}
+.ledger{width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums}
+.ledger td{padding:5px 4px; border-bottom:1px solid #21262f}
+.ledger td:last-child{text-align:right; color:var(--text)}
+.ledger td:first-child{color:var(--dim)}
+.keys{display:flex; flex-wrap:wrap; gap:6px; margin:8px 0}
+.keys kbd{
+  background:var(--card); border:1px solid var(--line); border-bottom-width:2px;
+  border-radius:5px; padding:2px 7px; font:inherit; font-size:11.5px; color:var(--text);
+}

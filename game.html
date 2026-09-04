@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Elevator Inc.</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header id="top">
+  <div class="money">
+    <div id="cash">$0</div>
+    <div id="rate" class="dim">$0/秒</div>
+  </div>
+  <div class="meta">
+    <div id="bp">📐 0</div>
+    <div id="rating">★ 3.00</div>
+  </div>
+  <div class="btns">
+    <a id="home" href="./" title="Home">🏠</a>
+    <button id="lang">EN</button>
+    <button id="boost">🔥</button>
+    <button id="sound">🔈</button>
+  </div>
+</header>
+<div id="hud"></div>
+
+<main>
+  <div id="stage"><canvas id="c"></canvas></div>
+
+  <aside id="panel">
+    <div id="grabber"></div>
+    <nav id="tabs">
+      <button data-tab="up" class="on" data-i18n="tabUp"></button>
+      <button data-tab="auto" data-i18n="tabAuto"></button>
+      <button data-tab="skill" data-i18n="tabSkill"></button>
+      <button data-tab="codex" data-i18n="tabCodex"></button>
+      <button data-tab="stats" data-i18n="tabStats"></button>
+      <button data-tab="pres" data-i18n="tabPres"></button>
+    </nav>
+    <div id="panelBody"></div>
+  </aside>
+</main>
+
+<button id="evac" class="off"></button>
+<div id="toasts"></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

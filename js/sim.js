@@ -2,6 +2,7 @@
 // 這裡的東西都是暫時的：存檔只存 GameState，不存乘客陣列（設計 4.13）。
 import { CONFIG as C, PASSENGERS, BANDS, EVENTS, WEEKDAYS, bandOf, tierAt,
          TENANTS, tenantById, defaultTenant } from './content.js';
+import { t, L, getLang } from './i18n.js';
 import { derived, isLeased, occOf, builtInBand, leasedInBand, leasedTotal,
          bandLeases, tenantMix } from './state.js';
 
@@ -47,8 +48,10 @@ export function syncShafts(st, sim){
 // ------------------------------------------------------------ 時間 / 尖峰 / 星期
 export function hourOf(st){ return ((st.t % C.DAY_SECONDS) / C.DAY_SECONDS) * 24; }
 export function dayOf(st){ return Math.floor(st.t / C.DAY_SECONDS) % C.WEEK_DAYS; }
-export function dayName(st){ return WEEKDAYS[dayOf(st)]; }
+export function dayName(st){ return WEEKDAY_NAMES()[dayOf(st)]; }
 export function isWeekend(st){ return dayOf(st) >= 5; }
+const WEEKDAY_NAMES = () => getLang() === 'en'
+  ? ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] : WEEKDAYS;
 
 function rushMult(h){
   if (h >= 8 && h < 10)  return 3.0;    // 早上 9 點暴衝
@@ -234,7 +237,8 @@ function schedule(st, sim, ev, band, tenant, scale){
   const floor = band ? floorInBand(st, band.key, simTopAll) : floorInBand(st, ev.at, simTopAll);
   if (floor < 0) return;
   sim.pending.push({ ev, band, tenant, floor, at: st.t + lead, scale });
-  sim.toasts.push({ txt:`⏰ ${Math.round(lead)} 秒後：${tenant ? tenant.name : ev.name}（${floor + 1} 樓）`, life:3 });
+  sim.toasts.push({ txt:t('warnLead', Math.round(lead),
+    tenant ? L(tenant,'name','tenants') : L(ev,'name','events'), floor + 1), life:3 });
 }
 
 function rollGap(t){
@@ -279,9 +283,9 @@ function runEvent(st, sim, ev, band, tenant, simTopAll, fixedFloor, scale){
     made++;
   }
   if (!made) return;
-  const label = tenant ? `${tenant.name}：` : '';
-  sim.toasts.push({ txt: label + ev.text.replace('{n}', made).replace('{f}', from + 1), life: 4 });
-  sim.lastEvent = { name: ev.name, t: st.t, floor: from, n: made };
+  const label = tenant ? `${L(tenant,'name','tenants')}：` : '';
+  sim.toasts.push({ txt: label + L(ev,'text','events').replace('{n}', made).replace('{f}', from + 1), life: 4 });
+  sim.lastEvent = { name: L(ev,'name','events'), t: st.t, floor: from, n: made };
   sim.surgeFloor = { f: from, until: st.t + 25 };   // B 疏散模式的目標
 }
 
@@ -305,7 +309,7 @@ export function evacuate(st, sim){
   sim.evacUntil = st.t + C.EVAC_SECONDS;
   sim.evacReady = st.t + d.evacCool;
   for (const s of sim.shafts){ s.queue.length = 0; if (s.mode === 'held') s.mode = 'idle'; }
-  sim.toasts.push({ txt:`🚨 疏散模式：全部電梯趕往 ${sim.surgeFloor.f + 1} 樓`, life:3 });
+  sim.toasts.push({ txt:t('evacFire', sim.surgeFloor.f + 1), life:3 });
   return true;
 }
 
@@ -448,7 +452,7 @@ function openDoors(st, sim, s, f){
       if (p.t.ghost){
         const bonus = 50 * st.floors;
         st.cash += bonus; st.runRevenue += bonus; sim.rateAcc += bonus;
-        sim.toasts.push({ txt:`👻 十三樓的房客留下了 $${Math.round(bonus)}`, life:4 });
+        sim.toasts.push({ txt:t('ghostBonus', Math.round(bonus)), life:4 });
       }
       // 滿意度 → 評價（設計 4.5：別讓乘客生氣有長期複利價值）
       const wait = st.t - p.born;
@@ -528,8 +532,9 @@ export function step(st, sim, dt){
         }
         if (!pick) continue;
         m[pick]--; if (m[pick] <= 0) delete m[pick];
-        const t = tenantById(pick);
-        sim.toasts.push({ txt:`📉 ${b.name}層的${t ? t.name : '租戶'}受不了搬走了（評價 ${st.rating.toFixed(1)}）`, life:4 });
+        const tn = tenantById(pick);
+        sim.toasts.push({ txt:t('tenantLeft', L(b,'name','bands'),
+          tn ? L(tn,'name','tenants') : '', st.rating.toFixed(1)), life:4 });
         break;
       }
     } else if (st.rating > C.WOM_RATING && Math.random() < C.WOM_CHANCE){
@@ -539,7 +544,7 @@ export function step(st, sim, dt){
         const id = defaultTenant(b.key);
         m[id] = (m[id] || 0) + 1;
         st.leased[b.key] = m;
-        sim.toasts.push({ txt:`📈 口碑帶來新租戶：${b.name}層免費多租出一層`, life:4 });
+        sim.toasts.push({ txt:t('tenantJoined', L(b,'name','bands')), life:4 });
         break;
       }
     }
@@ -574,7 +579,7 @@ export function step(st, sim, dt){
       sim.waiting.splice(i, 1);
       st.stats.abandoned += (p.w || 1);
       st.rating -= 0.02 * (p.t.angry || 1) * Math.min(3, Math.sqrt(p.w || 1));
-      sim.pops.push({ txt:'走了', floor:p.origin, life:1, bad:true, off: Math.random()*20-10 });
+      sim.pops.push({ txt:t('gaveUp'), floor:p.origin, life:1, bad:true, off: Math.random()*20-10 });
     }
   }
 
@@ -593,7 +598,7 @@ export function step(st, sim, dt){
     if (sim.boost && active && !d.noOverheat){
       s.heat += C.HEAT_PER_SEC * dt; st.stats.boostTime += dt;
       if (s.heat >= d.heatMax){ s.lock = C.OVERHEAT_LOCK; st.stats.overheats++;
-        sim.toasts.push({ txt:'🔥 馬達過熱，強制停機 8 秒', life:3 }); continue; }
+        sim.toasts.push({ txt:t('overheated'), life:3 }); continue; }
     } else {
       s.heat = Math.max(0, s.heat - d.heatCool * dt);
     }

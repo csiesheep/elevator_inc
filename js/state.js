@@ -2,6 +2,8 @@
 import { CONFIG as C, UPGRADES, AUTOMATION, SKILLS, ACHIEVEMENTS, BANDS, bandOf,
          TENANTS, tenantsFor, defaultTenant, tenantById } from './content.js';
 
+import { t, L } from './i18n.js';
+
 const SAVE_KEY = 'elevator_inc_v1';
 
 export function newGame(carry){
@@ -163,11 +165,12 @@ export function algoEfficiency(st){
 }
 
 export function algoName(st){
-  if (st.auto.dest || st.auto.group) return st.auto.group ? '群組控制' : '目的地控制';
+  if (st.auto.group) return L({ id:'group' }, 'name', 'automation') || '群組控制';
+  if (st.auto.dest)  return L({ id:'dest' }, 'name', 'automation') || '目的地控制';
   if (st.auto.look) return 'LOOK';
   if (st.auto.scan) return 'SCAN';
   if (st.auto.fifo) return 'FIFO';
-  return '手動';
+  return t('manual');
 }
 
 // ------------------------------------------------------------ 成本

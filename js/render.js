@@ -2,6 +2,7 @@
 import { CONFIG as C, bandOf } from './content.js';
 import { derived, isLeased } from './state.js';
 import { hourOf, dayName, fmtShort } from './sim.js';
+import { t } from './i18n.js';
 
 export const view = { W:0, H:0, pad:10, fh:0, shaftX:0, shaftW:0, colW:0 };
 
@@ -70,7 +71,7 @@ export function draw(ctx, st, sim){
     ctx.fillStyle = '#8d97ae'; ctx.font = '10px system-ui'; ctx.textAlign = 'left';
     ctx.save();
     ctx.beginPath(); ctx.rect(pad, y - 14, view.shaftX - pad - 6, 14); ctx.clip();
-    ctx.fillText(`統計流量 $${fmtShort(sim.abstract.income)}/秒 · 服務率 ${Math.round(sim.abstract.ratio*100)}%`,
+    ctx.fillText(t('modelLine', fmtShort(sim.abstract.income), Math.round(sim.abstract.ratio*100)),
                  pad + 4, y - 4);
     ctx.restore();
 
@@ -213,10 +214,10 @@ export function draw(ctx, st, sim){
   ctx.fillText(`${dayName(st)} ${hh}:${mm}`, pad + 2, pad + 10);
   let hx = pad + 76;
   if ((h >= 8 && h < 10) || (h >= 17 && h < 19)){
-    ctx.fillStyle = '#f0a04a'; ctx.fillText('尖峰', hx, pad + 10); hx += 30;
+    ctx.fillStyle = '#f0a04a'; ctx.fillText(t('peak'), hx, pad + 10); hx += 34;
   }
-  if (sim.mood >= 1.25){ ctx.fillStyle = '#e2645a'; ctx.fillText('人潮洶湧', hx, pad + 10); }
-  else if (sim.mood <= 0.75){ ctx.fillStyle = '#6d7690'; ctx.fillText('冷清', hx, pad + 10); }
+  if (sim.mood >= 1.25){ ctx.fillStyle = '#e2645a'; ctx.fillText(t('busy'), hx, pad + 10); }
+  else if (sim.mood <= 0.75){ ctx.fillStyle = '#6d7690'; ctx.fillText(t('quiet'), hx, pad + 10); }
 }
 
 function drawPerson(ctx, x, y, label, inCar, p){
