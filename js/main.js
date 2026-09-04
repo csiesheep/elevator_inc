@@ -1,7 +1,8 @@
 // main.js — 迴圈與接線。固定時間步，render 解耦。
-import { CONFIG as C, ACHIEVEMENTS } from './content.js';
+import { CONFIG as C, ACHIEVEMENTS, BANDS } from './content.js';
 import { newGame, load, save, wipe, applyOffline, derived, doPrestige, checkAchievements,
-         buyUpgrade, buyAutomation, upgradeCost, prestigeGain } from './state.js';
+         buyUpgrade, buyAutomation, upgradeCost, prestigeGain, buyLease, leaseCost,
+         occOf, fillLease } from './state.js';
 import { createSim, syncShafts, step, requestFloor, fmtShort } from './sim.js';
 import { layout, draw, floorAt, view } from './render.js';
 import { buildUI, refreshUI, toast, overlay } from './ui.js';
@@ -149,6 +150,9 @@ window.__dbg = {
   buyAuto: id => { const ok = buyAutomation(app.st, id); if (ok) syncShafts(app.st, app.sim); return ok; },
   cost: id => upgradeCost(app.st, id),
   tap: f => requestFloor(app.st, app.sim, f),
+  lease: key => buyLease(app.st, key),
+  leaseCost: key => leaseCost(app.st, BANDS.find(b => b.key === key)),
+  fillLease: () => fillLease(app.st),
   gain: () => prestigeGain(app.st),
   reset: () => { wipe(); app.st = newGame(); app.sim = createSim(app.st); },
 };

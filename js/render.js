@@ -1,6 +1,6 @@
 // render.js — 畫面。相機永遠框住整棟樓：樓越高，樓就越細，這本身就是獎勵（設計 4.12）。
 import { CONFIG as C, bandOf } from './content.js';
-import { derived } from './state.js';
+import { derived, isLeased } from './state.js';
 import { hourOf, dayName, fmtShort } from './sim.js';
 
 export const view = { W:0, H:0, pad:10, fh:0, shaftX:0, shaftW:0, colW:0 };
@@ -43,8 +43,16 @@ export function draw(ctx, st, sim){
   for (let f = 0; f < st.floors; f++){
     const y = floorY(f), band = bandOf(f + 1);
     const abstract = f >= C.SIM_FLOORS;
-    ctx.fillStyle = shade(band.color, f % 2 ? 0.42 : 0.34, abstract ? 0.55 : 1);
+    const empty = !isLeased(st, f);
+    ctx.fillStyle = empty ? `rgba(30,34,42,${abstract ? 0.5 : 0.85})`
+                          : shade(band.color, f % 2 ? 0.42 : 0.34, abstract ? 0.55 : 1);
     ctx.fillRect(pad, y, W - pad * 2, Math.max(1, fh - (fh > 6 ? 1 : 0)));
+    if (empty && fh >= 5){          // 空樓層畫成工地的斜線
+      ctx.strokeStyle = 'rgba(120,130,150,.16)'; ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let x = pad; x < W - pad; x += 9){ ctx.moveTo(x, y + fh); ctx.lineTo(x + fh, y); }
+      ctx.stroke();
+    }
     if (detail){
       const req = sim.shafts.some(s => s.target === f || s.queue.includes(f));
       ctx.fillStyle = req ? '#7cc4ff' : '#7c8499';

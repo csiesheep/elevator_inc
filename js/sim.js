@@ -1,7 +1,7 @@
 // sim.js — 模擬。乘客、電梯井、調度演算法、過熱、評價、統計流量模型。
 // 這裡的東西都是暫時的：存檔只存 GameState，不存乘客陣列（設計 4.13）。
 import { CONFIG as C, PASSENGERS, BANDS, EVENTS, WEEKDAYS, bandOf, tierAt } from './content.js';
-import { derived } from './state.js';
+import { derived, isLeased, occOf, builtInBand, leasedInBand, leasedTotal } from './state.js';
 
 let nextId = 1;
 const d0 = st => derived(st);
@@ -67,6 +67,7 @@ function windowWeight(h, win){
 
 // 2 垂直人口分布：某一層在這個時刻、當「起點」或「終點」的權重
 function floorWeight(st, f, h, role){
+  if (!isLeased(st, f)) return 0;          // 10 空樓層不會產生任何乘客
   const b = bandOf(f + 1);
   let w = (b.pop != null ? b.pop : 1);
   w *= windowWeight(h, role === 'dest' ? b.up : b.down);
@@ -167,7 +168,7 @@ function arrivalRate(st, sim){
   const wHigh = st.floors - 1 >= C.SIM_FLOORS
     ? bandDemand(st, h, C.SIM_FLOORS, st.floors - 1) * C.SAMPLE_RATE : 0;
   sim.rateAt = st.t;
-  sim.rateVal = C.RATE_PER_WEIGHT * (wLow + wHigh);
+  sim.rateVal = C.RATE_PER_WEIGHT * (wLow + wHigh) * derived(st).womMult;
   return sim.rateVal;
 }
 
@@ -181,13 +182,22 @@ function bandDemand(st, h, lo, hi){
 // 8 突發流量事件
 function floorInBand(st, key, simTopAll){
   if (key === 'lobby') return 0;
-  if (key === 'any')   return (Math.random() * Math.max(1, simTopAll)) | 0;
+  if (key === 'any'){
+    for (let tries = 0; tries < 12; tries++){
+      const f = (Math.random() * Math.max(1, simTopAll)) | 0;
+      if (isLeased(st, f)) return f;
+    }
+    return 0;
+  }
   const b = BANDS.find(x => x.key === key);
-  if (!b) return 0;
+  if (!b) return -1;
   const lo = Math.min(b.from - 1, st.floors - 1);
   const hi = Math.min(b.to - 1, st.floors - 1);
   if (hi < lo) return -1;
-  return lo + ((Math.random() * (hi - lo + 1)) | 0);
+  // 只挑有租戶的樓層，空樓層不會有人開會也不會有人搬家
+  const leased = leasedInBand(st, b);
+  if (leased <= 0) return -1;
+  return lo + ((Math.random() * Math.min(leased, hi - lo + 1)) | 0);
 }
 
 function fireEvent(st, sim){
@@ -423,6 +433,31 @@ export function step(st, sim, dt){
     sim.spawnT += -Math.log(1 - Math.random()) / Math.max(1e-4, rate);
   }
 
+  // --- 11 口碑迴圈：評價太差租戶搬走，評價夠好會有人主動上門
+  sim.churnT = (sim.churnT || 0) + dt;
+  if (sim.churnT >= C.CHURN_EVERY){
+    sim.churnT = 0;
+    if (st.rating < C.CHURN_RATING && leasedTotal(st) > C.FLOORS_START){
+      // 從最高（最貴）的那一帶開始跑掉——高租金的租戶最沒耐性
+      for (let i = BANDS.length - 1; i >= 0; i--){
+        const b = BANDS[i];
+        if (leasedInBand(st, b) > 0){
+          st.leased[b.key]--;
+          sim.toasts.push({ txt:`📉 ${b.name}層的租戶受不了搬走了（評價 ${st.rating.toFixed(1)}）`, life:4 });
+          break;
+        }
+      }
+    } else if (st.rating > C.WOM_RATING && Math.random() < C.WOM_CHANCE){
+      for (const b of BANDS){
+        if (leasedInBand(st, b) < builtInBand(st, b)){
+          st.leased[b.key] = (st.leased[b.key] || 0) + 1;
+          sim.toasts.push({ txt:`📈 口碑帶來新租戶：${b.name}層免費多租出一層`, life:4 });
+          break;
+        }
+      }
+    }
+  }
+
   // --- 8 突發流量事件
   sim.eventT += dt;
   if (sim.eventT >= C.EVENT_EVERY){
@@ -515,10 +550,20 @@ export function step(st, sim, dt){
 function abstractStep(st, sim, d, dt){
   const a = sim.abstract;
   const n = st.floors - C.SIM_FLOORS;
-  if (n <= 0){ a.income = 0; a.ratio = 1; a.demand = 0; a.supply = 0; return; }
+  if (n <= 0){ a.income = 0; a.ratio = 1; a.demand = 0; a.supply = 0; a.leasedHigh = 0; return; }
   const avgFloor = (C.SIM_FLOORS + st.floors) / 2;
   const rush = rushMult(hourOf(st));
-  a.demand = n * 0.022 * rush * (1 - C.SAMPLE_RATE);   // 取樣出去的那 5% 由真的乘客結算
+  // 需求要吃「有多少層真的招到商」與口碑，空樓層不會自己生錢
+  let leasedHigh = 0;
+  for (const b of BANDS){
+    const lo = Math.max(b.from, C.SIM_FLOORS + 1), hi = Math.min(b.to, st.floors);
+    if (hi < lo) continue;
+    const bandLeased = leasedInBand(st, b), bandBuilt = builtInBand(st, b);
+    const seg = hi - lo + 1;
+    leasedHigh += seg * (bandBuilt ? bandLeased / bandBuilt : 0);
+  }
+  a.leasedHigh = leasedHigh;
+  a.demand = leasedHigh * 0.022 * rush * (1 - C.SAMPLE_RATE) * d.womMult;
   a.supply = d.shafts * d.cruise * d.capacity * d.algoEff * 0.020
            * (st.auto.skylobby ? 3 : (avgFloor > 100 ? 0.45 : 1));
   a.ratio = a.demand > 0 ? Math.min(1, a.supply / a.demand) : 1;

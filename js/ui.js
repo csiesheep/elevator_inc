@@ -1,7 +1,8 @@
 // ui.js — 面板。手機用底部抽屜，桌機用右側欄。
 import { UPGRADES, AUTOMATION, SKILLS, PASSENGERS, BANDS, ACHIEVEMENTS, CONFIG as C } from './content.js';
 import { derived, upgradeCost, upgradeMaxed, buyUpgrade, buyAutomation, skillCost, buySkill,
-         prestigeGain, canPrestige, algoName } from './state.js';
+         prestigeGain, canPrestige, algoName,
+         builtInBand, leasedInBand, occOf, leaseCost, canLease, buyLease, leaseBlocked } from './state.js';
 import { fmtShort, dayName, hourOf } from './sim.js';
 
 const $ = s => document.querySelector(s);
@@ -25,6 +26,7 @@ export function buildUI(a){
     if (act === 'up')     { if (buyUpgrade(st, id)) app.onBuy(id); }
     if (act === 'auto')   { if (buyAutomation(st, id)) app.onBuy(id); }
     if (act === 'skill')  { buySkill(st, id); }
+    if (act === 'lease')  { buyLease(st, id); }
     if (act === 'prestige') app.onPrestige();
     if (act === 'orbit')  app.onOrbit();
     if (act === 'wipe')   app.onWipe();
@@ -45,7 +47,8 @@ function header(){
   $('#rate').textContent = '$' + fmtShort(st.stats.avgRate || 0) + '/秒';
   $('#bp').textContent = '📐 ' + st.bp;
   const stars = Math.round(st.rating * 2) / 2;
-  $('#rating').innerHTML = `★ ${st.rating.toFixed(2)} <span class="dim">×${d.fareMult.toFixed(2)} 票價</span>`;
+  $('#rating').innerHTML = `★ ${st.rating.toFixed(2)} ` +
+    `<span class="dim">×${d.fareMult.toFixed(2)} 票價 · ×${d.womMult.toFixed(2)} 人流</span>`;
   $('#rating').className = stars >= 4 ? 'good' : stars >= 2.5 ? '' : 'bad';
   const mood = sim.mood >= 1.25 ? '人潮洶湧' : sim.mood <= 0.75 ? '冷清' : '平常';
   const heavy = sim.waiting.filter(p => (p.w || 1) > 1).length;
@@ -82,6 +85,27 @@ function tabUpgrades(){
     <span>速度 ${d.cruise.toFixed(2)} 樓/秒</span><span>加速 ${d.accel.toFixed(2)}</span>
     <span>載客 ${d.capacity}</span><span>開門 ${d.door.toFixed(2)}s</span>
     <span>井 ${d.shafts}</span></div>`;
+  // ---- 10 招商：蓋好的樓層要先招到租戶才有人搭電梯
+  const bands = BANDS.filter(b => builtInBand(st, b) > 0);
+  const vacant = bands.reduce((a, b) => a + (builtInBand(st, b) - leasedInBand(st, b)), 0);
+  const blocked = leaseBlocked(st);
+  h += `<div class="sect">招商${vacant ? `　<span class="bad">${vacant} 層空著</span>` : ''}</div>`;
+  if (blocked) h += `<div class="note bad">評價 ${st.rating.toFixed(1)} 太低，現在沒有租戶願意進來。
+    先把服務做好（少讓人等到走掉），評價回到 ${C.LEASE_BLOCK} 以上才招得到人。</div>`;
+  else if (!vacant) h += `<div class="note">每一層都有租戶了。再蓋新的樓層就要重新招商。</div>`;
+  for (const b of bands){
+    const built = builtInBand(st, b), leased = leasedInBand(st, b);
+    const full = leased >= built, c = leaseCost(st, b);
+    const pct = Math.round(occOf(st, b) * 100);
+    h += `<div class="card ${full ? 'owned' : (st.cash < c || blocked ? 'dis' : '')}"
+      ${full || st.cash < c || blocked ? '' : `data-act="lease" data-id="${b.key}"`}>
+      <div class="cardTop"><span class="cName">${b.name} <b>${leased}/${built}</b></span>
+        <span class="cCost">${full ? '滿租' : '$' + fmtShort(c)}</span></div>
+      <div class="occBar"><i style="width:${pct}%"></i></div>
+      <div class="cHint">入住率 ${pct}%${full ? '' : ' —— 空的樓層不會有任何乘客'}</div></div>`;
+  }
+
+  h += `<div class="sect">電梯</div>`;
   for (const u of UPGRADES){
     const maxed = upgradeMaxed(st, u.id), c = upgradeCost(st, u.id);
     h += card({ act:'up', id:u.id, icon:u.icon, name:`${u.name} <b>${st.up[u.id]}</b>`,
@@ -184,6 +208,10 @@ function tabStats(){
     ['高樓層服務率', st.floors > C.SIM_FLOORS ? Math.round(sim.abstract.ratio * 100) + '%' : '尚未蓋到'],
     ['高樓層收益', '$' + fmtShort(sim.abstract.income) + '/秒'],
     ['抽象樓層累計', '$' + fmtShort(st.stats.abstractEarned)],
+    ['入住率', (() => { let bu = 0, le = 0;
+        for (const b of BANDS){ bu += builtInBand(st, b); le += leasedInBand(st, b); }
+        return bu ? `${le}/${bu}（${Math.round(le / bu * 100)}%）` : '—'; })()],
+    ['口碑對人流', '×' + d.womMult.toFixed(2)],
     ['本輪收入', '$' + fmtShort(st.runRevenue)],
     ['總收入', '$' + fmtShort(st.lifetimeRevenue)],
     ['最佳單輪', '$' + fmtShort(st.stats.bestRun)],

@@ -37,6 +37,19 @@ export const CONFIG = {
   EVENT_EVERY:    75,     // 8 突發事件：平均幾秒檢查一次
   EVENT_CHANCE:   0.55,   // 檢查時發生的機率
   LOBBY_SHARE:    0.40,   // 2 OD：有多少比例的行程一端是大廳
+
+  // --- 10 入住率 ---
+  LEASE_BASE:     45,     // 招商成本基數（× 樓層帶的租戶等級）
+  LEASE_GROWTH:   1.038,  // 每多租出一層，下一層更貴
+  ANCHOR_LEASE:   3,      // 每次加蓋 5 層，建商會先幫你租掉的層數
+  // --- 11 口碑迴圈 ---
+  WOM_MIN:        0.80,   // 評價 0 時的人流倍率（票價乘數已經在懲罰低評價了，別疊太重）
+  WOM_MAX:        1.50,   // 評價 5 時的人流倍率
+  LEASE_BLOCK:    1.6,    // 低於這個評價：招不到新租戶（沒人想進來）
+  CHURN_RATING:   1.0,    // 低於這個評價：現有租戶才會開始搬走
+  CHURN_EVERY:    60,     // 幾秒檢查一次退租／口碑
+  WOM_RATING:     4.3,    // 高於這個評價，會有租戶主動上門
+  WOM_CHANCE:     0.5,    // 上門的機率
   RATE_PER_WEIGHT: 0.0080, // 6 人流 = 每單位人口權重每秒幾個人（取代寫死的 spawnEvery）
 };
 
@@ -57,8 +70,8 @@ export const UPGRADES = [
     detail:'+2 熱容量 / 冷卻加快', hint:'讓超速撐更久' },
   { id:'shaft',   name:'加一座電梯井', icon:'🛗', base:1400, growth:1.95, max:5,
     detail:'+1 井',        hint:'最貴，而且要有調度演算法才發揮得出來' },
-  { id:'floor',   name:'加蓋 5 層',  icon:'🏗', base:200,  growth:1.22, max:38,
-    detail:'+5 樓',        hint:'樓越高，單趟票價越高' },
+  { id:'floor',   name:'加蓋 5 層',  icon:'🏗', base:150,  growth:1.21, max:38,
+    detail:'+5 樓（其中 2 層附租戶）', hint:'新樓層要招商才會有人；空著不會有任何乘客' },
 ];
 
 // ---------------------------------------------------------------- 自動化階梯

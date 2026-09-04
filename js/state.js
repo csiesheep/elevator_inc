@@ -1,5 +1,5 @@
 // state.js — 單一個可序列化的 GameState。無法 JSON.stringify 的東西不准進來。
-import { CONFIG as C, UPGRADES, AUTOMATION, SKILLS, ACHIEVEMENTS } from './content.js';
+import { CONFIG as C, UPGRADES, AUTOMATION, SKILLS, ACHIEVEMENTS, BANDS, bandOf } from './content.js';
 
 const SAVE_KEY = 'elevator_inc_v1';
 
@@ -29,7 +29,52 @@ export function newGame(carry){
   st.floors = C.FLOORS_START + 10 * (st.skills.a_floor || 0);
   st.rating = Math.min(C.RATING_MAX, C.RATING_START + 0.3 * (st.skills.a_rate || 0));
   st.t = C.DAY_SECONDS * 8 / 24;   // 從早上 8 點開場，不要一開局就是半夜
+  st.leased = {};
+  fillLease(st);                   // 起始的樓層一開始就有租戶，之後蓋的才要招商
   return st;
+}
+
+// ------------------------------------------------------------ 10 入住率
+// 樓蓋好不等於有人。每個樓層帶記「已招商幾層」，空的樓層不會產生任何乘客。
+export function builtInBand(st, b){
+  const hi = Math.min(st.floors, b.to);
+  return Math.max(0, hi - b.from + 1);
+}
+export function leasedInBand(st, b){
+  return Math.min(st.leased && st.leased[b.key] || 0, builtInBand(st, b));
+}
+export function occOf(st, b){
+  const built = builtInBand(st, b);
+  return built ? leasedInBand(st, b) / built : 0;
+}
+export function leasedTotal(st){
+  let n = 0; for (const b of BANDS) n += leasedInBand(st, b); return n;
+}
+// 某一層（0-based）有沒有租戶？大廳永遠算有。
+export function isLeased(st, f){
+  if (f <= 0) return true;
+  const b = bandOf(f + 1);
+  return (f + 1) - b.from < leasedInBand(st, b);
+}
+export function leaseCost(st, b){
+  return Math.ceil(C.LEASE_BASE * (b.tier || 1) * Math.pow(C.LEASE_GROWTH, leasedTotal(st)));
+}
+export function canLease(st, b){ return leasedInBand(st, b) < builtInBand(st, b); }
+// 評價太差就招不到新租戶——比「趕走已經付過錢的租戶」溫和，但一樣擋住成長
+export function leaseBlocked(st){ return st.rating < C.LEASE_BLOCK; }
+export function buyLease(st, key){
+  const b = BANDS.find(x => x.key === key);
+  if (!b || !canLease(st, b) || leaseBlocked(st)) return false;
+  const c = leaseCost(st, b);
+  if (st.cash < c) return false;
+  st.cash -= c;
+  st.leased[key] = (st.leased[key] || 0) + 1;
+  return true;
+}
+// 把已蓋好的樓層全部標成已招商（開局與舊存檔轉換用）
+export function fillLease(st){
+  st.leased = st.leased || {};
+  for (const b of BANDS) st.leased[b.key] = builtInBand(st, b);
 }
 
 // ------------------------------------------------------------ 衍生數值
@@ -51,6 +96,8 @@ export function derived(st){
   d.fareMult = (1 + 0.25 * st.rating) * (1 + 0.06 * (sk.o_fare || 0));
   d.algoEff  = algoEfficiency(st) * (1 + 0.08 * (sk.o_algo || 0));
   d.ratingGain = 1 + 0.2 * (sk.a_rate || 0);
+  // 11 口碑迴圈：評價不只影響票價，也影響「有多少人願意上門」
+  d.womMult = C.WOM_MIN + (C.WOM_MAX - C.WOM_MIN) * (st.rating / C.RATING_MAX);
   // 6 解除 clamp：人流不再由 min(floors, 40) 決定，改由 sim.js 依「真實樓數 × 每層人口
   // 權重」算出來，所以蓋高樓真的會變忙。
   return d;
@@ -96,7 +143,19 @@ export function buyUpgrade(st, id){
   const c = upgradeCost(st, id);
   if (st.cash < c) return false;
   st.cash -= c; st.up[id]++;
-  if (id === 'floor') st.floors += 5;
+  if (id === 'floor'){
+    st.floors += 5;
+    // 建商會先幫你租掉幾層（錨定租戶），剩下的要自己招商
+    let left = C.ANCHOR_LEASE;
+    for (const b of BANDS){
+      if (left <= 0) break;
+      const room = builtInBand(st, b) - leasedInBand(st, b);
+      if (room <= 0) continue;
+      const take = Math.min(room, left);
+      st.leased[b.key] = (st.leased[b.key] || 0) + take;
+      left -= take;
+    }
+  }
   return true;
 }
 
@@ -174,6 +233,7 @@ export function load(){
     for (const k in fresh) if (!(k in st)) st[k] = fresh[k];
     for (const u of UPGRADES) if (!(u.id in st.up)) st.up[u.id] = 0;
     for (const a of AUTOMATION) if (!(a.id in st.auto)) st.auto[a.id] = false;
+    if (!st.leased) fillLease(st);   // 舊存檔：已蓋的樓層視為已招商
     return st;
   } catch(e){ return null; }
 }
