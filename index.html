@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Elevator Inc.</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header id="top">
+  <div class="money">
+    <div id="cash">$0</div>
+    <div id="rate" class="dim">$0/秒</div>
+  </div>
+  <div class="meta">
+    <div id="bp">📐 0</div>
+    <div id="rating">★ 3.00</div>
+  </div>
+  <div class="btns">
+    <button id="boost" title="按住超速（會過熱）">🔥</button>
+    <button id="sound">🔈</button>
+  </div>
+</header>
+<div id="hud"></div>
+
+<main>
+  <div id="stage"><canvas id="c"></canvas></div>
+
+  <aside id="panel">
+    <div id="grabber"></div>
+    <nav id="tabs">
+      <button data-tab="up"    class="on">升級</button>
+      <button data-tab="auto">自動化</button>
+      <button data-tab="skill">藍圖</button>
+      <button data-tab="codex">圖鑑</button>
+      <button data-tab="stats">統計</button>
+      <button data-tab="pres">拆樓</button>
+    </nav>
+    <div id="panelBody"></div>
+  </aside>
+</main>
+
+<div id="toasts"></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

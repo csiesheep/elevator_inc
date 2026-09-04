@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Elevator Inc. — 動詞原型</title>
+<style>
+  :root{
+    --bg:#14161c; --panel:#1c1f27; --line:#2c313d; --text:#e8eaf0;
+    --dim:#8b93a7; --money:#5ddc9a; --car:#f0c04a; --hi:#4aa8ff;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--bg); color:var(--text);
+    font:15px/1.4 system-ui,-apple-system,"Noto Sans TC",sans-serif;
+    display:flex; flex-direction:column; align-items:center;
+    overscroll-behavior:none; -webkit-user-select:none; user-select:none;
+  }
+  header{
+    width:100%; max-width:440px; padding:10px 14px 6px;
+    display:flex; align-items:baseline; gap:12px;
+  }
+  #money{font-size:30px; font-weight:700; color:var(--money); font-variant-numeric:tabular-nums}
+  #stats{margin-left:auto; text-align:right; color:var(--dim); font-size:12px; font-variant-numeric:tabular-nums}
+  #wrap{flex:1; width:100%; max-width:440px; padding:0 8px 8px; min-height:0}
+  canvas{width:100%; height:100%; display:block; touch-action:manipulation; cursor:pointer}
+  footer{
+    width:100%; max-width:440px; padding:0 14px 14px;
+    color:var(--dim); font-size:12px; display:flex; gap:8px; align-items:center;
+  }
+  button{
+    background:var(--panel); color:var(--text); border:1px solid var(--line);
+    border-radius:7px; padding:5px 10px; font:inherit; font-size:12px; cursor:pointer;
+    white-space:nowrap; flex:none;
+  }
+  button:hover{border-color:var(--hi)}
+</style>
+</head>
+<body>
+<header>
+  <div id="money">$0</div>
+  <div id="stats"></div>
+</header>
+<div id="wrap"><canvas id="c"></canvas></div>
+<footer>
+  <span style="min-width:0">點樓層 → 電梯過去 → 開門 → 收錢</span>
+  <button id="sound" style="margin-left:auto">🔈 音效</button>
+  <button id="reset">重來</button>
+</footer>
+
+<script>
+// ---------------------------------------------------------------- 參數
+const FLOORS      = 10;
+const CRUISE      = 1.0;   // 樓/秒
+const ACC         = 0.5;   // 樓/秒^2
+const CAPACITY    = 4;
+const DOOR_TIME   = 2.0;   // 秒（開+停+關）
+const SPAWN_EVERY = 4.0;   // 秒
+const FARE        = 1;     // $ / 樓層差
+const STEP        = 1/60;  // 固定時間步
+
+// ---------------------------------------------------------------- 狀態
+let S;
+function newState(){
+  return {
+    money:0, pos:0, vel:0, target:null, queue:[],
+    mode:'idle',          // idle | moving | doors
+    doorT:0, spawnT:0, t:0,
+    waiting:[], riders:[], pops:[], nextId:1,
+    served:0, trips:0,
+  };
+}
+S = newState();
+
+// ---------------------------------------------------------------- 音效
+let actx=null, soundOn=true;
+function beep(freq, dur, gain){
+  if(!soundOn) return;
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==='suspended') actx.resume();
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type='sine'; o.frequency.value=freq;
+    g.gain.setValueAtTime(0, actx.currentTime);
+    g.gain.linearRampToValueAtTime(gain, actx.currentTime+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime+dur);
+    o.connect(g).connect(actx.destination);
+    o.start(); o.stop(actx.currentTime+dur+0.02);
+  }catch(e){}
+}
+const ding   = ()=>{ beep(1180,0.28,0.16); setTimeout(()=>beep(880,0.34,0.13),90); };
+const cash   = ()=>beep(1560,0.10,0.10);
+const accept = ()=>beep(520,0.06,0.06);
+
+// ---------------------------------------------------------------- 邏輯
+function spawn(){
+  const o = (Math.random()*FLOORS)|0;
+  let d = (Math.random()*FLOORS)|0;
+  while(d===o) d = (Math.random()*FLOORS)|0;
+  S.waiting.push({id:S.nextId++, origin:o, dest:d, born:S.t});
+}
+
+function request(f){
+  if(f<0 || f>=FLOORS) return;
+  if(S.target===f || S.queue.includes(f)) return;
+  if(S.target===null && S.mode==='idle'){ S.target=f; S.mode = (Math.abs(S.pos-f)<1e-3)?'doors':'moving'; if(S.mode==='doors'){S.doorT=0; arrive(f);} }
+  else S.queue.push(f);
+  accept();
+}
+
+function nextStop(){
+  if(S.queue.length){ S.target=S.queue.shift(); S.mode='moving'; }
+  else { S.target=null; S.mode='idle'; }
+}
+
+function arrive(f){
+  ding();
+  S.trips++;
+  // 下客
+  for(let i=S.riders.length-1;i>=0;i--){
+    const p=S.riders[i];
+    if(p.dest===f){
+      const fare = FARE*Math.abs(p.dest-p.origin);
+      S.money += fare; S.served++;
+      S.pops.push({txt:'+$'+fare, floor:f, life:1.0, off:(Math.random()*24-12)});
+      S.riders.splice(i,1);
+      cash();
+    }
+  }
+  // 上客
+  for(let i=0;i<S.waiting.length && S.riders.length<CAPACITY;i++){
+    if(S.waiting[i].origin===f){ S.riders.push(S.waiting.splice(i,1)[0]); i--; }
+  }
+}
+
+function step(dt){
+  S.t += dt;
+  S.spawnT += dt;
+  if(S.spawnT>=SPAWN_EVERY){ S.spawnT-=SPAWN_EVERY; spawn(); }
+
+  if(S.mode==='moving'){
+    const dist = S.target - S.pos;
+    const dir  = Math.sign(dist);
+    const rem  = Math.abs(dist);
+    const stopDist = (S.vel*S.vel)/(2*ACC);
+    if(rem <= stopDist) S.vel = Math.max(0, S.vel - ACC*dt);
+    else                S.vel = Math.min(CRUISE, S.vel + ACC*dt);
+    const np = S.pos + dir*S.vel*dt;
+    if(dir*(np - S.target) >= 0 || (rem < 0.01 && S.vel < 0.05)){
+      S.pos = S.target; S.vel = 0; S.mode='doors'; S.doorT=0; arrive(S.target);
+    } else S.pos = np;
+  } else if(S.mode==='doors'){
+    S.doorT += dt;
+    if(S.doorT >= DOOR_TIME) nextStop();
+  }
+
+  for(let i=S.pops.length-1;i>=0;i--){
+    S.pops[i].life -= dt*0.9;
+    if(S.pops[i].life<=0) S.pops.splice(i,1);
+  }
+}
+
+// ---------------------------------------------------------------- 繪圖
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+let W=0,H=0,DPR=1, pad=14, fh=0, shaftX=0, shaftW=0;
+
+function resize(){
+  const r=cv.getBoundingClientRect();   // 量 canvas 本身，不是有 padding 的外框
+  if(r.width<2 || r.height<2) return;          // 版面還沒定案，別量
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  W=r.width; H=r.height;
+  cv.width=W*DPR; cv.height=H*DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  fh=(H-pad*2)/FLOORS;
+  shaftW=Math.min(96, W*0.30);
+  shaftX=W-pad-shaftW;
+}
+new ResizeObserver(resize).observe(document.getElementById('wrap'));
+window.addEventListener('resize', resize);
+function ensureSize(){                          // 每幀確認一次，避免量到過渡中的版面
+  const r=cv.getBoundingClientRect();
+  if(Math.abs(r.width-W)>0.5 || Math.abs(r.height-H)>0.5) resize();
+}
+
+const floorY = f => H - pad - (f+1)*fh;          // 該樓的頂端 y
+const posY   = p => H - pad - (p+1)*fh;          // 連續位置
+
+function drawPerson(x,y,label,inCar){
+  ctx.fillStyle = inCar ? '#2b2f3a' : '#333949';
+  ctx.strokeStyle = inCar ? '#7f88a0' : '#9aa3ba';
+  ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(x, y-9, 3.6, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x,y-5); ctx.lineTo(x,y+1); ctx.stroke();
+  ctx.fillStyle='#cfd6e6'; ctx.font='600 10px system-ui'; ctx.textAlign='center';
+  ctx.fillText(label, x, y+11);
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+
+  // 樓層
+  for(let f=0; f<FLOORS; f++){
+    const y=floorY(f);
+    ctx.fillStyle = f%2 ? '#181b22' : '#1b1f27';
+    ctx.fillRect(pad, y, W-pad*2, fh);
+    ctx.strokeStyle='#262b36'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(pad,y+.5); ctx.lineTo(W-pad,y+.5); ctx.stroke();
+
+    const req = (S.target===f) || S.queue.includes(f);
+    ctx.fillStyle = req ? '#4aa8ff' : '#6d7690';
+    ctx.font='600 12px system-ui'; ctx.textAlign='left';
+    ctx.fillText(String(f+1).padStart(2,' '), pad+8, y+fh/2+4);
+
+    // 等待中的乘客
+    let n=0;
+    for(const p of S.waiting){
+      if(p.origin!==f) continue;
+      const x = pad+34 + n*22;
+      if(x > shaftX-16){ ctx.fillStyle='#6d7690'; ctx.font='11px system-ui';
+        ctx.fillText('+', shaftX-14, y+fh/2+4); break; }
+      drawPerson(x, y+fh/2+6, String(p.dest+1), false);
+      n++;
+    }
+  }
+
+  // 井道
+  ctx.strokeStyle='#2c313d';
+  ctx.strokeRect(shaftX+.5, pad+.5, shaftW-1, H-pad*2-1);
+
+  // 電梯
+  const y=posY(S.pos), h=fh-4, x=shaftX+4, w=shaftW-8;
+  ctx.fillStyle='#20242e'; ctx.fillRect(x, y+2, w, h);
+  ctx.strokeStyle=(S.mode==='doors')?'#f0c04a':'#3a4152'; ctx.lineWidth=2;
+  ctx.strokeRect(x+.5, y+2.5, w-1, h-1);
+
+  // 車內乘客
+  S.riders.forEach((p,i)=>{
+    const px = x + w*(i+0.5)/CAPACITY;
+    drawPerson(px, y+2+h/2+6, String(p.dest+1), true);
+  });
+
+  // 門（0=全開）
+  let open=0;
+  if(S.mode==='doors'){
+    const t=S.doorT;
+    open = t<0.4 ? t/0.4 : (t>DOOR_TIME-0.4 ? (DOOR_TIME-t)/0.4 : 1);
+  }
+  const half=w/2, slide=half*open;
+  ctx.fillStyle='#39404f';
+  ctx.fillRect(x, y+2, half-slide, h);
+  ctx.fillRect(x+half+slide, y+2, half-slide, h);
+  ctx.strokeStyle='#4a5266'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(x+half-slide, y+2); ctx.lineTo(x+half-slide, y+2+h);
+  ctx.moveTo(x+half+slide, y+2); ctx.lineTo(x+half+slide, y+2+h); ctx.stroke();
+
+  // 錢的彈出字
+  ctx.textAlign='right'; ctx.font='700 14px system-ui';
+  for(const p of S.pops){
+    ctx.globalAlpha=Math.max(0,Math.min(1,p.life));
+    ctx.fillStyle='#5ddc9a';
+    ctx.fillText(p.txt, shaftX-6, floorY(p.floor)+fh/2 + p.off - (1-p.life)*26);
+  }
+  ctx.globalAlpha=1;
+}
+
+// ---------------------------------------------------------------- 迴圈
+let last=performance.now(), acc=0;
+function frame(now){
+  let dt=(now-last)/1000; last=now;
+  if(dt>0.25) dt=0.25;
+  acc+=dt;
+  while(acc>=STEP){ step(STEP); acc-=STEP; }
+  ensureSize();
+  draw();
+  document.getElementById('money').textContent = '$'+S.money;
+  document.getElementById('stats').innerHTML =
+    `車上 ${S.riders.length}/${CAPACITY} · 等待 ${S.waiting.length}<br>` +
+    `送達 ${S.served} · 停靠 ${S.trips} · ${Math.floor(S.t)}s`;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ---------------------------------------------------------------- 輸入
+function pick(ev){
+  const r=cv.getBoundingClientRect();
+  const y=(ev.touches?ev.touches[0].clientY:ev.clientY)-r.top;
+  const f=Math.floor((H-pad-y)/fh);
+  if(f>=0 && f<FLOORS) request(f);
+}
+cv.addEventListener('pointerdown', e=>{ e.preventDefault(); pick(e); });
+window.addEventListener('keydown', e=>{
+  if(e.key>='1'&&e.key<='9') request(+e.key-1);
+  if(e.key==='0') request(9);
+});
+document.getElementById('sound').addEventListener('click', e=>{
+  soundOn=!soundOn; e.target.textContent = soundOn?'🔈 音效':'🔇 靜音';
+  if(soundOn) accept();
+});
+document.getElementById('reset').addEventListener('click', ()=>{ S=newState(); });
+
+resize();
+for(let i=0;i<3;i++) spawn();   // 開場先放三個人
+</script>
+</body>
+</html>
