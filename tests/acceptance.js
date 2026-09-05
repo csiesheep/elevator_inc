@@ -504,4 +504,86 @@ check('例外清單裡的技能都存在，而且都寫了理由', () => {
     '例外的 id 不存在、或理由太短（沒有理由的例外等於把紅的掃進地毯下）：' + bad.join(', '));
 });
 
+// ---------------------------------------------------------------- 10 權重真的有作用嗎
+// 這一組是一個 peer 朝地基開槍才發現要寫的。它做了兩次破壞：
+//   A  pickIndex 永遠回傳 0（#8 原本的形狀）  → 抓到了
+//   B  pickIndex 忽略權重，改成均勻抽樣        → **41/1/1，跟乾淨版逐字相同**
+// 我獨立複驗，B 成立。實測分布差異很大（100 層、6 棟）：辦公帶從 2.2% 變 9.6%
+// （4.4 倍）、觀景從 18.0% 變 11.7%——而 harness 一條都不紅。
+//
+// 也就是說整個人口權重模型當時沒有任何保護：樓層帶 pop、windowWeight 的尖峰窗、
+// 週末倍率、tenantMix、乘客型別的 w、事件的 w，全部丟掉都不會被發現。
+//
+// **這正是「逃過證偽的 guard」的形狀，而且三個條件都齊了**：它是地基（三個呼叫端
+// 都靠它）、它太便宜（一個小函式，看起來顯然是對的）、大家都在引用它（#8 的 issue、
+// commit message、上面第 3 組的兩條 guard 都指著它）。
+//
+// 而我自己寫的那兩條 pickIndex guard **都是原始碼比對**——我在 #9 的回覆裡才剛寫過
+// 「轉綠只代表防護存在，不代表防護是對的」，然後沒有動作。引用一條 guard 不會執行它。
+section('10 權重真的有作用嗎');
+
+check('pickIndex 真的照權重抽（單元）', () => {
+  const W = [1, 0, 9], N = 20000;
+  const hits = [0, 0, 0];
+  for (let i = 0; i < N; i++) hits[M.pickIndex(W)]++;
+  // 零權重那一格是判準：均勻抽樣會給它 ~1/3，照權重則必須是 0。
+  // **只斷言「第 2 格最多」抓不到均勻**——均勻時三格差不多，最多的那一格
+  // 有 1/3 機率剛好是第 2 格，這條 guard 會間歇性放行。
+  if (hits[1] !== 0)
+    return `權重 [1,0,9] 抽 ${N} 次，權重為 0 的那一格被選中 ${hits[1]} 次`
+         + `（均勻抽樣會給它約 ${Math.round(N/3)} 次）｜實際分布 ${hits.join('/')}`;
+  const p0 = hits[0] / N;
+  return ok(Math.abs(p0 - 0.10) < 0.02,
+    `權重 [1,0,9] 的第 0 格應占 10%，實際 ${(p0*100).toFixed(1)}%｜分布 ${hits.join('/')}`);
+});
+
+check('尖峰窗真的改變人流分布，兩個方向都要對（端對端）', () => {
+  // 上面那條是單元層。這條走完整條鏈：windowWeight → floorWeight → pickIndex。
+  //
+  // **第一版我取樣取錯方向了**：我在 9 點看辦公帶的「出發」占比，期待它衝高。
+  // 但 `windowWeight(h, role === 'dest' ? b.up : b.down)` —— 辦公帶的
+  // `up:[8,10]` 是**抵達**窗、`down:[17,19]` 才是**出發**窗。9 點的辦公是目的地
+  // 不是起點，所以那條 guard 在乾淨的產品上也是紅的。是儀器錯，不是產品錯。
+  //
+  // 而且**只測一個方向不夠**：一個把 up/down 對調的實作，會在其中一個方向上
+  // 看起來完全正常。兩個方向都要測，才分辨得出來。
+  const sample = hour => {
+    const st = S.newGame(); st.floors = 60; st.cash = 1e9;
+    st.up.speed = 4; st.up.cap = 4; st.up.shaft = 2;
+    st.auto.fifo = st.auto.scan = st.auto.look = true;
+    const sim = M.createSim(st); M.syncShafts(st, sim);
+    const bandOf = f => BANDS.find(x => f + 1 >= x.from && f + 1 <= x.to);
+    const from = {}, to = {};
+    let n = 0;
+    for (let i = 0; i < 60000; i++){
+      st.t = C.DAY_SECONDS * hour / 24;      // 每一步都釘住，否則跑一跑就跨出尖峰窗
+      const before = sim.waiting.length;
+      M.step(st, sim, 1 / 20);
+      for (let k = before; k < sim.waiting.length; k++){
+        const p = sim.waiting[k];
+        const bo = bandOf(p.origin), bd = bandOf(p.dest);
+        if (bo) from[bo.key] = (from[bo.key] || 0) + 1;
+        if (bd) to[bd.key] = (to[bd.key] || 0) + 1;
+        n++;
+      }
+    }
+    return { from, to, n };
+  };
+  const evening = sample(18), morning = sample(9), night = sample(3);
+  const ne = nonEmpty(Math.min(evening.n, morning.n, night.n),
+    `有時段一個乘客都沒生成（18點 ${evening.n}、9點 ${morning.n}、3點 ${night.n}）`);
+  if (ne !== true) return ne;
+
+  // 辦公帶：down:[17,19] 是出發窗、up:[8,10] 是抵達窗
+  const sf = r => (r.from.office || 0) / r.n;      // 出發占比
+  const sd = r => (r.to.office || 0) / r.n;        // 抵達占比
+  const bad = [];
+  if (!(sf(evening) > sf(night) * 1.3))
+    bad.push(`出發：18 點 ${(sf(evening)*100).toFixed(1)}% vs 3 點 ${(sf(night)*100).toFixed(1)}%（down 窗 [17,19] 沒生效？）`);
+  if (!(sd(morning) > sd(night) * 1.3))
+    bad.push(`抵達：9 點 ${(sd(morning)*100).toFixed(1)}% vs 3 點 ${(sd(night)*100).toFixed(1)}%（up 窗 [8,10] 沒生效？）`);
+  return ok(bad.length === 0,
+    `辦公帶的尖峰窗沒有拉開｜${bad.join('｜')}｜樣本 ${evening.n}/${morning.n}/${night.n}`);
+});
+
 export { summary };
