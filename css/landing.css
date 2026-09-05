@@ -47,10 +47,12 @@ body.landing svg  { shape-rendering: crispEdges; }
 .towerWrap{
   position: relative;
   display: flex; justify-content: center; align-items: flex-end;
-  padding-top: clamp(26px, 7vh, 92px);
+  padding-top: clamp(14px, 4vh, 76px);
   margin-bottom: -4px;          /* 讓大樓底部壓在地平線上 */
 }
-.tower{ width: clamp(164px, 21vw, 232px); height: auto; position: relative; z-index: 1; }
+/* 寬度看螢幕寬，但也要被高度夾住：寬又矮的視窗（最大化的桌機視窗）
+   如果只看 vw，大樓會把選單擠出畫面。 */
+.tower{ width: min(clamp(150px, 21vw, 232px), 26vh); height: auto; position: relative; z-index: 1; }
 .city{ display: none; }         /* 窄螢幕不畫兩側的城市 */
 
 .car{ animation: ride 7.5s steps(11) infinite; }
@@ -67,25 +69,25 @@ body.landing svg  { shape-rendering: crispEdges; }
   flex: 1; background: var(--grass);
   border-top: 10px solid var(--grassDk);
   display: flex; justify-content: center; align-items: center;
-  padding: clamp(18px, 3vh, 30px) 18px clamp(20px, 4vh, 34px);
+  padding: clamp(14px, 2.5vh, 28px) 18px clamp(16px, 3vh, 30px);
 }
 .col{
   width: 100%; max-width: 620px;
-  display: flex; flex-direction: column; align-items: center; gap: clamp(11px, 1.6vh, 15px);
+  display: flex; flex-direction: column; align-items: center; gap: clamp(9px, 1.5vh, 15px);
 }
 
 /* ---------------- 字 */
 .wordmark{
   margin: 0; text-align: center; color: var(--ink);
   font-family: "Press Start 2P", "Courier New", monospace;
-  font-size: clamp(21px, 4.4vw, 34px); line-height: 1.34;
+  font-size: clamp(20px, min(4.4vw, 4.4vh), 34px); line-height: 1.34;
   text-shadow: 4px 4px 0 var(--sun);
 }
 @media (min-width: 700px){ .wordmark{ text-shadow: 5px 5px 0 var(--sun); } }
 
 .tag{
   margin: 0; text-align: center; max-width: 720px;
-  font-size: clamp(14px, 1.5vw, 18px); line-height: 1.7; font-weight: 500;
+  font-size: clamp(13.5px, min(1.5vw, 2.1vh), 18px); line-height: 1.7; font-weight: 500;
   color: var(--ink); text-wrap: pretty;
 }
 .save{
@@ -146,11 +148,21 @@ body.landing svg  { shape-rendering: crispEdges; }
   .band{ padding-left: 32px; padding-right: 32px; }
 }
 
-/* 很矮的視窗（橫著拿的手機）：把大樓縮小，別把選單擠掉 */
-@media (max-height: 620px){
-  .towerWrap{ padding-top: 14px; }
-  .tower{ width: clamp(120px, 16vh, 168px); }
+/* 矮視窗：先收上緣的留白，再不夠才縮大樓、收掉太陽與雲 */
+@media (max-height: 700px){
+  .towerWrap{ padding-top: 10px; }
+  .col{ gap: 8px; }
+  .menu{ gap: 10px; }
+  .menuRow{ gap: 10px; }
+}
+@media (max-height: 560px){
+  .tower{ width: min(clamp(116px, 16vh, 168px), 24vh); }
   .sun, .cloud{ display: none; }
+}
+/* 橫著拿的手機：高度真的不夠了，收掉大樓，先保住選單能全部按到 */
+@media (max-height: 460px){
+  .towerWrap{ display: none; }
+  .band{ border-top: 0; }
 }
 
 @media (prefers-reduced-motion: reduce){
