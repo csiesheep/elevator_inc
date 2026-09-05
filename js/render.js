@@ -13,7 +13,7 @@
 // 世界裡的樓，而不是一張剖面圖。
 
 import { CONFIG as C, bandOf } from './content.js';
-import { derived, isLeased } from './state.js';
+import { derived, isLeased, isManual } from './state.js';
 import { hourOf, dayName, fmtShort } from './sim.js';
 import { t } from './i18n.js';
 import { P, setHour, mix } from './theme.js';
@@ -21,12 +21,13 @@ import { spriteFor, SPRITE_W, SPRITE_H } from './sprites.js';
 import { drawSky, drawFar } from './sky.js';
 import { roofHeight, drawRoof } from './roof.js';
 import { MOTIFS, SIGNATURES, GLOW, MOTIF_W, MOTIF_H } from './interior.js';
+import { drawNum, drawPlate, numWidth, GLYPH_H } from './digits.js';
 
 export const view = {
   W:0, H:0, pad:10, fh:0, shaftX:0, shaftW:0, colW:0,
   bx0:0, bx1:0, bw:0,        // 大樓的外緣（含外牆）
   fx0:0, fx1:0,              // 樓層的可畫範圍（外牆內側）
-  towerTop:0, horizon:0, roofH:0, deck:5, wall:6, skyTop:0, arc:0,
+  towerTop:0, horizon:0, roofH:0, deck:5, wall:6, skyTop:0, arc:0, manual:true,
 };
 
 export function layout(cv, ctx, st, sim){
@@ -58,7 +59,14 @@ export function layout(cv, ctx, st, sim){
 
   const n = sim.shafts.length;
   const inner = view.fx1 - view.fx0;
-  view.shaftW = Math.min(inner * 0.46, n * 30 + 10);
+  // 手動期的轎廂要排下「車上所有人要去哪」，所以井道加寬；
+  // 買到調度演算法之後那些數字就是雜訊，井道縮回去，樓層拿回寬度。
+  view.manual = isManual(st);
+  // 只有真的畫得出數字時才加寬。樓層一多（100 層時每層 3.7px）轎廂裡什麼都
+  // 畫不下，這時候還把井道撐開只是白白吃掉樓層的寬度。
+  const wide = view.manual && view.fh >= 16;
+  const per = wide ? 60 : 30;   // 60 才排得下 3 欄目的地（2 欄只有 4 格，塞不下一車的人）
+  view.shaftW = Math.min(inner * (wide ? 0.56 : 0.46), n * per + 10);
   view.shaftX = view.fx1 - view.shaftW;
   view.colW = view.shaftW / n;
   return true;
@@ -157,11 +165,15 @@ export function draw(ctx, st, sim){
       for (let x = view.fx0; x < view.fx1; x += 9){ ctx.moveTo(x, y + fh); ctx.lineTo(x + fh, y); }
       ctx.stroke();
     }
-    if (detail){
+    if (fh >= 13){
+      // 點陣字 + 底板。11px 的 system-ui 在這個尺度會被反鋸齒糊掉，而且
+      // 沒有底板的話數字會直接跟室內家具疊在一起。
       const req = sim.shafts.some(s => s.target === f || s.queue.includes(f));
-      ctx.fillStyle = req ? pal.floorNumOn : pal.floorNum;
-      ctx.font = '600 11px system-ui'; ctx.textAlign = 'left';
-      ctx.fillText(String(f + 1), view.fx0 + 12, y + fh / 2 + 4);
+      const ds = fh >= 24 ? 3 : 2;
+      const txt = String(f + 1);
+      drawPlate(ctx, txt, view.fx0 + 12 + numWidth(txt, ds) / 2,
+                y + (fh - GLYPH_H * ds) / 2, ds,
+                req ? pal.floorNumOn : pal.floorNum, pal.numPlate, 2);
     }
   }
 
@@ -191,13 +203,21 @@ export function draw(ctx, st, sim){
   for (const [f, list] of perFloor){
     const y = floorY(f);
     if (detail){
+      // 目的地的牌子放在小人「右邊」、垂直置中。放不到上面或下面：樓層只有 26px 高，
+      // 小人就佔 18px；原本畫在腳下的數字其實已經溢出到下一層樓上了。
       const csF = Math.max(1, Math.min(3, Math.floor(fh / 11)));
-      const step = Math.max(18, SPRITE_W * csF + 5);
+      const ds = fh >= 22 ? 2 : 1;
+      const step = SPRITE_W * csF + numWidth('88', ds) + 14;
       let n = 0;
       for (const p of list){
-        const x = view.fx0 + 24 + step * n + step / 2;
-        if (x + step / 2 > view.shaftX - 6) break;
-        drawPerson(ctx, x, y + fh / 2 + 6, String(p.dest + 1), false, p);
+        const x = view.fx0 + 22 + step * n;
+        if (x + step > view.shaftX - 4) break;
+        drawPerson(ctx, x + SPRITE_W * csF / 2, y + fh / 2 + 6, null, false, p);
+        const txt = String(p.dest + 1);
+        const urgent = (p.left / p.patience) < 0.25;
+        drawPlate(ctx, txt, x + SPRITE_W * csF + 4 + numWidth(txt, ds) / 2,
+                  y + (fh - GLYPH_H * ds) / 2, ds,
+                  urgent ? pal.bad : pal.ink, pal.numPlate, 2);
         if (++n > 6) break;
       }
       if (list.length > n){
@@ -247,11 +267,36 @@ export function draw(ctx, st, sim){
     }
 
     if (detail && s.riders.length){
-      const shown = Math.min(s.riders.length, 4);
-      const slot = (w - 4) / shown;
-      s.riders.slice(0, shown).forEach((p, k) => {
-        drawPerson(ctx, x + 2 + slot * (k + 0.5), y + carH / 2 + 6, String(p.dest + 1), true, p, slot - 1);
-      });
+      if (view.manual){
+        // 手動期：只顯示「要去哪」，由小排到大，不畫乘客。
+        // 你要的是下一個該點哪一層，不是誰坐在裡面。一人一個數字排不下——
+        // 原本的做法給每位乘客 6.1px，四個數字是疊在一起的。
+        const dests = [...new Set(s.riders.map(r => r.dest + 1))].sort((a, b) => a - b);
+        const ds = carH >= 22 ? 2 : 1;
+        // 排成網格，每格固定兩位數的寬度並靠右對齊。第一版只是把數字連著放，
+        // 間距 3px 不夠：「1 3 5 8」會讀成「1358」，兩位數更糟。
+        const cw = numWidth('88', ds), gap = ds * 3, ch = GLYPH_H * ds + 3;
+        const cols = Math.max(1, Math.floor((w - 6 + gap) / (cw + gap)));
+        const rows = Math.max(1, Math.floor(carH / ch));
+        const slots = cols * rows;
+        const show = dests.length > slots ? slots - 1 : dests.length;   // 放不下就留一格給 +N
+        const gw = cols * cw + (cols - 1) * gap;
+        const gh = rows * ch - 3;
+        const gx = x + (w - gw) / 2, gy = y + (carH - gh) / 2;
+        const cell = (i, txt, color, sc) => {
+          const r = Math.floor(i / cols), c = i % cols;
+          drawNum(ctx, txt, gx + c * (cw + gap) + cw, gy + r * ch, sc, color, 'right');
+        };
+        for (let i = 0; i < show; i++) cell(i, String(dests[i]), pal.inkCar, ds);
+        if (show < dests.length) cell(show, '+' + (dests.length - show), pal.crowdBar, ds);
+      } else {
+        // 有調度演算法之後就不用你點了，目的地變成雜訊——改成看人。
+        const shown = Math.min(s.riders.length, 4);
+        const slot = (w - 4) / shown;
+        s.riders.slice(0, shown).forEach((p, k) => {
+          drawPerson(ctx, x + 2 + slot * (k + 0.5), y + carH / 2 + 6, null, true, p, slot - 1);
+        });
+      }
     } else if (s.riders.length){
       ctx.fillStyle = pal.riderBar;
       ctx.fillRect(x + 2, y + 1, (w - 4) * Math.min(1, s.riders.length / Math.max(1, d.capacity)), Math.max(1, carH - 2));
@@ -338,9 +383,12 @@ function drawPerson(ctx, x, y, label, inCar, p, maxW){
     ctx.fillRect(ex, ey + cs * 3, cs, cs);
   }
 
-  ctx.fillStyle = urgent ? pal.bad : pal.personText;
-  ctx.font = '600 9px system-ui'; ctx.textAlign = 'center';
-  ctx.fillText(label, x + wob, y + 10);
+  // label 現在由呼叫端自己畫成點陣字（見 digits.js）——這裡只在有傳字串時才畫
+  if (label != null){
+    ctx.fillStyle = urgent ? pal.bad : pal.personText;
+    ctx.font = '600 9px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText(label, x + wob, y + 10);
+  }
 
   if (p && p.patience < 500){
     const bw = 12, ratio = Math.max(0, p.left / p.patience);

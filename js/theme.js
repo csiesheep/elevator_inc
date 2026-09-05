@@ -28,6 +28,7 @@ const NIGHT = {
   furn: 1.95, furnAcc: 2.90, glassK: 1.50,
   night: 1,                                  // 1 = 全夜、0 = 全日。插值出來就是「現在多暗」
   winLit: '#ffcf6a',                         // 夜裡窗戶的燈色
+  numPlate:   '#0e1119',                     // 數字底板
   slab:       '#1b2130',                     // 樓板：每層之間那道縫
   empty:      '#1e222a', emptyAlpha: 0.85,
   emptyHatch: '#788296', emptyHatchA: 0.16,
@@ -55,6 +56,7 @@ const DAY = {
   furn: 0.78, furnAcc: 0.55, glassK: 1.25,
   night: 0,
   winLit: '#ffcf6a',
+  numPlate:   '#f2f4fa',
   slab:       '#b9bfd0',
   empty:      '#d6cebc', emptyAlpha: 0.9,
   emptyHatch: '#16183a', emptyHatchA: 0.14,

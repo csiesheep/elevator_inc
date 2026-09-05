@@ -236,6 +236,14 @@ export function buySkill(st, id){
   return true;
 }
 
+// 全手動 = 還沒有任何調度演算法。畫面要用這個決定轎廂顯示什麼：
+// 手動時你得知道車上的人要去哪（那是你決定點哪層的依據），自動之後那是雜訊。
+// 條件跟 sim.js 的 nextTarget() 用的是同一個，不能各寫各的。
+export function isManual(st){
+  return !st.auto.fifo && !(st.auto.dest || st.auto.group || st.auto.shuttle
+                            || st.auto.double || st.auto.skylobby);
+}
+
 // ------------------------------------------------------------ Prestige
 export function prestigeGain(st){
   return Math.floor(Math.sqrt(st.runRevenue / C.PRESTIGE_DIV));

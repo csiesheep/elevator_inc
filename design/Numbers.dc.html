@@ -1,0 +1,257 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+  <style>
+    body { margin: 0; }
+    x-dc { display: block; }
+    a { color: #7dd8f7; } a:hover { color: #ffd23f; }
+    canvas { image-rendering: pixelated; display: block; }
+    .pxs { font-family: "Pixelify Sans", "Courier New", monospace; }
+    .k { color: #e8eaf0; font-weight: 700; }
+    code { font-family: ui-monospace, monospace; color: #7dd8f7; font-size: .94em; }
+    th, td { text-align: left; padding: 7px 14px 7px 0; font-size: 12.5px; vertical-align: top; }
+    th { color: #6b6f9e; font-weight: 500; border-bottom: 1px solid #2a2d55; }
+    td { border-bottom: 1px solid #20233c; color: #b9bfd8; line-height: 1.6; }
+    .row { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
+    .cell { display: flex; flex-direction: column; gap: 6px; }
+    .cap { font-size: 11px; color: #6b6f9e; }
+    .capk { font-size: 11.5px; color: #e8eaf0; font-weight: 700; }
+    h2.pxs { margin: 26px 0 6px; font-size: 17px; color: #ffd23f; }
+    p.lead { margin: 0 0 14px; font-size: 12.5px; line-height: 1.8; color: #8f95d6; max-width: 76em; }
+  </style>
+</helmet>
+
+<div style="width: 1060px; background: #0f1116; padding: 26px 30px 34px;
+     font-family: 'Noto Sans TC','PingFang TC',sans-serif; color: #e8eaf0;">
+
+  <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:6px">
+    <h1 class="pxs" style="margin:0;font-size:26px;font-weight:700;color:#ffd23f">畫面上的三個數字</h1>
+    <span style="font-size:12.5px;color:#8f95d6">樓層號、乘客的目的地、轎廂裡的目的地</span>
+  </div>
+  <p class="lead">
+    三個數字現在分別是 <span class="k">11px</span>、<span class="k">9px</span>、<span class="k">9px</span> 的 system-ui。
+    量過之後問題不只是「小」：<span class="k">轎廂裡每位乘客只有 6.1px 的寬度</span>，9px 的字物理上塞不下，
+    四個人的數字是疊在一起的；而等待乘客的數字畫在 <code>y + 10</code>，也就是<span class="k">該樓層下緣之外 3px</span>，
+    其實壓在下一層樓上。所以這不是調 font-size 的事。
+  </p>
+
+  <h2 class="pxs">先換字：點陣數字</h2>
+  <p class="lead">
+    整個遊戲是像素的，system-ui 在 9–11px 會被反鋸齒糊成一團灰，跟旁邊硬邊的小人也不同調。
+    3×5 的點陣數字<span class="k">放大兩倍（6×10px）就比 11px 的系統字好認</span>，而且每個點都落在整數像素上。
+  </p>
+  <div class="row" id="font"></div>
+
+  <h2 class="pxs">1 · 樓層號</h2>
+  <p class="lead">空間最寬鬆的一個，整層樓的寬度都能用。加一塊底板，數字才不會被家具吃掉。</p>
+  <div class="row" id="floors"></div>
+
+  <h2 class="pxs">2 · 等待乘客的目的地</h2>
+  <p class="lead">
+    現在畫在腳下、而且溢出樓層。改放到<span class="k">小人右邊、垂直置中</span>——這樣不需要垂直空間
+    （樓層只有 26px 高，小人就佔 18px，上下都塞不下 10px 的數字）。
+    代價是每人從 19px 變成 33px 寬，但本來就最多只畫 6 個人，一層樓放得下 8 個位置，實際上沒有損失。
+  </p>
+  <div class="row" id="wait"></div>
+
+  <h2 class="pxs">3 · 轎廂裡的目的地 —— 這裡要你選</h2>
+  <p class="lead">
+    轎廂寬約 26px，四個乘客每人 6.1px。<span class="k">任何字型都塞不下</span>，所以只能換做法。
+    兩個方向，各有各的取捨：
+  </p>
+  <div class="row" id="car"></div>
+
+  <table style="width:100%;border-collapse:collapse;margin-top:20px">
+    <tr><th style="width:130px">方向</th><th>看到什麼</th><th>取捨</th></tr>
+    <tr><td class="k">A 電梯樓層顯示</td>
+        <td>一個大數字＝這台車正要去哪，下面一排點＝車上幾個人</td>
+        <td>最好讀，而且是真實電梯的做法。但你看不到「車上的人各自要去哪」——
+            手動玩的時候那是你決定下一個要點哪層的依據</td></tr>
+    <tr><td class="k">B 目的地直排</td>
+        <td>車上乘客的目的地由上往下排，放不下就 +N</td>
+        <td>資訊完整、手動玩時真的有用。但一台車最多只排得下兩個（轎廂 24px 高），
+            而且兩個數字比一個大數字難掃</td></tr>
+  </table>
+  <p class="lead" style="margin-top:14px">
+    樓層很多的時候（100 層時每層只有 3.4px）兩個方向都畫不下，會退回現在就有的「人數條」，這點不變。
+  </p>
+</div>
+</x-dc>
+
+<script>
+const GLYPH = {
+  '0': ['###', '#.#', '#.#', '#.#', '###'],
+  '1': ['.#.', '##.', '.#.', '.#.', '###'],
+  '2': ['###', '..#', '###', '#..', '###'],
+  '3': ['###', '..#', '###', '..#', '###'],
+  '4': ['#.#', '#.#', '###', '..#', '..#'],
+  '5': ['###', '#..', '###', '..#', '###'],
+  '6': ['###', '#..', '###', '#.#', '###'],
+  '7': ['###', '..#', '..#', '..#', '..#'],
+  '8': ['###', '#.#', '###', '#.#', '###'],
+  '9': ['###', '#.#', '###', '..#', '###'],
+  '+': ['...', '.#.', '###', '.#.', '...'],
+  '-': ['...', '...', '###', '...', '...'],
+};
+
+const GLYPH_W = 3, GLYPH_H = 5;
+
+// 一串字在某個縮放下佔多寬（字距 1 格）
+function numWidth(text, s){
+  const n = String(text).length;
+  return n <= 0 ? 0 : (n * GLYPH_W + (n - 1)) * s;
+}
+
+// x/y 是左上角。align: 'left' | 'center' | 'right'
+function drawNum(ctx, text, x, y, s, color, align){
+  const str = String(text);
+  const w = numWidth(str, s);
+  let ox = align === 'center' ? Math.round(x - w / 2) : align === 'right' ? Math.round(x - w) : Math.round(x);
+  const oy = Math.round(y);
+  ctx.fillStyle = color;
+  for (let i = 0; i < str.length; i++){
+    const g = GLYPH[str[i]];
+    if (!g){ ox += (GLYPH_W + 1) * s; continue; }
+    for (let r = 0; r < GLYPH_H; r++){
+      const row = g[r];
+      let c = 0;
+      while (c < GLYPH_W){
+        if (row[c] !== '#'){ c++; continue; }
+        let n = 1;
+        while (c + n < GLYPH_W && row[c + n] === '#') n++;
+        ctx.fillRect(ox + c * s, oy + r * s, n * s, s);
+        c += n;
+      }
+    }
+    ox += (GLYPH_W + 1) * s;
+  }
+}
+
+// 數字加一塊底板。小人站在花花綠綠的樓層上，沒有底板的數字會被家具吃掉。
+function drawPlate(ctx, text, cx, top, s, ink, bg, pad){
+  const w = numWidth(text, s), p = pad == null ? s : pad;
+  const x = Math.round(cx - w / 2) - p, y = Math.round(top) - p;
+  ctx.fillStyle = bg;
+  ctx.fillRect(x, y, w + p * 2, GLYPH_H * s + p * 2);
+  drawNum(ctx, text, cx, top, s, ink, 'center');
+  return { x, y, w: w + p * 2, h: GLYPH_H * s + p * 2 };
+}
+
+const P = { ink:'#eef2fb', plate:'#161a22', floorInk:'#cfd6e6', floorPlate:'#0f131c',
+            band:'#3f5a52', bandLit:'#82b8a8', car:'#eef3fb', carEdge:'#3d4557',
+            door:'#39404f', glass:'#dbe7f7', gold:'#f0c04a', dim:'#7c8499' };
+
+function mk(w, h, zoom){
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  c.style.width = (w*zoom)+'px'; c.style.height = (h*zoom)+'px';
+  return c;
+}
+function cell(parent, canvas, cap, strong){
+  const d = document.createElement('div'); d.className='cell';
+  const s = document.createElement('span'); s.className = strong ? 'capk' : 'cap'; s.textContent = cap;
+  d.appendChild(canvas); d.appendChild(s); parent.appendChild(d);
+}
+
+// ---- 字樣
+{
+  const host = document.getElementById('font');
+  for (const s of [1,2,3]){
+    const c = mk(numWidth('0123456789', s)+4, GLYPH_H*s+4, 3);
+    const x = c.getContext('2d');
+    x.fillStyle = '#161a22'; x.fillRect(0,0,c.width,c.height);
+    drawNum(x, '0123456789', 2, 2, s, P.ink, 'left');
+    cell(host, c, '×'+s+'  ('+(GLYPH_W*s)+'×'+(GLYPH_H*s)+'px / \u5b57)', false);
+  }
+}
+
+// ---- 1 樓層號
+{
+  const host = document.getElementById('floors');
+  const W = 120, H = 26;
+  // 現況
+  const a = mk(W, H, 3), xa = a.getContext('2d');
+  xa.fillStyle = P.band; xa.fillRect(0,0,W,H);
+  xa.fillStyle = P.bandLit; xa.fillRect(0,0,6,H);
+  xa.fillStyle = P.floorInk; xa.font = '600 11px system-ui'; xa.textAlign='left';
+  xa.fillText('14', 12, H/2+4);
+  cell(host, a, '\u73fe\u6cc1  11px system-ui', true);
+  // 提案 ×2 / ×3
+  for (const s of [2,3]){
+    const c = mk(W, H, 3), x = c.getContext('2d');
+    x.fillStyle = P.band; x.fillRect(0,0,W,H);
+    x.fillStyle = P.bandLit; x.fillRect(0,0,6,H);
+    drawPlate(x, '14', 10 + numWidth('14', s)/2 + 2, (H - GLYPH_H*s)/2, s, P.floorInk, P.floorPlate, 2);
+    cell(host, c, '\u63d0\u6848  \u00d7'+s, true);
+  }
+}
+
+// ---- 2 等待乘客
+{
+  const host = document.getElementById('wait');
+  const H = 26;
+  const person = (x, px, cs) => {           // 極簡的人形，只為了佔位比例正確
+    x.fillStyle = P.ink;
+    x.fillRect(px+2*cs, 0, 3*cs, 3*cs);
+    x.fillRect(px+1*cs, 3*cs, 5*cs, 4*cs);
+    x.fillRect(px+2*cs, 7*cs, 1*cs, 2*cs);
+    x.fillRect(px+4*cs, 7*cs, 1*cs, 2*cs);
+  };
+  // 現況：19px 一人，數字在腳下、而且溢出樓層
+  const a = mk(19*4, H+6, 3), xa = a.getContext('2d');
+  xa.fillStyle = P.band; xa.fillRect(0,0,a.width,H);
+  xa.fillStyle = '#1b2130'; xa.fillRect(0,H,a.width,6);
+  for (let i=0;i<4;i++){
+    person(xa, i*19+3, 2);
+    xa.fillStyle = P.floorInk; xa.font='600 9px system-ui'; xa.textAlign='center';
+    xa.fillText(['9','12','3','7'][i], i*19+10, H+3);
+  }
+  cell(host, a, '\u73fe\u6cc1  \u6bcf\u4eba 19px\uff0c\u6578\u5b57\u6ea2\u51fa\u6a13\u5c64', true);
+  // 提案：牌子在右邊、垂直置中
+  const b = mk(33*3, H, 3), xb = b.getContext('2d');
+  xb.fillStyle = P.band; xb.fillRect(0,0,b.width,H);
+  for (let i=0;i<3;i++){
+    person(xb, i*33+3, 2);
+    drawPlate(xb, ['9','12','3'][i], i*33+17+numWidth(['9','12','3'][i],2)/2, (H-GLYPH_H*2)/2, 2, P.ink, P.plate, 2);
+  }
+  cell(host, b, '\u63d0\u6848  \u6bcf\u4eba 33px\uff0c\u724c\u5b50\u5728\u53f3\u908a', true);
+}
+
+// ---- 3 轎廂
+{
+  const host = document.getElementById('car');
+  const W = 32, H = 26;
+  const shell = (x) => {
+    x.fillStyle = '#161a22'; x.fillRect(0,0,W,H);
+    x.fillStyle = P.car; x.fillRect(3,1,W-6,H-3);
+    x.fillStyle = P.carEdge; x.strokeStyle = P.carEdge; x.lineWidth=1;
+    x.strokeRect(3.5,1.5,W-7,H-4);
+  };
+  // 現況
+  const a = mk(W,H,5), xa = a.getContext('2d'); shell(xa);
+  xa.fillStyle='#16183a'; xa.font='600 9px system-ui'; xa.textAlign='center';
+  ['9','12','3','7'].forEach((t,i)=>xa.fillText(t, 5+6.1*i+3, H-6));
+  cell(host, a, '\u73fe\u6cc1  4\u4eba \u00d7 6.1px', true);
+  // A 電梯樓層顯示
+  const b = mk(W,H,5), xb = b.getContext('2d'); shell(xb);
+  drawNum(xb, '12', W/2, 5, 2, '#16183a', 'center');
+  xb.fillStyle = '#16183a';
+  for (let i=0;i<4;i++) xb.fillRect(W/2-8+i*4, H-8, 2, 2);
+  cell(host, b, 'A  \u5927\u6578\u5b57 = \u8981\u53bb\u54ea\uff0c\u9ede = \u5e7e\u500b\u4eba', true);
+  // B 目的地直排
+  const c = mk(W,H,5), xc = c.getContext('2d'); shell(xc);
+  drawNum(xc, '9',  W/2, 3,  2, '#16183a', 'center');
+  drawNum(xc, '12', W/2, 14, 2, '#16183a', 'center');
+  drawNum(xc, '+2', W/2-1, 21, 1, '#5c5f8a', 'center');
+  cell(host, c, 'B  \u76ee\u7684\u5730\u76f4\u6392 + \u9918\u6578', true);
+}
+</script>
+</body>
+</html>
