@@ -21,55 +21,65 @@ export function dayness(h){
 
 // ---------------------------------------------------------------- canvas 色表
 // 兩張表的鍵必須一模一樣，值只能是 #rrggbb 或數字——插值就是逐鍵做。
+// 規則：**室外隨時間變，室內不變。**
+//
+// 以前是整張表都插值，結果兩件事同時發生：樓層底色的乘數從 0.40 盪到 1.95（近四倍），
+// 而小人的墨色從淺翻到深。日夜交界時兩邊一起走到中間灰，對比歸零——黃昏和天微亮
+// 的時候乘客和數字幾乎看不見。這跟介面 CSS 變數撞到的是同一個病。
+//
+// 所以：樓層、家具、乘客、數字、轎廂、井道都留在固定（或極小擺盪）的範圍；
+// 天空、街道、外牆、屋頂、遠景照舊隨時間走。大樓內部本來就是人工照明的，
+// 正午和晚上八點的辦公室看起來差不多。
+//
+// 唯一往反方向變的是 winLit：天越黑，窗戶越亮。那是該變的。
 const NIGHT = {
-  floorA: 0.50, floorB: 0.40, stripe: 2.05, floorAlpha: 1,
-  // 家具相對於樓層帶顏色的倍率。暗底上家具要更亮，亮底上要更暗，
-  // 所以這兩個數字在兩張表裡是反過來的。
-  furn: 1.95, furnAcc: 2.90, glassK: 1.50,
-  night: 1,                                  // 1 = 全夜、0 = 全日。插值出來就是「現在多暗」
-  winLit: '#ffcf6a',                         // 夜裡窗戶的燈色
-  numPlate:   '#0e1119',                     // 數字底板
-  slab:       '#1b2130',                     // 樓板：每層之間那道縫
-  empty:      '#1e222a', emptyAlpha: 0.85,
-  emptyHatch: '#788296', emptyHatchA: 0.16,
-  floorNum:   '#7c8499', floorNumOn: '#7cc4ff', label: '#8d97ae',
-  shaft:      '#161a22', shaftEdge: '#2c313d', shaftExpress: '#c08a3a',
-  expressTint:'#f0c04a', expressTintA: 0.06,
-  car:        '#20242e', carEdge: '#3d4557', carDoors: '#f0c04a',
-  door:       '#39404f', carGlass: '#171c2f',
-  ink:        '#cfd6e6', inkCar: '#eef2fb',
+  floorA: 0.62, floorB: 0.52, stripe: 2.30, floorAlpha: 1,
+  furn: 1.42, furnAcc: 2.05, glassK: 1.40,
+  night: 1,                                  // 1 = 全夜、0 = 全日。只剩窗戶的燈在用
+  winLit: '#ffcf6a',
+  numPlate:   '#0d1018',
+  slab:       '#1b2130',
+  empty:      '#232833', emptyAlpha: 0.9,
+  emptyHatch: '#8892a6', emptyHatchA: 0.16,
+  floorNum:   '#c8d0e4', floorNumOn: '#7cc4ff', label: '#9aa4bd',
+  shaft:      '#141924', shaftEdge: '#2c313d', shaftExpress: '#c08a3a',
+  expressTint:'#f0c04a', expressTintA: 0.08,
+  car:        '#e6ecf7', carEdge: '#2a3142', carDoors: '#f0c04a',
+  door:       '#8f9db5', carGlass: '#cfdcf0',
+  ink:        '#eaf0fb', inkCar: '#12161f',
   heatCool:   '#6d7690', heatWarm: '#f0a04a',
   money:      '#5ddc9a', bad: '#e2645a', warn: '#f0a04a',
-  personText: '#cfd6e6', crowdBar: '#7f89a3', riderBar: '#8fa4c8',
-  patienceBg: '#2a2f3b',
-  wall:       '#1b2130', wallWin: '#39414f',  // 外牆與牆上的窗
-  deck:       '#242a38',                      // 屋頂平台
+  personText: '#eaf0fb', crowdBar: '#8f9ab5', riderBar: '#7f95bd',
+  patienceBg: '#232a38',
+  // ---- 以下是室外，會隨時間走
+  wall:       '#1b2130', wallWin: '#39414f',
+  deck:       '#242a38',
   ground:     '#12141c', groundLine: '#2a3040', lamp: '#f0c04a', lampA: 0.95,
-  far:        '#1a2030',                      // 遠景城市剪影
+  far:        '#1a2030',
   tile:       '#e0a838', tileDark: '#b07d22', tileRidge: '#8a6018',
   tileOrn:    '#ffd23f', tileBrk: '#b8503f',
 };
 const DAY = {
-  // 亮版的樓層底色不再是平塗米白：那會讓七個樓層帶全部糊成一片灰
-  // （100 層時左緣色條只有 6px，撐不起分帶）。改成把帶色拉亮成粉彩。
-  floorA: 1.95, floorB: 1.72, stripe: 1.15, floorAlpha: 1,
-  furn: 0.78, furnAcc: 0.55, glassK: 1.25,
+  // 只有這兩個乘數跟夜間不同：1.26 倍的擺盪，看得出時間但壓不過前景。
+  floorA: 0.78, floorB: 0.66, stripe: 2.30, floorAlpha: 1,
+  furn: 1.42, furnAcc: 2.05, glassK: 1.40,
   night: 0,
   winLit: '#ffcf6a',
-  numPlate:   '#f2f4fa',
-  slab:       '#b9bfd0',
-  empty:      '#d6cebc', emptyAlpha: 0.9,
-  emptyHatch: '#16183a', emptyHatchA: 0.14,
-  floorNum:   '#6a6480', floorNumOn: '#1f6fd0', label: '#5c5f8a',
-  shaft:      '#c3d2e6', shaftEdge: '#16183a', shaftExpress: '#c08a3a',
-  expressTint:'#f0c04a', expressTintA: 0.14,
-  car:        '#eef3fb', carEdge: '#16183a', carDoors: '#ffd23f',
-  door:       '#9fb3cf', carGlass: '#dbe7f7',
-  ink:        '#16183a', inkCar: '#16183a',
-  heatCool:   '#8a93b5', heatWarm: '#ff9d2e',
-  money:      '#12915f', bad: '#d63b3b', warn: '#d97a06',
-  personText: '#16183a', crowdBar: '#5c5f8a', riderBar: '#2f6fd0',
-  patienceBg: '#c9c0ab',
+  numPlate:   '#0d1018',
+  slab:       '#2a3142',
+  empty:      '#2b3140', emptyAlpha: 0.9,
+  emptyHatch: '#8892a6', emptyHatchA: 0.16,
+  floorNum:   '#c8d0e4', floorNumOn: '#7cc4ff', label: '#9aa4bd',
+  shaft:      '#141924', shaftEdge: '#2c313d', shaftExpress: '#c08a3a',
+  expressTint:'#f0c04a', expressTintA: 0.08,
+  car:        '#e6ecf7', carEdge: '#2a3142', carDoors: '#f0c04a',
+  door:       '#8f9db5', carGlass: '#cfdcf0',
+  ink:        '#eaf0fb', inkCar: '#12161f',
+  heatCool:   '#6d7690', heatWarm: '#f0a04a',
+  money:      '#5ddc9a', bad: '#e2645a', warn: '#f0a04a',
+  personText: '#eaf0fb', crowdBar: '#8f9ab5', riderBar: '#7f95bd',
+  patienceBg: '#232a38',
+  // ---- 室外
   wall:       '#e6e0d0', wallWin: '#9aa8c0',
   deck:       '#cfd6e2',
   ground:     '#b7ae9c', groundLine: '#8d8676', lamp: '#f0c04a', lampA: 0.15,

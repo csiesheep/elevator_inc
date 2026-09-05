@@ -1,0 +1,580 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+  <style>
+    body { margin: 0; }
+    x-dc { display: block; }
+    a { color: #7dd8f7; } a:hover { color: #ffd23f; }
+    canvas { image-rendering: pixelated; display: block; }
+    .pxs { font-family: "Pixelify Sans", "Courier New", monospace; }
+    .k { color: #e8eaf0; font-weight: 700; }
+    code { font-family: ui-monospace, monospace; color: #7dd8f7; font-size: .94em; }
+    th, td { text-align: left; padding: 8px 14px 8px 0; font-size: 12.5px; vertical-align: middle; }
+    th { color: #6b6f9e; font-weight: 500; border-bottom: 1px solid #2a2d55; }
+    td { border-bottom: 1px solid #20233c; color: #b9bfd8; line-height: 1.6; }
+    p.lead { margin: 0 0 16px; font-size: 12.5px; line-height: 1.85; color: #8f95d6; max-width: 76em; }
+    h2.pxs { margin: 26px 0 6px; font-size: 17px; color: #ffd23f; }
+    .tlab { font-size: 11.5px; color: #e8eaf0; font-weight: 700; font-family: ui-monospace, monospace; }
+  </style>
+</helmet>
+
+<div style="width: 1060px; background: #0f1116; padding: 26px 30px 34px;
+     font-family: 'Noto Sans TC','PingFang TC',sans-serif; color: #e8eaf0;">
+
+  <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:6px">
+    <h1 class="pxs" style="margin:0;font-size:26px;font-weight:700;color:#ffd23f">室內配色</h1>
+    <span style="font-size:12.5px;color:#8f95d6">背景退後，乘客和數字站出來</span>
+  </div>
+  <p class="lead">
+    樓層底色的乘數現在從<span class="k">夜 0.40–0.50 盪到日 1.72–1.95</span>，將近四倍——
+    日間那一端就是「太搶眼」的來源。而小人的墨色 <code>#cfd6e6 → #16183a</code>、
+    數字底板 <code>#0e1119 → #f2f4fa</code> 會整個翻過來。
+  </p>
+  <p class="lead">
+    這兩件事是同一件事：<span class="k">墨色之所以要翻，正是因為背景會翻</span>。
+    要讓乘客和數字固定，背景就得留在一個窄的範圍裡——那剛好就是「別那麼搶眼」。
+    論證上也站得住：大樓內部是人工照明的，正午和晚上八點的辦公室看起來差不多。
+    <span class="k">日夜交給天空、街道、外牆和窗戶的燈</span>，不是交給室內地板。
+  </p>
+
+  <h2 class="pxs">四個時刻</h2>
+  <p class="lead">同一層樓、同樣的人、同樣的數字。左邊現況，右邊提案。</p>
+  <div id="rows" style="display:flex;flex-direction:column;gap:12px"></div>
+
+  <h2 class="pxs">改了哪些數字</h2>
+  <table style="width:100%;border-collapse:collapse">
+    <tr><th style="width:150px">項目</th><th style="width:200px">現況（夜 → 日）</th><th style="width:200px">提案（夜 → 日）</th><th>理由</th></tr>
+    <tr><td class="k">樓層底色乘數</td><td>0.40–0.50 → 1.72–1.95</td><td>0.52–0.62 → 0.66–0.78</td>
+        <td>近四倍的擺盪縮到 1.26 倍。時間感還在，但不再壓過前景</td></tr>
+    <tr><td class="k">家具乘數</td><td>1.95 → 0.78</td><td>1.42 固定</td>
+        <td>永遠比地板亮一階，讀成材質而不是圖形</td></tr>
+    <tr><td class="k">左緣色條</td><td>2.05 → 1.15</td><td>2.30 固定</td>
+        <td>樓層帶的辨識全靠它，所以它要維持鮮明——但它只有 5–10px 寬，不會搶</td></tr>
+    <tr><td class="k">乘客墨色</td><td>#cfd6e6 → #16183a</td><td>#eaf0fb 固定</td>
+        <td>不再隨日夜翻面</td></tr>
+    <tr><td class="k">轎廂內裝／車內墨色</td><td>#20242e → #eef3fb</td><td>#e6ecf7 / #12161f 固定</td>
+        <td>轎廂是亮的、裡面的人是深的。車內外兩套規則，各自固定</td></tr>
+    <tr><td class="k">數字底板／墨色</td><td>#0e1119 → #f2f4fa</td><td>#0d1018 / #c8d0e4 固定</td>
+        <td>同上</td></tr>
+    <tr><td class="k">窗戶的燈</td><td>夜裡轉暖燈色</td><td>不變</td>
+        <td>這是<b>該</b>隨時間變的東西——天越黑樓越亮，留著</td></tr>
+  </table>
+</div>
+</x-dc>
+
+<script>
+const GLYPH = {
+  '0': ['###', '#.#', '#.#', '#.#', '###'],
+  '1': ['.#.', '##.', '.#.', '.#.', '###'],
+  '2': ['###', '..#', '###', '#..', '###'],
+  '3': ['###', '..#', '###', '..#', '###'],
+  '4': ['#.#', '#.#', '###', '..#', '..#'],
+  '5': ['###', '#..', '###', '..#', '###'],
+  '6': ['###', '#..', '###', '#.#', '###'],
+  '7': ['###', '..#', '..#', '..#', '..#'],
+  '8': ['###', '#.#', '###', '#.#', '###'],
+  '9': ['###', '#.#', '###', '..#', '###'],
+  '+': ['...', '.#.', '###', '.#.', '...'],
+  '-': ['...', '...', '###', '...', '...'],
+};
+
+const GLYPH_W = 3, GLYPH_H = 5;
+
+// 一串字在某個縮放下佔多寬（字距 1 格）
+function numWidth(text, s){
+  const n = String(text).length;
+  return n <= 0 ? 0 : (n * GLYPH_W + (n - 1)) * s;
+}
+
+// x/y 是左上角。align: 'left' | 'center' | 'right'
+function drawNum(ctx, text, x, y, s, color, align){
+  const str = String(text);
+  const w = numWidth(str, s);
+  let ox = align === 'center' ? Math.round(x - w / 2) : align === 'right' ? Math.round(x - w) : Math.round(x);
+  const oy = Math.round(y);
+  ctx.fillStyle = color;
+  for (let i = 0; i < str.length; i++){
+    const g = GLYPH[str[i]];
+    if (!g){ ox += (GLYPH_W + 1) * s; continue; }
+    for (let r = 0; r < GLYPH_H; r++){
+      const row = g[r];
+      let c = 0;
+      while (c < GLYPH_W){
+        if (row[c] !== '#'){ c++; continue; }
+        let n = 1;
+        while (c + n < GLYPH_W && row[c + n] === '#') n++;
+        ctx.fillRect(ox + c * s, oy + r * s, n * s, s);
+        c += n;
+      }
+    }
+    ox += (GLYPH_W + 1) * s;
+  }
+}
+
+// 數字加一塊底板。小人站在花花綠綠的樓層上，沒有底板的數字會被家具吃掉。
+function drawPlate(ctx, text, cx, top, s, ink, bg, pad){
+  const w = numWidth(text, s), p = pad == null ? s : pad;
+  const x = Math.round(cx - w / 2) - p, y = Math.round(top) - p;
+  ctx.fillStyle = bg;
+  ctx.fillRect(x, y, w + p * 2, GLYPH_H * s + p * 2);
+  drawNum(ctx, text, cx, top, s, ink, 'center');
+  return { x, y, w: w + p * 2, h: GLYPH_H * s + p * 2 };
+}
+const SPRITE_W = 7;
+const SPRITE_H = 9;
+
+const PEOPLE = {
+  // 上班族：公事包
+  office: { acc: '#8a5a2b', normal: [
+    '..###..',
+    '..###..',
+    '...#...',
+    '.####..',
+    '.####oo',
+    '.####oo',
+    '..#.#..',
+    '..#.#..',
+    '..#.#..',
+  ], urgent: [
+    '#.###..',
+    '#.###..',
+    '#..#...',
+    '.####..',
+    '.####oo',
+    '.####oo',
+    '..#.#..',
+    '.#...#.',
+    '.#...#.',
+  ]},
+
+  // 觀光客：帽簷 + 胸前的相機
+  tourist: { acc: '#e2645a', normal: [
+    '.#####.',
+    '..###..',
+    '...#...',
+    '.#####.',
+    '.#ooo#.',
+    '.#####.',
+    '..#.#..',
+    '..#.#..',
+    '..#.#..',
+  ], urgent: [
+    '.#####.',
+    '#.###.#',
+    '#..#..#',
+    '.#####.',
+    '.#ooo#.',
+    '.#####.',
+    '..#.#..',
+    '.#...#.',
+    '.#...#.',
+  ]},
+
+  // 送貨員：抱著一箱貨，佔兩格
+  courier: { acc: '#c08a3a', normal: [
+    '..###..',
+    '..###..',
+    '...#...',
+    '.#####.',
+    'ooooooo',
+    'ooooooo',
+    '..#.#..',
+    '..#.#..',
+    '..#.#..',
+  ], urgent: [
+    '#.###.#',
+    '#.###.#',
+    '#..#..#',
+    '.#####.',
+    'ooooooo',
+    'ooooooo',
+    '..#.#..',
+    '.#...#.',
+    '.#...#.',
+  ]},
+
+  // 保全：制服帽 + 寬肩
+  guard: { acc: '#4ec3f0', normal: [
+    '.ooooo.',
+    '..###..',
+    '...#...',
+    '#######',
+    '.#####.',
+    '.#####.',
+    '..#.#..',
+    '..#.#..',
+    '..#.#..',
+  ], urgent: [
+    '.ooooo.',
+    '#.###.#',
+    '#..#..#',
+    '#######',
+    '.#####.',
+    '.#####.',
+    '..#.#..',
+    '.#...#.',
+    '.#...#.',
+  ]},
+
+  // CEO：領帶
+  ceo: { acc: '#ff3d6e', normal: [
+    '..###..',
+    '..###..',
+    '...#...',
+    '.#####.',
+    '.##o##.',
+    '.##o##.',
+    '.#####.',
+    '..#.#..',
+    '..#.#..',
+  ], urgent: [
+    '#.###.#',
+    '#.###.#',
+    '#..#..#',
+    '.#####.',
+    '.##o##.',
+    '.##o##.',
+    '.#####.',
+    '.#...#.',
+    '.#...#.',
+  ]},
+
+  // 貓：矮、寬、四隻腳，剪影跟所有人都不一樣
+  cat: { acc: '#ffb02e', normal: [
+    '.......',
+    '.......',
+    '.o...o.',
+    '.ooooo.',
+    '.ooooo.',
+    'ooooooo',
+    'ooooooo',
+    '.o.o.o.',
+    '.......',
+  ], urgent: [
+    '.......',
+    '.o...o.',
+    '.ooooo.',
+    '.ooooo.',
+    'ooooooo',
+    'ooooooo',
+    'oo...oo',
+    '.o...o.',
+    '.......',
+  ]},
+
+  // 幽靈：沒有腳，下擺是波浪
+  ghost: { acc: '#bfe9f7', normal: [
+    '..ooo..',
+    '.ooooo.',
+    'ooooooo',
+    'oo.o.oo',
+    'ooooooo',
+    'ooooooo',
+    'ooooooo',
+    'o.o.o.o',
+    '.......',
+  ], urgent: [
+    '..ooo..',
+    '.ooooo.',
+    'ooooooo',
+    'oo.o.oo',
+    'ooooooo',
+    'ooooooo',
+    'ooooooo',
+    '.o.o.o.',
+    'o.....o',
+  ]},
+
+  // 搬家公司：一個大箱子，站得很開
+  mover: { acc: '#c08a3a', normal: [
+    '..###..',
+    '..###..',
+    '...#...',
+    'ooooooo',
+    'ooooooo',
+    'ooooooo',
+    '.#...#.',
+    '.#...#.',
+    '.#...#.',
+  ], urgent: [
+    '#.###.#',
+    '#.###.#',
+    '#..#..#',
+    'ooooooo',
+    'ooooooo',
+    'ooooooo',
+    '.#...#.',
+    '#.....#',
+    '#.....#',
+  ]},
+
+  // 房客：拖著行李箱
+  guest: { acc: '#a06bff', normal: [
+    '..###..',
+    '..###..',
+    '...#..o',
+    '.####.o',
+    '.####oo',
+    '.####oo',
+    '..#.#oo',
+    '..#.#..',
+    '..#.#..',
+  ], urgent: [
+    '#.###.o',
+    '#.###.o',
+    '#..#..o',
+    '.####.o',
+    '.####oo',
+    '.####oo',
+    '..#.#oo',
+    '.#...#.',
+    '.#...#.',
+  ]},
+
+  // 住戶：矮一點，提著袋子
+  resident: { acc: '#3ad39a', normal: [
+    '.......',
+    '..###..',
+    '..###..',
+    '...#...',
+    '.#####.',
+    '.####oo',
+    '.####oo',
+    '..#.#..',
+    '..#.#..',
+  ], urgent: [
+    '.......',
+    '#.###.#',
+    '#.###.#',
+    '#..#..#',
+    '.#####.',
+    '.####oo',
+    '.####oo',
+    '.#...#.',
+    '.#...#.',
+  ]},
+
+  // 觀景客：舉著望遠鏡
+  observer: { acc: '#ffd23f', normal: [
+    '..###..',
+    '.ooooo.',
+    '...#...',
+    '.#####.',
+    '.#####.',
+    '.#####.',
+    '..#.#..',
+    '..#.#..',
+    '..#.#..',
+  ], urgent: [
+    '#.###.#',
+    '#ooooo#',
+    '#..#..#',
+    '.#####.',
+    '.#####.',
+    '.#####.',
+    '..#.#..',
+    '.#...#.',
+    '.#...#.',
+  ]},
+
+  // 研究員：長袍 + 燒瓶
+  scientist: { acc: '#7dd8f7', normal: [
+    '..###..',
+    '..###..',
+    '...#...',
+    '.#####.',
+    '.#####o',
+    '.#####o',
+    '.#####.',
+    '..#.#..',
+    '..#.#..',
+  ], urgent: [
+    '#.###.#',
+    '#.###.#',
+    '#..#..#',
+    '.#####.',
+    '.#####o',
+    '.#####o',
+    '.#####.',
+    '.#...#.',
+    '.#...#.',
+  ]},
+};
+
+const spriteFor = (typeId, urgent) => {
+  const s = PEOPLE[typeId] || PEOPLE.office;
+  return { rows: urgent ? s.urgent : s.normal, acc: s.acc };
+};
+const MOTIF_W = 16, MOTIF_H = 8;
+
+const MOTIFS = {
+  retail: ['..oo.oo.oo......',      // 遮陽棚 + 櫃檯 + 貨架
+           '..########......',
+           '..........ooo...',
+           '..........###...',
+           '...####...ooo...',
+           '...####...###...',
+           '...####...###...',
+           '................'],
+  office: ['................',      // 隔板 + 桌 + 發光的螢幕
+           '....gg.....gg...',
+           '....gg..#..gg...',
+           '..#####.#.#####.',
+           '..#..#..#..#..#.',
+           'o.......#.......',
+           'o...............',
+           '................'],
+  hotel:  ['................',      // 床 + 床頭燈 + 行李架
+           '.......o........',
+           '..##...o....##..',
+           '..##...#....##..',
+           '.ooooo.#..oooo..',
+           '.#####.#..####..',
+           '.#...#....#..#..',
+           '................'],
+  resid:  ['oo............oo',      // 窗簾 + 發光的電視 + 沙發 + 盆栽
+           'oo....gggg....oo',
+           '......gggg......',
+           '..###.####...o..',
+           '.#####.......o..',
+           '.#####......###.',
+           '.#...#......###.',
+           '................'],
+  obs:    ['wwwwwwwwwwwwwwww',      // 落地玻璃 + 望遠鏡 + 長椅
+           'w..............w',
+           'w....o.........w',
+           'w...oo....####.w',
+           'w..#o.....#..#.w',
+           'w..#......#..#.w',
+           'w.###..........w',
+           'wwwwwwwwwwwwwwww'],
+  exp:    ['................',      // 實驗桌 + 燒瓶 + 培養管
+           '....g......gg...',
+           '...ggg.....gg...',
+           '..#####..#.gg.#.',
+           '..#####..#.gg.#.',
+           'ooooooooooooooo.',
+           '..#.........#...',
+           '................'],
+  roof:   ['........g.......',      // 發射架 + 纜線捲盤
+           '.......ooo......',
+           '.......ooo......',
+           '..#....ooo....#.',
+           '..#...#ooo#...#.',
+           '..#...#####...#.',
+           '.###...###...###',
+           '................'],
+};
+
+// 家具畫不下的時候，每一帶還剩一個東西：窗格的節奏
+const SIGNATURES = {
+  retail: 'o.o.o.o.o.o.o.o.',   // 密集的小店面
+  office: 'oo..oo..oo..oo..',   // 成對的辦公窗
+  hotel:  'o..o..o..o..o..o',   // 客房均分
+  resid:  'oo.o..oo.o..oo.o',   // 住戶不規則
+  obs:    'oooooooooooooooo',   // 整面通透
+  exp:    'o...o...o...o...',   // 稀疏、單價高
+  roof:   '..o.......o.....',
+};
+
+// 發光的東西用哪個色。這是暗底上唯一會跳出來的元素，所以不能每帶都給。
+const GLOW = { office:'#7dd8f7', resid:'#ffb02e', exp:'#7dd8f7', roof:'#ffd23f' };
+
+function mixc(a, b, t){
+  const A = parseInt(a.slice(1),16), B = parseInt(b.slice(1),16);
+  let o = 0;
+  for (const sh of [16,8,0]){ const ca=(A>>sh)&255, cb=(B>>sh)&255; o |= Math.round(ca+(cb-ca)*t)<<sh; }
+  return '#' + o.toString(16).padStart(6,'0');
+}
+function shadeHex(hex, k){
+  const n = parseInt(hex.slice(1), 16); let o = 0;
+  for (const sh of [16,8,0]) o |= Math.min(255, Math.round(((n>>sh)&255)*k))<<sh;
+  return '#' + o.toString(16).padStart(6,'0');
+}
+const lerp = (a,b,t) => a + (b-a)*t;
+
+// night = 1 \u5168\u591c\uff0c0 \u5168\u65e5
+const NOW = (n) => ({
+  floorA: lerp(1.95, 0.50, n), floorB: lerp(1.72, 0.40, n),
+  stripe: lerp(1.15, 2.05, n), furn: lerp(0.78, 1.95, n), furnAcc: lerp(0.55, 2.90, n),
+  ink: mixc('#16183a', '#cfd6e6', n), numPlate: mixc('#f2f4fa', '#0e1119', n),
+  numInk: mixc('#6a6480', '#7c8499', n),
+  car: mixc('#eef3fb', '#20242e', n), inkCar: mixc('#16183a', '#eef2fb', n),
+  slab: mixc('#b9bfd0', '#1b2130', n), night: n,
+});
+const NEW = (n) => ({
+  floorA: lerp(0.78, 0.62, n), floorB: lerp(0.66, 0.52, n),
+  stripe: 2.30, furn: 1.42, furnAcc: 2.05,
+  ink: '#eaf0fb', numPlate: '#0d1018', numInk: '#c8d0e4',
+  car: '#e6ecf7', inkCar: '#12161f',
+  slab: mixc('#2a3142', '#1b2130', n), night: n,
+});
+
+const BAND = '#3f5a52';                     // \u8fa6\u516c\u5c64
+const SCREEN = '#7dd8f7';
+const FH = 30, W = 300, CARW = 46;
+
+function strip(p){
+  const c = document.createElement('canvas');
+  c.width = W + CARW + 10; c.height = FH;
+  c.style.width = Math.round(c.width*1.25)+'px'; c.style.height = Math.round(FH*1.25)+'px';
+  const x = c.getContext('2d');
+  x.fillStyle = p.slab; x.fillRect(0,0,c.width,c.height);
+  x.fillStyle = shadeHex(BAND, p.floorA); x.fillRect(0,0,W,FH-1);
+  x.fillStyle = shadeHex(BAND, p.stripe); x.fillRect(0,0,7,FH-1);
+  // \u5bb6\u5177
+  const furn = shadeHex(BAND, p.furn);
+  const acc  = mixc(shadeHex(BAND, p.furnAcc), '#ffcf6a', p.night*0.8);
+  const m = MOTIFS.office, cs = 2, top = FH-1-MOTIF_H*cs;
+  for (let px = 96; px + MOTIF_W*cs < W-4; px += MOTIF_W*cs + cs*6){
+    for (let r=0;r<MOTIF_H;r++){ const row=m[r];
+      for (let cc=0; cc<MOTIF_W; cc++){ const ch=row[cc]; if(ch==='.') continue;
+        x.fillStyle = ch==='#'?furn: ch==='o'?acc: ch==='g'?SCREEN: furn;
+        x.fillRect(px+cc*cs, top+r*cs, cs, cs); } }
+  }
+  // \u6a13\u5c64\u865f
+  drawPlate(x, '14', 12+numWidth('14',3)/2, (FH-GLYPH_H*3)/2, 3, p.numInk, p.numPlate, 2);
+  // \u5169\u500b\u4e58\u5ba2 + \u724c\u5b50
+  [['office','9'],['tourist','12']].forEach(([tid, dest], i) => {
+    const px = 44 + i*0; const s = PEOPLE[tid]; const cs2 = 2;
+    const bx = 40 + i*33, by = FH - 3 - SPRITE_H*cs2;
+    for (let r=0;r<SPRITE_H;r++){ const row=s.normal[r];
+      for (let cc=0; cc<SPRITE_W; cc++){ const ch=row[cc]; if(ch==='.') continue;
+        x.fillStyle = ch==='#'? p.ink : s.acc;
+        x.fillRect(bx+cc*cs2, by+r*cs2, cs2, cs2); } }
+    drawPlate(x, dest, bx+SPRITE_W*cs2+4+numWidth(dest,2)/2, (FH-GLYPH_H*2)/2, 2, p.ink, p.numPlate, 2);
+  });
+  // \u8f4e\u5eu5ee2
+  const cx0 = W + 6;
+  x.fillStyle = '#161a22'; x.fillRect(cx0, 0, CARW, FH);
+  x.fillStyle = p.car; x.fillRect(cx0+3, 1, CARW-6, FH-3);
+  const dests = ['3','8','11'];
+  dests.forEach((t,i) => drawNum(x, t, cx0+8+i*13+numWidth('88',2), 5, 2, p.inkCar, 'right'));
+  return c;
+}
+
+const TIMES = [[1.0,'23:00 \u6df1\u591c'],[0.55,'18:30 \u9ec3\u660f'],[0.0,'12:00 \u6b63\u5348'],[0.5,'05:30 \u5929\u5fae\u4eae']];
+const host = document.getElementById('rows');
+for (const [n, lab] of TIMES){
+  const row = document.createElement('div');
+  row.style.cssText = 'display:grid;grid-template-columns:96px 1fr 1fr;gap:14px;align-items:center';
+  const l = document.createElement('div'); l.className='tlab'; l.textContent = lab;
+  const a = document.createElement('div'); a.appendChild(strip(NOW(n)));
+  const b = document.createElement('div'); b.appendChild(strip(NEW(n)));
+  row.appendChild(l); row.appendChild(a); row.appendChild(b);
+  host.appendChild(row);
+}
+const head = document.createElement('div');
+head.style.cssText='display:grid;grid-template-columns:96px 1fr 1fr;gap:14px;font-size:11px;color:#6b6f9e;margin-bottom:2px';
+head.innerHTML = '<div></div><div>\u73fe\u6cc1</div><div>\u63d0\u6848</div>';
+host.parentNode.insertBefore(head, host);
+</script>
+</body>
+</html>
