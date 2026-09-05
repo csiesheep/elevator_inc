@@ -9,7 +9,7 @@ export const EN = {
     door:    { name:'Door cycle',    detail:'-0.12 s',          hint:'Only pays off once you make a lot of stops.' },
     cooling: { name:'Cooling',       detail:'+2 heat capacity / faster cooling', hint:'Lets you hold overdrive longer.' },
     shaft:   { name:'Extra shaft',   detail:'+1 shaft',         hint:'The priciest, and useless without a dispatch algorithm.' },
-    floor:   { name:'Build 5 floors',detail:'+5 floors (3 come with tenants)', hint:'New floors need leasing; empty ones carry nobody.' },
+    floor:   { name:'Build 5 floors',detail:'+5 floors', hint:'They fill themselves. A taller tower means longer trips, and longer trips pay more.' },
   },
 
   automation: {
@@ -63,7 +63,7 @@ export const EN = {
     deck:    { name:'Observation deck', note:'One-way pilgrimage of sightseers.' },
     skyrest: { name:'Sky restaurant',   note:'The highest fares up here. Seated in waves, emptied in waves.' },
     lab:     { name:'Laboratory',       note:'Researchers in a hurry.' },
-    server:  { name:'Data centre',      note:'Almost nobody needs the lift, but the few trips pay enormously. Lease this when you need to breathe.' },
+    server:  { name:'Data centre',      note:'Almost nobody needs the lift, but the few trips pay enormously.' },
     sky:     { name:'Rooftop plant',    note:'The roof.' },
   },
 

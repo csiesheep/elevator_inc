@@ -25,8 +25,8 @@ function rulesHTML(){
     ($60) and the next five floors ($150), so the first decision is which one.</p>
     <p>People appear on a floor with somewhere to be and a patience bar. Tap a floor to send the
     car there. Fares are <b>$1 × the number of floors travelled</b>, times the passenger, times the
-    tenants, times your rating — so a tall building is worth more per trip than a short one.
-    A day lasts three minutes; 8–10am and 5–7pm are rush hours.</p>
+    kind of floor they are travelling between, times your rating — so a tall building is worth more
+    per trip than a short one. A day lasts three minutes; 8–10am and 5–7pm are rush hours.</p>
 
     <h3>The five stats fight each other</h3>
     <p>Cruise speed helps long trips and barely touches short ones. Acceleration is the reverse.
@@ -40,16 +40,21 @@ function rulesHTML(){
     double-deck cars and finally a sky lobby. They are real elevator algorithms and they really do
     perform differently — the Stats tab shows you which shaft is slacking.</p>
 
-    <h3>Tenants, not just floors</h3>
-    <p>Building a floor does not put anyone in it. Lease it, and choose who to: a quiet open-plan
-    office, a conference centre that empties all at once, a data centre where almost nobody rides
-    but the few trips pay enormously. Your leasing decides the <i>shape</i> of your traffic.</p>
+    <h3>Height decides who rides</h3>
+    <p>A floor fills itself the moment it is built — there is nobody to sign up and nothing to pick.
+    What you are choosing is <b>how high</b>, because the height decides what the floor becomes:
+    shops at street level, offices that surge at 9am and again at 6pm, hotel rooms that arrive at
+    night, apartments, an observation deck, laboratories. Each band moves a different crowd at a
+    different hour, so building upward changes the <i>shape</i> of your traffic and not just the
+    amount. The Codex tab lists every band and what it does to your timetable.</p>
 
-    <h3>Rating cuts both ways</h3>
-    <p>Delivering people quickly raises the rating, which raises fares <i>and brings more people
-    in</i>. Let them give up and walk and it falls. Below <b>1.6 stars</b> nobody new will move in;
-    below <b>1.0</b> the tenants you already have start leaving. A bad rating does recover on its
-    own — slowly, and only up to 2 stars. The rest you have to earn.</p>
+    <h3>Rating is a multiplier</h3>
+    <p>Delivering people quickly raises the rating; letting them give up and walk lowers it. It then
+    does exactly two things, and both are dials rather than gates: it multiplies fares (<b>×1.20</b>
+    at the 0.8-star floor, <b>×2.25</b> at five stars) and it multiplies how many people turn up
+    (<b>×0.91</b> to <b>×1.50</b>). Both numbers sit beside the stars in the top bar, so you can
+    watch them move. A bad rating means you earn less — that is the whole of it. It also recovers on
+    its own, slowly, and only up to 2 stars. The rest you have to earn.</p>
 
     <h3>Controls</h3>
     <div class="keys"><kbd>tap a floor</kbd><kbd>1–9, 0</kbd><kbd>space / 🔥 = overdrive</kbd></div>
@@ -69,7 +74,7 @@ function rulesHTML(){
     <p>開場是<b>五層樓和 $200</b>——剛好買不起「自動關門 $60」和「加蓋五層 $150」兩樣，
     第一個決定就是二選一。</p>
     <p>乘客在某一層出現，頭上是目的地，旁邊是耐性條。點樓層把電梯叫過去。
-    票價是 <b>$1 × 跑了幾層樓</b>，再乘上乘客、租戶與大樓評價——所以樓越高，同一趟越值錢。
+    票價是 <b>$1 × 跑了幾層樓</b>，再乘上乘客、起訖那兩層的樓種與大樓評價——所以樓越高，同一趟越值錢。
     遊戲裡的一天是三分鐘，早上 8–10 點與傍晚 5–7 點是尖峰。</p>
 
     <h3>五個屬性互相牽制</h3>
@@ -82,13 +87,16 @@ function rulesHTML(){
     目的地控制 → 群組控制 → 快速電梯 → 雙層轎廂 → 空中大廳。
     這些都是真實存在的電梯演算法，而且效率真的有差——統計頁看得出哪一座井在偷懶。</p>
 
-    <h3>蓋好不等於有人</h3>
-    <p>樓蓋起來還要招商，而且要選租給誰：安靜的一般辦公、每場散場都爆量的會議中心、
-    幾乎沒人搭電梯但單價極高的資料中心。你的招商決定人流的<i>形狀</i>，不只是多少。</p>
+    <h3>蓋到哪，就決定誰來搭</h3>
+    <p>樓一蓋好就有人搬進來，沒有東西要招、也沒得挑。你選的是<b>蓋多高</b>——
+    高度決定那一層會變成什麼：街面的店鋪、早九晚六各爆一次的辦公室、夜裡才進房的旅館、
+    住宅、觀景台、實驗室。每一種樓層帶在不同的時間帶動不同的人潮，
+    所以往上蓋改變的是人流的<i>形狀</i>，不只是多少。圖鑑頁列出每一帶各做什麼。</p>
 
-    <h3>評價是雙面刃</h3>
-    <p>把人快點送到會提升評價，評價高則票價高、<i>而且更多人上門</i>。讓人等到走掉評價就掉：
-    低於 <b>1.6 星</b>再也招不到新租戶，低於 <b>1.0 星</b>現有的租戶會開始搬走。
+    <h3>評價是一個乘數</h3>
+    <p>把人快點送到評價就上去，讓人等到走掉評價就下來。接著它只做兩件事，而且都是旋鈕、不是關卡：
+    乘票價（0.8 星的地板 <b>×1.20</b>，五星 <b>×2.25</b>），以及乘上門的人數（<b>×0.91</b> 到 <b>×1.50</b>）。
+    這兩個數字就寫在頂欄的星等旁邊，你看得到它們在動。評價低就是賺得少——就這樣而已。
     爛評價會自己慢慢往回爬，但只爬到 2 星——再上去要自己掙。</p>
 
     <h3>操作</h3>
