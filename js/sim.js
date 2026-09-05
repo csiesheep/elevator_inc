@@ -16,7 +16,6 @@ export function createSim(st){
     mood: 1, moodT: 0, eventT: 0,       // 7 今日人潮 / 8 突發事件
     pending: [], evacUntil: 0, evacReady: 0,   // B 預警與疏散模式
     rateWin: 0, rateAcc: 0,
-    abstract: { income: 0, ratio: 1, demand: 0, supply: 0 },
     lobby: 0,
   };
   syncShafts(st, sim);
@@ -34,9 +33,8 @@ export function syncShafts(st, sim){
   }
   while (sim.shafts.length > d.shafts) sim.shafts.pop();
   // 快速電梯：最後一座井只服務高樓層
-  const simTop = Math.min(st.floors, C.SIM_FLOORS);
-  const expressFrom = Math.floor(simTop * (st.auto.skylobby ? 0.45 : 0.55));
-  sim.lobby = st.auto.skylobby ? Math.min(Math.floor(st.floors * 0.5), simTop - 1) : 0;
+  const expressFrom = Math.floor(st.floors * (st.auto.skylobby ? 0.45 : 0.55));
+  sim.lobby = st.auto.skylobby ? Math.floor(st.floors * 0.5) : 0;
   sim.shafts.forEach((s, i) => {
     s.express = !!st.auto.shuttle && i === sim.shafts.length - 1 && sim.shafts.length > 1;
     s.from = s.express ? expressFrom : 0;
@@ -112,7 +110,7 @@ function pickType(st, floor, h){
   return pool[0][0];
 }
 
-function makePassenger(st, sim, origin, dest, h, weight){
+function makePassenger(st, sim, origin, dest, h){
   const type = pickType(st, origin, h);
   // 樓層越高，來回一趟本來就越久，耐性要跟著放大；否則 190 樓的人在物理上
   // 不可能被服務到（單程就超過他的耐性），只會變成必然的流失。
@@ -121,64 +119,41 @@ function makePassenger(st, sim, origin, dest, h, weight){
   const p = {
     id: nextId++, origin, dest, type: type.id, t: type,
     born: st.t, patience, left: patience,
-    w: weight || 1,
   };
   sim.waiting.push(p);
   return p;
 }
 
-// 1 取樣模擬 + 2 垂直人口分布
-// SIM_FLOORS 以下逐個模擬；以上只生成 SAMPLE_RATE 的人，每個帶 SAMPLE_WEIGHT 人份。
+// 2 垂直人口分布。整棟樓逐個模擬 —— 不再有「高樓層只取樣 5%」這件事，
+// 第 95 樓的人跟第 3 樓的人一樣是真的，電梯真的要去接他。
 function spawn(st, sim){
   const h = hourOf(st);
-  const simTop = Math.min(st.floors, C.SIM_FLOORS) - 1;
-  const highLo = C.SIM_FLOORS, highHi = st.floors - 1;
-  const hasHigh = highHi >= highLo;
-
-  // 這一發是低區還是高區？高區的需求量大但只有 SAMPLE_RATE 會真的變成乘客
-  const wLow  = bandDemand(st, h, 0, simTop);
-  const wHigh = hasHigh ? bandDemand(st, h, highLo, highHi) * C.SAMPLE_RATE : 0;
-  const high  = hasHigh && Math.random() < wHigh / (wLow + wHigh);
-
+  const top = st.floors - 1;
   const lobbyTrip = Math.random() < C.LOBBY_SHARE;
   let o, d;
 
-  if (high){
-    // 高樓層的行程幾乎都經過大廳（或空中大廳）——這才是超高樓真正的交通模式
-    const hub = sim.lobby && Math.random() < 0.4 ? sim.lobby : 0;
-    const far = pickFloor(st, h, 'dest', highLo, highHi);
-    if (Math.random() < 0.5){ o = hub; d = far; } else { o = far; d = hub; }
-    if (o === d) return;
-    makePassenger(st, sim, o, d, h, C.SAMPLE_WEIGHT);
-    return;
-  }
-
   if (lobbyTrip){
-    o = 0; d = pickFloor(st, h, 'dest', 1, Math.max(1, simTop));
+    o = 0; d = pickFloor(st, h, 'dest', 1, Math.max(1, top));
     if (Math.random() < 0.5){ const t = o; o = d; d = t; }
   } else {
-    o = pickFloor(st, h, 'origin', 0, simTop);
-    d = pickFloor(st, h, 'dest',   0, simTop);
+    o = pickFloor(st, h, 'origin', 0, top);
+    d = pickFloor(st, h, 'dest',   0, top);
   }
-  if (o === d) d = o === 0 ? Math.min(1, simTop) : 0;
+  if (o === d) d = o === 0 ? Math.min(1, top) : 0;
   if (o === d) return;
-  makePassenger(st, sim, o, d, h, 1);
+  makePassenger(st, sim, o, d, h);
 }
 
-// 到達率：O(floors)，所以每 0.5 秒才重算一次
+// 到達率：整棟樓的人口權重加總。O(floors)，所以每 0.5 秒才重算一次。
 function arrivalRate(st, sim){
   if (sim.rateAt != null && st.t - sim.rateAt < 0.5) return sim.rateVal;
-  const h = hourOf(st);
-  const simTop = Math.min(st.floors, C.SIM_FLOORS) - 1;
-  const wLow = bandDemand(st, h, 0, simTop);
-  const wHigh = st.floors - 1 >= C.SIM_FLOORS
-    ? bandDemand(st, h, C.SIM_FLOORS, st.floors - 1) * C.SAMPLE_RATE : 0;
   sim.rateAt = st.t;
-  sim.rateVal = C.RATE_PER_WEIGHT * (wLow + wHigh) * derived(st).womMult;
+  const W = bandDemand(st, hourOf(st), 0, st.floors - 1);
+  sim.rateVal = C.RATE_PER_WEIGHT * Math.pow(Math.max(0, W), C.RATE_EXP) * derived(st).womMult;
   return sim.rateVal;
 }
 
-// 一段樓層的總需求權重（給「低區 vs 高區」抽籤用）
+// 一段樓層的總需求權重
 function bandDemand(st, h, lo, hi){
   let total = 0;
   for (let f = lo; f <= hi; f++) total += floorWeight(st, f, h, 'dest');
@@ -209,7 +184,7 @@ function floorInBand(st, key, simTopAll){
 // A：你租了什麼租戶，就會發生什麼事件。每種租戶各自累積自己的計時器。
 function tenantEvents(st, sim, dt){
   sim.tenantT = sim.tenantT || {};
-  const simTopAll = Math.min(st.floors, C.SIM_FLOORS) - 1;
+  const simTopAll = st.floors - 1;
   for (const b of BANDS){
     const m = bandLeases(st, b);
     for (const id in m){
@@ -232,7 +207,7 @@ function tenantEvents(st, sim, dt){
 // B 人流預警：有技能就先預告，時間到才真的湧出來
 function schedule(st, sim, ev, band, tenant, scale){
   const lead = derived(st).warnLead;
-  const simTopAll = Math.min(st.floors, C.SIM_FLOORS) - 1;
+  const simTopAll = st.floors - 1;
   if (lead <= 0){ runEvent(st, sim, ev, band, tenant, simTopAll, null, scale); return; }
   const floor = band ? floorInBand(st, band.key, simTopAll) : floorInBand(st, ev.at, simTopAll);
   if (floor < 0) return;
@@ -248,7 +223,7 @@ function rollGap(t){
 
 function fireEvent(st, sim){
   const h = hourOf(st);
-  const simTopAll = Math.min(st.floors, C.SIM_FLOORS) - 1;
+  const simTopAll = st.floors - 1;
   const pool = EVENTS.filter(e => {
     if (e.byTenant) return false;              // 租戶事件不進隨機池
     if (h < e.hours[0] || h >= e.hours[1]) return false;
@@ -275,8 +250,7 @@ function runEvent(st, sim, ev, band, tenant, simTopAll, fixedFloor, scale){
     let to = floorInBand(st, ev.to, simTopAll);
     const o = (!band && ev.at === 'any') ? floorInBand(st, 'any', simTopAll) : from;
     if (to === o || to < 0 || o < 0) continue;
-    const weight = (o >= C.SIM_FLOORS || to >= C.SIM_FLOORS) ? C.SAMPLE_WEIGHT : 1;
-    const p = makePassenger(st, sim, o, to, h, weight);
+    const p = makePassenger(st, sim, o, to, h);
     if (ev.panic) p.left = p.patience = p.patience * ev.panic;
     p.surge = d.surgeMult;                       // B 尖峰加給
     p.fromEvent = true;
@@ -297,7 +271,7 @@ function fareOf(st, d, p){
   const mix = Math.max(tenantMix(st, bandOf(p.origin + 1)).fare,
                        tenantMix(st, bandOf(p.dest + 1)).fare);   // A 租戶決定單價
   const surge = p.surge || 1;                                     // B 尖峰加給
-  return C.FARE_BASE * dist * p.t.fare * tier * mix * d.fareMult * surge * (p.w || 1);
+  return C.FARE_BASE * dist * p.t.fare * tier * mix * d.fareMult * surge;
 }
 
 // ------------------------------------------------------------ 玩家點樓層
@@ -354,8 +328,7 @@ function candidates(st, sim, s){
 function groupAssign(st, sim, d){
   // 每次重算：指派會隨電梯位置變動，黏著不放會讓其他台閒著看人流失
   const load = new Map(sim.shafts.map(s => [s.id, s.riders.length * 0.4]));
-  const queue = [...sim.waiting].sort((a, b) =>
-    (a.left / a.patience) / (a.w || 1) - (b.left / b.patience) / (b.w || 1));
+  const queue = [...sim.waiting].sort((a, b) => a.left / a.patience - b.left / b.patience);
   for (const p of queue){
     let best = null, bestEta = Infinity;
     for (const s of sim.shafts){
@@ -386,12 +359,11 @@ function chooseTarget(st, sim, s){
   if (st.auto.dest){
     const weight = new Map();
     const add = (f, w) => weight.set(f, (weight.get(f) || 0) + w);
-    for (const r of s.riders) add(r.dest, 1.4 * (r.w || 1));   // 車上的人優先送到
+    for (const r of s.riders) add(r.dest, 1.4);   // 車上的人優先送到
     for (const p of sim.waiting){
       if (p.origin < s.from || p.origin > s.to) continue;
       if (st.auto.group && p.assigned != null && p.assigned !== s.id) continue;
-      // 快沒耐性的權重更高；代表 20 人的取樣乘客也該有 20 倍的份量
-      add(p.origin, (1 + (1 - p.left / p.patience)) * (p.w || 1));
+      add(p.origin, 1 + (1 - p.left / p.patience));   // 快沒耐性的權重更高
     }
     const dir = s.dir || 1;
     const pool = [...weight.keys()].filter(f => dir > 0 ? f > s.pos + 1e-6 : f < s.pos - 1e-6);
@@ -446,9 +418,9 @@ function openDoors(st, sim, s, f){
       const money = fareOf(st, d, p);
       st.cash += money; st.runRevenue += money; st.lifetimeRevenue += money;
       sim.rateAcc += money;
-      st.stats.served += (p.w || 1); s.st.carried += (p.w || 1);
+      st.stats.served++; s.st.carried++;
       if (!st.codex[p.type]) { st.codex[p.type] = 0; }
-      st.codex[p.type] += (p.w || 1);
+      st.codex[p.type]++;
       if (p.t.ghost){
         const bonus = 50 * st.floors;
         st.cash += bonus; st.runRevenue += bonus; sim.rateAcc += bonus;
@@ -555,7 +527,7 @@ export function step(st, sim, dt){
 
   // --- B 到期的預警事件
   if (sim.pending.length){
-    const simTopAll = Math.min(st.floors, C.SIM_FLOORS) - 1;
+    const simTopAll = st.floors - 1;
     for (let i = sim.pending.length - 1; i >= 0; i--){
       if (st.t >= sim.pending[i].at){
         const q = sim.pending.splice(i, 1)[0];
@@ -577,8 +549,8 @@ export function step(st, sim, dt){
     p.left -= dt;
     if (p.left <= 0){
       sim.waiting.splice(i, 1);
-      st.stats.abandoned += (p.w || 1);
-      st.rating -= 0.02 * (p.t.angry || 1) * Math.min(3, Math.sqrt(p.w || 1));
+      st.stats.abandoned++;
+      st.rating -= 0.02 * (p.t.angry || 1);
       sim.pops.push({ txt:t('gaveUp'), floor:p.origin, life:1, bad:true, off: Math.random()*20-10 });
     }
   }
@@ -636,10 +608,11 @@ export function step(st, sim, dt){
     }
   }
 
-  // --- 統計流量模型：SIM_FLOORS 以上不逐個模擬乘客（設計 4.13）
-  abstractStep(st, sim, d, dt);
-
+  // 抽象層已經拿掉：100 層全部逐個模擬，收入只有一種來源——真的把人送到。
   // --- 收尾
+  // 評價回穩：只往上拉，不往下拉——五星是玩家自己掙來的，不該被平均值吃掉。
+  if (st.rating < C.RATING_DRIFT_TO)
+    st.rating += (C.RATING_DRIFT_TO - st.rating) * C.RATING_DRIFT * dt;
   st.rating = Math.max(C.RATING_MIN, Math.min(C.RATING_MAX, st.rating));
   for (let i = sim.pops.length - 1; i >= 0; i--){ sim.pops[i].life -= dt * 0.9; if (sim.pops[i].life <= 0) sim.pops.splice(i, 1); }
   for (let i = sim.toasts.length - 1; i >= 0; i--){ sim.toasts[i].life -= dt; if (sim.toasts[i].life <= 0) sim.toasts.splice(i, 1); }
@@ -651,35 +624,6 @@ export function step(st, sim, dt){
     st.stats.avgRate = st.stats.avgRate ? st.stats.avgRate * 0.85 + r * 0.15 : r;
     sim.rateAcc = 0; sim.rateWin = 0;
   }
-}
-
-function abstractStep(st, sim, d, dt){
-  const a = sim.abstract;
-  const n = st.floors - C.SIM_FLOORS;
-  if (n <= 0){ a.income = 0; a.ratio = 1; a.demand = 0; a.supply = 0; a.leasedHigh = 0; return; }
-  const avgFloor = (C.SIM_FLOORS + st.floors) / 2;
-  const rush = rushMult(hourOf(st));
-  // 需求要吃「有多少層真的招到商」與口碑，空樓層不會自己生錢
-  let leasedHigh = 0;
-  for (const b of BANDS){
-    const lo = Math.max(b.from, C.SIM_FLOORS + 1), hi = Math.min(b.to, st.floors);
-    if (hi < lo) continue;
-    const bandLeased = leasedInBand(st, b), bandBuilt = builtInBand(st, b);
-    const seg = hi - lo + 1;
-    leasedHigh += seg * (bandBuilt ? bandLeased / bandBuilt : 0);
-  }
-  a.leasedHigh = leasedHigh;
-  a.demand = leasedHigh * 0.022 * rush * (1 - C.SAMPLE_RATE) * d.womMult;
-  a.supply = d.shafts * d.cruise * d.capacity * d.algoEff * 0.020
-           * (st.auto.skylobby ? 3 : (avgFloor > 100 ? 0.45 : 1));
-  a.ratio = a.demand > 0 ? Math.min(1, a.supply / a.demand) : 1;
-  const farePer = C.FARE_BASE * (avgFloor * 0.55) * 1.7 * tierAt(avgFloor) * d.fareMult;
-  a.income = Math.min(a.demand, a.supply) * farePer;
-  const earn = a.income * dt;
-  st.cash += earn; st.runRevenue += earn; st.lifetimeRevenue += earn;
-  st.stats.abstractEarned += earn; sim.rateAcc += earn;
-  // 高樓層服務不過來，評價會慢慢掉 —— 逼你回頭買井跟演算法
-  if (a.ratio < 1) st.rating -= (1 - a.ratio) * 0.006 * dt;
 }
 
 export function fmtShort(n){

@@ -42,7 +42,6 @@ const DICT = {
   floorsUnit:    ['樓', 'floors'],
   shaftsUnit:    ['井', 'shafts'],
   waiting:       ['等待', 'waiting'],
-  highRise:      ['高樓', 'upper'],
   busy:          ['人潮洶湧', 'heaving'],
   quiet:         ['冷清', 'quiet'],
   normal:        ['平常', 'normal'],

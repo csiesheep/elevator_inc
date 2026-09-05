@@ -41,25 +41,25 @@ export function draw(ctx, st, sim){
   ctx.fillStyle = P().bg; ctx.fillRect(0, 0, W, H);
 
   const detail = fh >= 16;
-  const simTop = Math.min(st.floors, C.SIM_FLOORS);
 
   // ---- 樓層
   for (let f = 0; f < st.floors; f++){
     const y = floorY(f), band = bandOf(f + 1);
-    const abstract = f >= C.SIM_FLOORS;
     const empty = !isLeased(st, f);
     const pal = P();
     ctx.fillStyle = empty
-      ? `rgba(${pal.empty},${abstract ? 0.5 : 0.85})`
+      ? `rgba(${pal.empty},0.85)`
       : (pal.floorFlat
-          ? (abstract ? pal.floorFlatAbstract : pal.floorFlat[f % 2])
-          : shade(band.color, f % 2 ? pal.floorA : pal.floorB,
-                  abstract ? pal.abstractAlpha : pal.floorAlpha));
+          ? pal.floorFlat[f % 2]
+          : shade(band.color, f % 2 ? pal.floorA : pal.floorB, pal.floorAlpha));
     ctx.fillRect(pad, y, W - pad * 2, Math.max(1, fh - (fh > 6 ? 1 : 0)));
-    // 左緣的樓層帶色條：整片樓層底色太暗會看不出分帶，色條負責把它講清楚
-    if (!empty && fh >= 4){
-      ctx.fillStyle = shade(band.color, pal.stripe, abstract ? 0.6 : 1);
-      ctx.fillRect(pad, y, Math.min(7, Math.max(3, fh * 0.5)), Math.max(1, fh - (fh > 6 ? 1 : 0)));
+    // 左緣的樓層帶色條：整片樓層底色太暗會看不出分帶，色條負責把它講清楚。
+    // 門檻不能設在 4：100 層擠滿畫面時每層只有約 3.7px，色條會整條消失，
+    // 亮色主題因為底色是平塗的米白，整棟樓就變成一片分不出帶的灰。
+    if (!empty && fh >= 2){
+      ctx.fillStyle = shade(band.color, pal.stripe, 1);
+      // 樓越多、每層越薄，色條反而要更寬——它是這時候唯一還看得出樓層帶的東西
+      ctx.fillRect(pad, y, Math.min(10, Math.max(6, fh * 0.6)), Math.max(1, fh - (fh > 6 ? 1 : 0)));
     }
     if (empty && fh >= 5){          // 空樓層畫成工地的斜線
       ctx.strokeStyle = P().emptyHatch; ctx.lineWidth = 1;
@@ -75,36 +75,6 @@ export function draw(ctx, st, sim){
     }
   }
 
-  // 抽象樓層的分界線
-  if (st.floors > C.SIM_FLOORS){
-    const y = floorY(C.SIM_FLOORS - 1);
-    ctx.strokeStyle = P().divider; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(W - pad, y); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = P().label; ctx.font = '10px system-ui'; ctx.textAlign = 'left';
-    ctx.save();
-    ctx.beginPath(); ctx.rect(pad, y - 14, view.shaftX - pad - 6, 14); ctx.clip();
-    ctx.fillText(t('modelLine', fmtShort(sim.abstract.income), Math.round(sim.abstract.ratio*100)),
-                 pad + 4, y - 4);
-    ctx.restore();
-
-    // 上面那 160 層不是死的，只是不逐個模擬：用流動的光點表示吞吐量
-    const motes = Math.min(60, Math.round(24 * sim.abstract.ratio) + 6);
-    const spanTop = floorY(st.floors - 1), spanH = y - spanTop;
-    const now = performance.now() / 1000;
-    for (let i = 0; i < motes; i++){
-      const seed = i * 137.5;
-      const speed = 0.05 + (i % 5) * 0.02 + sim.abstract.ratio * 0.06;
-      const up = i % 2 === 0;
-      let k = ((now * speed + (seed % 1000) / 1000) % 1);
-      if (!up) k = 1 - k;
-      const my = spanTop + k * spanH;
-      const col = i % sim.shafts.length;
-      const mx = view.shaftX + col * view.colW + view.colW / 2 + ((i % 3) - 1) * 3;
-      ctx.fillStyle = `rgba(${P().motes},${0.10 + 0.28 * sim.abstract.ratio})`;
-      ctx.fillRect(mx - 1, my, 2, 3);
-    }
-  }
   // 空中大廳
   if (sim.lobby){
     const y = floorY(sim.lobby);
@@ -112,25 +82,9 @@ export function draw(ctx, st, sim){
     ctx.beginPath(); ctx.moveTo(pad, y + fh); ctx.lineTo(W - pad, y + fh); ctx.stroke();
   }
 
-  // ---- 取樣乘客（代表 20 人份）：不管樓層被壓得多扁都要看得見
-  const heavy = sim.waiting.filter(p => (p.w || 1) > 1);
-  for (const p of heavy){
-    const y = floorY(p.origin) + fh / 2;
-    const urgent = p.left / p.patience < 0.3;
-    ctx.fillStyle = urgent ? P().bad : P().sampled;
-    ctx.beginPath(); ctx.arc(pad + 14, y, Math.max(3, Math.min(5, fh / 2)), 0, 7); ctx.fill();
-    ctx.font = '700 10px system-ui'; ctx.textAlign = 'left';
-    ctx.fillText(`×${p.w} → ${p.dest + 1}`, pad + 22, y + 3.5);
-    // 耐性條
-    const bw = 26, r = Math.max(0, p.left / p.patience);
-    ctx.fillStyle = P().patienceBg; ctx.fillRect(pad + 22, y + 6, bw, 2);
-    ctx.fillStyle = urgent ? P().bad : P().money;
-    ctx.fillRect(pad + 22, y + 6, bw * r, 2);
-  }
-
   // ---- 等待中的乘客
   const perFloor = new Map();
-  for (const p of sim.waiting){ if ((p.w || 1) > 1) continue;
+  for (const p of sim.waiting){
     perFloor.set(p.origin, (perFloor.get(p.origin) || []).concat(p)); }
   for (const [f, list] of perFloor){
     const y = floorY(f);
@@ -202,12 +156,6 @@ export function draw(ctx, st, sim){
     } else if (s.riders.length){
       ctx.fillStyle = pal.riderBar;
       ctx.fillRect(x + 2, y + 1, (w - 4) * Math.min(1, s.riders.length / Math.max(1, d.capacity)), Math.max(1, carH - 2));
-    }
-
-    const heavyRiders = s.riders.filter(r => (r.w || 1) > 1).length;
-    if (heavyRiders){
-      ctx.fillStyle = pal.sampled;
-      ctx.beginPath(); ctx.arc(x + w - 4, y + 4, 2.5, 0, 7); ctx.fill();
     }
 
     // 外框最後畫，才不會被門或乘客蓋掉

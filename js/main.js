@@ -29,7 +29,7 @@ const app = {
     refreshUI();
   },
   onOrbit(){
-    app.st.cash -= 5e8; app.st.bp -= 20; app.st.ending = true;
+    app.st.cash -= C.ORBIT_CASH; app.st.bp -= C.ORBIT_BP; app.st.ending = true;
     save(app.st);
     overlay(t('endTitle'),
       t('endBody', app.st.floors, fmtShort(app.st.stats.served), fmtShort(app.st.lifetimeRevenue)),

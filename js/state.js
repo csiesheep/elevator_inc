@@ -20,7 +20,7 @@ export function newGame(carry){
     bandsSeen: (carry && carry.bandsSeen) || { retail:true },
     runRevenue: 0, lifetimeRevenue: (carry && carry.lifetimeRevenue) || 0,
     stats: { served:0, abandoned:0, trips:0, floorsTravelled:0, boostTime:0, overheats:0,
-             shafts:[], abstractEarned:0, bestRun:(carry && carry.bestRun) || 0 },
+             shafts:[], bestRun:(carry && carry.bestRun) || 0 },
     ending: (carry && carry.ending) || false,
     lastSave: Date.now(),
     // 跨 Prestige 保留的永久解鎖（自動化的藍圖階段）
@@ -82,7 +82,8 @@ export function isLeased(st, f){
 export function leaseCost(st, b, tenantId){
   const t = tenantById(tenantId || defaultTenant(b.key));
   const mult = t ? (0.55 + 0.45 * t.fare + 0.25 * t.pop) : 1;   // 好租戶要花錢搶
-  return Math.ceil(C.LEASE_BASE * (b.tier || 1) * mult * Math.pow(C.LEASE_GROWTH, leasedTotal(st)));
+  // 用 sqrt(tier)：高樓層的租金還是比較貴，但不會跟著票價的等級曲線一起指數成長
+  return Math.ceil(C.LEASE_BASE * Math.sqrt(b.tier || 1) * mult * Math.pow(C.LEASE_GROWTH, leasedTotal(st)));
 }
 export function canLease(st, b){ return leasedInBand(st, b) < builtInBand(st, b); }
 // 評價太差就招不到新租戶——比「趕走已經付過錢的租戶」溫和，但一樣擋住成長

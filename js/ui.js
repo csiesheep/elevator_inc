@@ -54,10 +54,9 @@ function header(){
     `<span class="dim">×${d.fareMult.toFixed(2)} ${t('fareMult')} · ×${d.womMult.toFixed(2)} ${t('footfall')}</span>`;
   $('#rating').className = stars >= 4 ? 'good' : stars >= 2.5 ? '' : 'bad';
   const mood = sim.mood >= 1.25 ? t('busy') : sim.mood <= 0.75 ? t('quiet') : t('normal');
-  const heavy = sim.waiting.filter(p => (p.w || 1) > 1).length;
   $('#hud').textContent =
     `${st.floors} ${t('floorsUnit')} · ${sim.shafts.length} ${t('shaftsUnit')} · ${algoName(st)} · ` +
-    `${t('waiting')} ${sim.waiting.length}` + (heavy ? ` · ${t('highRise')} ${heavy}` : '') +
+    `${t('waiting')} ${sim.waiting.length}` +
     ` · ${dayName(st)} ${mood}`;
 }
 
@@ -132,9 +131,9 @@ function tabUpgrades(){
   }
   if (st.floors >= C.ENDING_FLOOR && !st.ending){
     h += `<div class="sect">${t('secEnding')}</div>` + card({ act:'orbit', id:'orbit', icon:'🚀',
-      name:t('orbitName'), cost:'$' + fmtShort(5e8) + ' + 📐20',
+      name:t('orbitName'), cost:'$' + fmtShort(C.ORBIT_CASH) + ' + 📐' + C.ORBIT_BP,
       detail:t('orbitDetail'), hint:t('orbitHint'),
-      dis: st.cash < 5e8 || st.bp < 20 });
+      dis: st.cash < C.ORBIT_CASH || st.bp < C.ORBIT_BP });
   }
   h += `<div class="sect">${t('secDanger')}</div>
     <div class="card dangerCard" data-act="wipe" data-id="wipe">
@@ -224,9 +223,6 @@ function tabStats(){
     [t('rowServed'), `${Math.round(st.stats.served)} / ${Math.round(st.stats.abandoned)}`],
     [t('rowLostPct'), st.stats.served + st.stats.abandoned > 0
        ? Math.round(st.stats.abandoned / (st.stats.served + st.stats.abandoned) * 100) + '%' : '—'],
-    [t('rowHighServe'), st.floors > C.SIM_FLOORS ? Math.round(sim.abstract.ratio * 100) + '%' : t('notBuiltYet')],
-    [t('rowHighIncome'), '$' + fmtShort(sim.abstract.income) + t('perSec')],
-    [t('rowAbstract'), '$' + fmtShort(st.stats.abstractEarned)],
     [t('rowOccupancy'), (() => { let bu = 0, le = 0;
         for (const b of BANDS){ bu += builtInBand(st, b); le += leasedInBand(st, b); }
         return bu ? `${le}/${bu} (${Math.round(le / bu * 100)}%)` : '—'; })()],

@@ -12,23 +12,28 @@ export const CONFIG = {
   FARE_BASE:      1,      // $ / 樓層差
   STEP:           1/60,
   DAY_SECONDS:    180,    // 一天 = 3 分鐘
-  SIM_FLOORS:     40,     // 超過這層改用統計流量模型（見 4.13）
+  MAX_FLOORS:     100,    // 樓層上限。整棟樓都逐個模擬乘客，沒有抽象層了
   BOOST_MULT:     1.8,
   HEAT_PER_SEC:   1.0,    // 超速時每秒累積
   OVERHEAT_LOCK:  8.0,    // 過熱停機秒數
   RATING_START:   3.0,
   RATING_MAX:     5.0,
   RATING_MIN:     0.8,    // 評價有地板，避免死亡螺旋
+  RATING_DRIFT_TO: 2.0,   // 爛評價會過期：低於這條線，評價自己會慢慢往回爬
+  RATING_DRIFT:    0.010, // 回爬速度（每秒趨近的比例）。沒有這個，1.0~1.6 之間是死區：
+                          // 租戶不會再來（LEASE_BLOCK），也還沒差到會退租（CHURN_RATING），
+                          // 收入爬不動，於是永遠買不起第二座井。
   SAVE_EVERY:     15,
   OFFLINE_CAP_H:  4,
   OFFLINE_RATE:   0.5,
-  PRESTIGE_FLOOR: 60,     // 開放拆樓的門檻
-  PRESTIGE_DIV:   1e6,    // 藍圖 = floor(sqrt(本輪總收入 / 這個數))
-  ENDING_FLOOR:   200,
+  PRESTIGE_FLOOR: 40,     // 開放拆樓的門檻
+  PRESTIGE_DIV:   1e4,    // 藍圖 = floor(sqrt(本輪總收入 / 這個數))。收入不再有抽象層灌水，除數跟著降
+  ENDING_FLOOR:   100,
+  ORBIT_CASH:     2e7,    // 結局的價碼。要在「單一輪」裡存到，拆樓會歸零，所以這個數字
+                          // 必須對得上一輪實際存得到的現金：技能點滿的一輪大約 $15~20M。
+  ORBIT_BP:       20,
 
   // --- 5.2 的六項人流改動 ---
-  SAMPLE_RATE:    0.05,   // 1 取樣模擬：SIM_FLOORS 以上只生成 5% 的乘客
-  SAMPLE_WEIGHT:  20,     // 每個被取樣的乘客身上帶幾人份（= 1 / SAMPLE_RATE）
   MOOD_MIN:       0.55,   // 7「今日人潮」隨機遊走的上下限
   MOOD_MAX:       1.60,
   MOOD_DRIFT:     0.08,   // 每次抖動的幅度
@@ -41,7 +46,7 @@ export const CONFIG = {
 
   // --- 10 入住率 ---
   LEASE_BASE:     45,     // 招商成本基數（× 樓層帶的租戶等級）
-  LEASE_GROWTH:   1.038,  // 每多租出一層，下一層更貴
+  LEASE_GROWTH:   1.057,  // 每多租出一層，下一層更貴（100 層版本，對齊拿掉抽象層之後的收入）
   ANCHOR_LEASE:   3,      // 每次加蓋 5 層，建商會先幫你租掉的層數
   // --- 11 口碑迴圈 ---
   WOM_MIN:        0.80,   // 評價 0 時的人流倍率（票價乘數已經在懲罰低評價了，別疊太重）
@@ -51,7 +56,10 @@ export const CONFIG = {
   CHURN_EVERY:    60,     // 幾秒檢查一次退租／口碑
   WOM_RATING:     4.3,    // 高於這個評價，會有租戶主動上門
   WOM_CHANCE:     0.5,    // 上門的機率
-  RATE_PER_WEIGHT: 0.0080, // 6 人流 = 每單位人口權重每秒幾個人（取代寫死的 spawnEvery）
+  RATE_PER_WEIGHT: 0.032,  // 人流 = 常數 × 人口權重^RATE_EXP
+  RATE_EXP:        0.5,    // 次線性：樓越高人流會成長，但不是線性成長。
+                           // 電梯的吞吐量被井數綁死（最多 9 座），如果人流跟樓層線性成長，
+                           // 蓋高就等於自殺。改成「樓高 = 每趟更值錢」而不是「樓高 = 更多人」。
 };
 
 export const WEEKDAYS = ['週一', '週二', '週三', '週四', '週五', '週六', '週日'];
@@ -71,7 +79,7 @@ export const UPGRADES = [
     detail:'+2 熱容量 / 冷卻加快', hint:'讓超速撐更久' },
   { id:'shaft',   name:'加一座電梯井', icon:'🛗', base:1400, growth:1.95, max:5,
     detail:'+1 井',        hint:'最貴，而且要有調度演算法才發揮得出來' },
-  { id:'floor',   name:'加蓋 5 層',  icon:'🏗', base:150,  growth:1.21, max:38,
+  { id:'floor',   name:'加蓋 5 層',  icon:'🏗', base:150,  growth:1.34, max:18,
     detail:'+5 樓（其中 2 層附租戶）', hint:'新樓層要招商才會有人；空著不會有任何乘客' },
 ];
 
@@ -141,19 +149,19 @@ export const PASSENGERS = [
 // peak = 一天之中什麼時候「往這裡去」：up 是進來的尖峰，down 是離開的尖峰（小時）
 // wknd = 週末的人流倍率
 export const BANDS = [
-  { key:'retail', from:1,   to:10,  name:'零售',     color:'#3a4a63', tier:1.0,
+  { key:'retail', from:1,  to:10,  name:'零售',     color:'#3a4a63', tier:1.0,
     pop:1.15, up:[11,20], down:[11,21], wknd:1.5, unlock:'基礎流量' },
-  { key:'office', from:11,  to:30,  name:'辦公',     color:'#3f5a52', tier:1.5,
+  { key:'office', from:11, to:20,  name:'辦公',     color:'#3f5a52', tier:2.6,
     pop:1.00, up:[8,10],  down:[17,19], wknd:0.22, unlock:'尖峰時段：早上 9 點與傍晚 6 點暴衝' },
-  { key:'hotel',  from:31,  to:60,  name:'飯店',     color:'#5c4a3a', tier:2.2,
+  { key:'hotel',  from:21, to:45,  name:'飯店',     color:'#5c4a3a', tier:5.5,
     pop:0.75, up:[20,24], down:[7,11],  wknd:1.6, unlock:'行李（佔位）、夜間到達與早晨退房' },
-  { key:'resid',  from:61,  to:100, name:'住宅',     color:'#4a3f5c', tier:3.0,
+  { key:'resid',  from:46, to:70,  name:'住宅',     color:'#4a3f5c', tier:10.0,
     pop:0.90, up:[18,22], down:[7,9],   wknd:1.2, unlock:'常客、搬家公司；早上下樓、晚上回家' },
-  { key:'obs',    from:101, to:150, name:'觀景台',   color:'#3a5570', tier:4.0,
+  { key:'obs',    from:71, to:85,  name:'觀景台',   color:'#3a5570', tier:18.0,
     pop:0.55, up:[10,18], down:[12,21], wknd:2.0, unlock:'觀光客潮，單向朝聖' },
-  { key:'exp',    from:151, to:199, name:'實驗樓層', color:'#5c3a4a', tier:5.5,
+  { key:'exp',    from:86, to:99,  name:'實驗樓層', color:'#5c3a4a', tier:30.0,
     pop:0.45, up:[6,23],  down:[6,23],  wknd:0.8, unlock:'研究員與破壞平衡的東西' },
-  { key:'roof',   from:200, to:9999,name:'屋頂→軌道', color:'#2f4f6b', tier:7.0,
+  { key:'roof',   from:100, to:9999, name:'屋頂→軌道', color:'#2f4f6b', tier:42.0,
     pop:0.30, up:[10,20], down:[10,20], wknd:1.4, unlock:'結局' },
 ];
 
@@ -277,6 +285,6 @@ export const ACHIEVEMENTS = [
   { id:'cat',      name:'貓派',         test:s=>!!s.codex.cat,            note:'載到貓。' },
   { id:'demo',     name:'打掉重蓋',     test:s=>s.prestiges>=1,           note:'第一次拆樓。' },
   { id:'sky',      name:'空中大廳',     test:s=>s.auto.skylobby,          note:'蓋出轉運大廳。' },
-  { id:'tall',     name:'一百層',       test:s=>s.floors>=100,            note:'蓋到 100 層。' },
+  { id:'tall',     name:'七十層',       test:s=>s.floors>=70,             note:'蓋到 70 層。' },
   { id:'orbit',    name:'離開大氣層',   test:s=>s.ending,                 note:'把電梯開出地球。' },
 ];
