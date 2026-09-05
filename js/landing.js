@@ -21,9 +21,12 @@ function rulesHTML(){
   const en = getLang() === 'en';
   if (en) return `
     <h3>The loop</h3>
+    <p>You start with <b>five floors and $200</b> — one dollar short of buying both the auto-door
+    ($60) and the next five floors ($150), so the first decision is which one.</p>
     <p>People appear on a floor with somewhere to be and a patience bar. Tap a floor to send the
     car there. Fares are <b>$1 × the number of floors travelled</b>, times the passenger, times the
-    tenants, times your rating — so a tall building is worth more per trip than a short one.</p>
+    tenants, times your rating — so a tall building is worth more per trip than a short one.
+    A day lasts three minutes; 8–10am and 5–7pm are rush hours.</p>
 
     <h3>The five stats fight each other</h3>
     <p>Cruise speed helps long trips and barely touches short ones. Acceleration is the reverse.
@@ -44,21 +47,30 @@ function rulesHTML(){
 
     <h3>Rating cuts both ways</h3>
     <p>Delivering people quickly raises the rating, which raises fares <i>and brings more people
-    in</i>. Let them give up and walk and it falls; below 1.6 stars nobody new will move in.</p>
+    in</i>. Let them give up and walk and it falls. Below <b>1.6 stars</b> nobody new will move in;
+    below <b>1.0</b> the tenants you already have start leaving. A bad rating does recover on its
+    own — slowly, and only up to 2 stars. The rest you have to earn.</p>
 
     <h3>Controls</h3>
     <div class="keys"><kbd>tap a floor</kbd><kbd>1–9, 0</kbd><kbd>space / 🔥 = overdrive</kbd></div>
     <p>Overdrive runs the cars at 1.8× but builds heat; overheat and that shaft shuts down for
-    8 seconds. Progress saves itself, and the building keeps earning while you are away.</p>
+    8 seconds. Progress saves itself, and the building keeps earning while you are away — at half
+    rate, and for at most four hours.</p>
 
     <h3>The ending</h3>
-    <p>Demolish the tower to convert a run into blueprints, which never disappear. Two hundred
-    floors up, there is a way out of the atmosphere.</p>`;
+    <p>Demolish the tower to convert a run into blueprints, which never disappear. You can do it
+    whenever you like — there is no minimum.</p>
+    <p>The hundredth floor unlocks the way out of the atmosphere. It is not free: <b>$20M and
+    20 blueprints</b>, and the cash has to be sitting there in a <i>single</i> run, because
+    demolishing resets it. That is not somewhere you get to on your first tower.</p>`;
 
   return `
     <h3>核心循環</h3>
+    <p>開場是<b>五層樓和 $200</b>——剛好買不起「自動關門 $60」和「加蓋五層 $150」兩樣，
+    第一個決定就是二選一。</p>
     <p>乘客在某一層出現，頭上是目的地，旁邊是耐性條。點樓層把電梯叫過去。
-    票價是 <b>$1 × 跑了幾層樓</b>，再乘上乘客、租戶與大樓評價——所以樓越高，同一趟越值錢。</p>
+    票價是 <b>$1 × 跑了幾層樓</b>，再乘上乘客、租戶與大樓評價——所以樓越高，同一趟越值錢。
+    遊戲裡的一天是三分鐘，早上 8–10 點與傍晚 5–7 點是尖峰。</p>
 
     <h3>五個屬性互相牽制</h3>
     <p>巡航速度只幫得上長程，對短程幾乎沒感覺；加速度剛好相反。載客量大一趟載更多，
@@ -75,16 +87,19 @@ function rulesHTML(){
     幾乎沒人搭電梯但單價極高的資料中心。你的招商決定人流的<i>形狀</i>，不只是多少。</p>
 
     <h3>評價是雙面刃</h3>
-    <p>把人快點送到會提升評價，評價高則票價高、<i>而且更多人上門</i>。
-    讓人等到走掉評價就掉，低於 1.6 星就再也招不到新租戶。</p>
+    <p>把人快點送到會提升評價，評價高則票價高、<i>而且更多人上門</i>。讓人等到走掉評價就掉：
+    低於 <b>1.6 星</b>再也招不到新租戶，低於 <b>1.0 星</b>現有的租戶會開始搬走。
+    爛評價會自己慢慢往回爬，但只爬到 2 星——再上去要自己掙。</p>
 
     <h3>操作</h3>
     <div class="keys"><kbd>點樓層</kbd><kbd>1–9、0</kbd><kbd>空白鍵 / 🔥 超速</kbd></div>
     <p>超速讓電梯跑 1.8 倍，但會累積熱量；過熱該座井強制停機 8 秒。
-    進度會自動存檔，你不在的時候大樓也還在賺。</p>
+    進度會自動存檔；你不在的時候大樓還在賺，但只算半速，而且最多算四小時。</p>
 
     <h3>結局</h3>
-    <p>拆掉大樓可以把這一輪換成藍圖，藍圖永遠不會消失。蓋到兩百層，會有一條離開大氣層的路。</p>`;
+    <p>拆掉大樓可以把這一輪換成藍圖，藍圖永遠不會消失。什麼時候拆都可以，沒有門檻。</p>
+    <p>蓋到<b>第 100 層</b>會解鎖離開大氣層的路。它不是免費的：<b>$2000 萬加 20 張藍圖</b>，
+    而且現金必須在<i>同一輪</i>裡存到——拆樓會把現金歸零。那不是第一棟樓就到得了的地方。</p>`;
 }
 
 // ---------------------------------------------------------------- 帳本
