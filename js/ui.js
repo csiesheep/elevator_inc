@@ -4,8 +4,9 @@ import { UPGRADES, AUTOMATION, SKILLS, PASSENGERS, BANDS, ACHIEVEMENTS, CONFIG a
 import { derived, upgradeCost, upgradeMaxed, buyUpgrade, buyAutomation, skillCost, buySkill,
          prestigeGain, canPrestige, algoName,
          builtInBand, leasedInBand, occOf, leaseCost, canLease, buyLease, leaseBlocked,
-         tenantCount, tenantMix } from './state.js';
+         tenantCount, tenantMix, save } from './state.js';
 import { fmtShort, dayName, hourOf } from './sim.js';
+import { STYLES as ROOF_STYLES } from './roof.js';
 import { t, L } from './i18n.js';
 
 const $ = s => document.querySelector(s);
@@ -32,6 +33,7 @@ export function buildUI(a){
     if (act === 'lease')  { buyLease(st, id, el.dataset.tenant); }
     if (act === 'prestige') app.onPrestige();
     if (act === 'orbit')  app.onOrbit();
+    if (act === 'roof')   { st.roofStyle = id; save(st); }
     if (act === 'wipe')   app.onWipe();
     render(true);
   });
@@ -135,6 +137,12 @@ function tabUpgrades(){
       detail:t('orbitDetail'), hint:t('orbitHint'),
       dis: st.cash < C.ORBIT_CASH || st.bp < C.ORBIT_BP });
   }
+  h += `<div class="sect">${t('secRoof')}</div>`
+     + `<div class="note">${t('roofHint')}</div><div class="roofRow">`
+     + ROOF_STYLES.map(s => `<button class="roofChip${st.roofStyle === s.id ? ' on' : ''}"
+         data-act="roof" data-id="${s.id}">${L(s, 'name', 'roofs')}</button>`).join('')
+     + `</div>`;
+
   h += `<div class="sect">${t('secDanger')}</div>
     <div class="card dangerCard" data-act="wipe" data-id="wipe">
       <div class="cardTop"><span class="cName">${t('wipeName')}</span></div>

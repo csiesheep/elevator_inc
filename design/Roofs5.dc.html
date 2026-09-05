@@ -1,25 +1,70 @@
-// roof.js — 大樓頂上的屋頂。五種樣式，同一個高度、同一個寬度，樓體完全不變。
-//
-// 為什麼是「逐欄剖面」而不是粗格子的像素圖：
-// 屋頂只有 10–18px 高、卻有 400–500px 寬。用 49×12 那種手排格子去畫，
-// 每一格會被拉成 10×1 的長條——那不是像素藝術，是模糊的色帶。
-// 所以這裡是 1px 解析度：每一欄自己算 top/bot，畫出來的每一個點就是螢幕上
-// 真的一個像素。曲線（圓頂、反宇）在這個尺度下也才有機會成立。
-//
-// 高度是共用的。以前依樓層數分三段大／中／小，砍成一半之後三段會全部撞到
-// 下限、變成同一個數字，那個階梯就沒有意義了。
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+  <style>
+    body { margin: 0; }
+    x-dc { display: block; }
+    a { color: #7dd8f7; } a:hover { color: #ffd23f; }
+    canvas { image-rendering: pixelated; display: block; }
+    .pxs { font-family: "Pixelify Sans", "Courier New", monospace; }
+    .k { color: #e8eaf0; font-weight: 700; }
+    code { font-family: ui-monospace, monospace; color: #7dd8f7; font-size: .94em; }
+    th, td { text-align: left; padding: 7px 14px 7px 0; font-size: 12.5px; vertical-align: top; }
+    th { color: #6b6f9e; font-weight: 500; border-bottom: 1px solid #2a2d55; }
+    td { border-bottom: 1px solid #20233c; color: #b9bfd8; line-height: 1.6; }
+  </style>
+</helmet>
 
-import { P, mix } from './theme.js';
+<div style="width: 1060px; background: #0f1116; padding: 26px 30px 34px;
+     font-family: 'Noto Sans TC','PingFang TC',sans-serif; color: #e8eaf0;">
 
-const H_FRAC = 0.026, H_MIN = 10, H_MAX = 18;
-const OVER = 0.035;                      // 屋簷比牆面出挑多少（佔大樓寬）
+  <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:6px">
+    <h1 class="pxs" style="margin:0;font-size:26px;font-weight:700;color:#ffd23f">五個屋頂</h1>
+    <span style="font-size:12.5px;color:#8f95d6">同一個高度、同一個寬度，樓體完全不變</span>
+  </div>
+  <p style="margin:0 0 20px;font-size:12.5px;line-height:1.85;color:#8f95d6;max-width:76em">
+    高度從 23px 砍到 <span class="k">12px</span>（桌機，大樓寬 460px）。這個尺度下屋頂是
+    <span class="k">38:1</span> 的長條，粗格子的像素圖每一格會被拉成 10×1 的色帶——所以這五個
+    改用 <span class="k">1px 解析度的逐欄剖面</span>：每一欄自己算上下緣，畫出來的每個點就是螢幕上真的一個像素。
+    下面的圖是<span class="k">直接呼叫遊戲裡的同一份程式</span>畫的，不是另外描的稿。
+  </p>
 
-export function roofHeight(buildingW){
-  return Math.round(Math.max(H_MIN, Math.min(H_MAX, buildingW * H_FRAC)));
-}
+  <div id="rows" style="display:flex;flex-direction:column;gap:18px;margin-bottom:26px"></div>
 
-// ---------------------------------------------------------------- 顏色
-// 每個角色兩個值：[夜, 日]。用 pal.night 插值，屋頂才會跟著天色走。
+  <table style="width:100%;border-collapse:collapse">
+    <tr><th style="width:150px">樣式</th><th>12px 下靠什麼被認出來</th><th>取捨</th></tr>
+    <tr><td class="k">1 中式歇山頂</td>
+        <td>反宇的凹曲 + 兩端翼角上鉤 + 屋簷下一排朱紅斗拱</td>
+        <td>最吃虧的一個：三個識別特徵都需要垂直空間，12px 下只剩輪廓</td></tr>
+    <tr><td class="k">2 古羅馬山牆</td>
+        <td>中央三角山牆 + 額枋 + 齒飾 + 簷口，四條水平帶</td>
+        <td>山牆若拉滿寬會變成 40:1 的斜坡，所以只佔中央 48%，兩側是女兒牆</td></tr>
+    <tr><td class="k">3 裝飾藝術階梯冠</td>
+        <td>六階退縮 + 每階頂緣鍍金 + 垂直凹槽</td>
+        <td>最貼摩天大樓的題材，但形狀最接近「純幾何」，個性最淡</td></tr>
+    <tr><td class="k">4 哥德尖塔群</td>
+        <td>七座高低不一的尖塔 + 城垛的缺口節奏</td>
+        <td>剪影最好認，但尖塔會多吃掉一點視覺高度（塔尖超出屋頂帶）</td></tr>
+    <tr><td class="k">5 伊斯蘭圓頂</td>
+        <td>三個圓頂（中大側小）+ 金色尖飾 + 馬蹄拱廊</td>
+        <td>顏色最跳（青綠），一眼認出來的能力最強；也最不像「大樓」</td></tr>
+  </table>
+
+  <p style="margin:18px 0 0;font-size:12px;line-height:1.75;color:#6b6f9e;max-width:76em">
+    重複性的細節（斗拱、齒飾、凹槽、城垛、拱廊）間距都是<span class="k">屋頂寬度的幾分之一</span>，
+    不是固定像素數。第一版寫死間距，結果 500px 寬的屋頂上全部糊成一排梳齒。
+  </p>
+</div>
+</x-dc>
+
+<script>
 const COLORS = {
   chinese: { body:['#e0a838','#f2c452'], shade:['#b07d22','#c9932f'],
              ridge:['#8a6018','#9c7020'], trim:['#ffd23f','#ffe07a'], deep:['#b8503f','#cf6250'] },
@@ -32,21 +77,6 @@ const COLORS = {
   islamic: { body:['#2f9e97','#48c2ba'], shade:['#237a75','#379a93'],
              ridge:['#1a5a56','#2a7d78'], trim:['#e0a838','#ffd23f'], deep:['#c9bda0','#efe6cf'] },
 };
-
-export const STYLES = [
-  { id:'chinese', name:'中式歇山頂',   en:'Chinese hip-and-gable' },
-  { id:'roman',   name:'古羅馬山牆',   en:'Roman pediment' },
-  { id:'deco',    name:'裝飾藝術階梯冠', en:'Art Deco crown' },
-  { id:'gothic',  name:'哥德尖塔群',   en:'Gothic spires' },
-  { id:'islamic', name:'伊斯蘭圓頂',   en:'Islamic domes' },
-];
-
-// ---------------------------------------------------------------- 剖面
-// 每個樣式把角色字元填進 W×h 的格子；'.'= 透明。
-// b=本體 s=陰影 r=脊/暗邊 t=亮邊/裝飾 d=深色重點
-
-// 重複的細節（斗拱、齒飾、凹槽、城垛、拱廊）間距一律用「屋頂寬度的幾分之一」，
-// 不能寫死像素數：屋頂有 500~760px 寬，固定間距會讓它們全部糊成一排梳齒。
 const pitch = (W, n) => Math.max(6, Math.round(W / n));
 
 function blank(W, h){ return Array.from({ length: h }, () => new Array(W).fill('.')); }
@@ -232,16 +262,51 @@ function grid(style, W, h){
   return g;
 }
 
-export function drawRoof(ctx, style, bx, by, buildingW, h){
-  const over = Math.round(buildingW * OVER);
-  const x0 = bx - over, W = buildingW + over * 2;
-  const c = COLORS[style] || COLORS.chinese;
-  const n = P().night;
-  const col = { b: mix(c.body[0], c.body[1], 1 - n), s: mix(c.shade[0], c.shade[1], 1 - n),
-                r: mix(c.ridge[0], c.ridge[1], 1 - n), t: mix(c.trim[0], c.trim[1], 1 - n),
-                d: mix(c.deep[0], c.deep[1], 1 - n) };
-  for (const [x, y, w, ch] of grid(style, W, h)){
-    ctx.fillStyle = col[ch] || col.b;
-    ctx.fillRect(x0 + x, by + y, w, 1);
-  }
+const STYLES = [{id:'chinese',name:'中式歇山頂',en:'Chinese hip-and-gable'},{id:'roman',name:'古羅馬山牆',en:'Roman pediment'},{id:'deco',name:'裝飾藝術階梯冠',en:'Art Deco crown'},{id:'gothic',name:'哥德尖塔群',en:'Gothic spires'},{id:'islamic',name:'伊斯蘭圓頂',en:'Islamic domes'}];
+const DAY = 1;   // 這張稿子用白天的顏色
+function mixc(a, b, t){
+  const A = parseInt(a.slice(1),16), B = parseInt(b.slice(1),16);
+  let o = 0;
+  for (const sh of [16,8,0]){ const ca=(A>>sh)&255, cb=(B>>sh)&255; o |= Math.round(ca+(cb-ca)*t)<<sh; }
+  return '#' + o.toString(16).padStart(6,'0');
 }
+function paint(ctx, style, x0, by, W, h){
+  const c = COLORS[style];
+  const col = { b:mixc(c.body[0],c.body[1],DAY), s:mixc(c.shade[0],c.shade[1],DAY),
+                r:mixc(c.ridge[0],c.ridge[1],DAY), t:mixc(c.trim[0],c.trim[1],DAY),
+                d:mixc(c.deep[0],c.deep[1],DAY) };
+  for (const [x,y,w,ch] of grid(style, W, h)){ ctx.fillStyle = col[ch]||col.b; ctx.fillRect(x0+x, by+y, w, 1); }
+}
+const rows = document.getElementById('rows');
+STYLES.forEach((s, i) => {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:7px';
+  const lab = document.createElement('div');
+  lab.innerHTML = '<span style="color:#e8eaf0;font-weight:700;font-size:13.5px">' + (i+1) + '. ' + s.name +
+                  '</span> <span style="color:#6b6f9e;font-size:11.5px;font-family:ui-monospace,monospace">' + s.en + '</span>';
+  wrap.appendChild(lab);
+  const strip = document.createElement('div');
+  strip.style.cssText = 'display:flex;gap:16px;align-items:flex-end';
+  // 左：實際大小　右：垂直放大 6 倍
+  for (const [zoom, note] of [[1,'實際大小 12px'],[6,'垂直放大 ×6']]){
+    const bw = 460, h = 12, over = Math.round(bw*0.035), W = bw + over*2;
+    const c = document.createElement('canvas');
+    c.width = W + 4; c.height = h*zoom + 2;
+    c.style.width = (W+4) + 'px'; c.style.height = (h*zoom+2) + 'px';
+    if (zoom === 6) { c.style.width = ((W+4)*0.62)+'px'; c.style.height = ((h*zoom+2))+'px'; }
+    const x = c.getContext('2d');
+    x.fillStyle = '#cfeeff'; x.fillRect(0,0,c.width,c.height);
+    x.save(); x.scale(1, zoom); paint(x, s.id, 2+over, 1/zoom, bw, h); x.restore();
+    const cell = document.createElement('div');
+    cell.style.cssText = 'display:flex;flex-direction:column;gap:4px';
+    const n = document.createElement('span');
+    n.textContent = note; n.style.cssText='font-size:10.5px;color:#6b6f9e';
+    cell.appendChild(c); cell.appendChild(n);
+    strip.appendChild(cell);
+  }
+  wrap.appendChild(strip);
+  rows.appendChild(wrap);
+});
+</script>
+</body>
+</html>

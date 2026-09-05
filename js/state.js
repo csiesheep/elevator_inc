@@ -22,6 +22,7 @@ export function newGame(carry){
     stats: { served:0, abandoned:0, trips:0, floorsTravelled:0, boostTime:0, overheats:0,
              shafts:[], bestRun:(carry && carry.bestRun) || 0 },
     ending: (carry && carry.ending) || false,
+    roofStyle: (carry && carry.roofStyle) || 'chinese',   // 外觀，跨拆樓保留
     lastSave: Date.now(),
     // 跨 Prestige 保留的永久解鎖（自動化的藍圖階段）
     autoPerm: (carry && carry.autoPerm) || {},
@@ -255,6 +256,7 @@ export function doPrestige(st){
     bestRun: Math.max(st.stats.bestRun, st.runRevenue),
     autoPerm: st.autoPerm,
     ending: st.ending,
+    roofStyle: st.roofStyle,
   };
   return { st: newGame(carry), gain };
 }

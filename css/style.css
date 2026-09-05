@@ -19,6 +19,13 @@
   --chipBg:#ffffff; --tabOn:#ffd23f; --tabOnInk:#16183a;
   --sheet:#fff8ea; --sheetInk:#16183a;
 }
+.roofRow{display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 2px}
+.roofChip{font:inherit; font-size:12px; padding:6px 10px; cursor:pointer;
+  background:var(--chipBg); color:var(--text); border:2px solid var(--edge);
+  box-shadow:2px 2px 0 var(--drop)}
+.roofChip.on{background:var(--tabOn); color:var(--tabOnInk); border-color:var(--tabOnInk)}
+.roofChip:active{transform:translate(1px,1px); box-shadow:1px 1px 0 var(--drop)}
+
 *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
 html,body{height:100%;margin:0;overflow:hidden}
 body{

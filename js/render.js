@@ -46,7 +46,7 @@ export function layout(cv, ctx, st, sim){
 
   const groundH = Math.round(Math.max(10, Math.min(22, H * 0.055)));
   view.horizon = H - groundH;
-  view.roofH = roofHeight(st.floors, view.bw);
+  view.roofH = roofHeight(view.bw);
 
   // 上方留一條真的天空。不留的話屋頂會頂到畫面邊緣，而且太陽在正午
   // 會整個躲在大樓後面——那就等於沒有「日月隨時間變化」這件事。
@@ -122,7 +122,8 @@ export function draw(ctx, st, sim){
   const detail = fh >= 16;
 
   // ---- 屋頂 + 屋頂平台
-  drawRoof(ctx, st.floors, view.bx0, view.towerTop - view.deck - view.roofH, view.bw);
+  // 五種樣式共用同一個高度與寬度，樓體完全不變——換屋頂只換這一行畫的東西
+  drawRoof(ctx, st.roofStyle || 'chinese', view.bx0, view.towerTop - view.deck - view.roofH, view.bw, view.roofH);
   ctx.fillStyle = pal.deck;
   ctx.fillRect(view.bx0 - 3, view.towerTop - view.deck, view.bw + 6, view.deck);
 

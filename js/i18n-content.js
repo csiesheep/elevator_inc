@@ -107,6 +107,14 @@ export const EN = {
     orbit:   { name:'Escape velocity',   note:'Take the elevator off the planet.' },
   },
 
+  roofs: {
+    chinese: { name:'Chinese' },
+    roman:   { name:'Roman' },
+    deco:    { name:'Art Deco' },
+    gothic:  { name:'Gothic' },
+    islamic: { name:'Islamic' },
+  },
+
   events: {
     meeting:  { name:'Session ends',   text:'📣 A session lets out: {n} people leave floor {f} at once' },
     checkin:  { name:'Tour check-in',  text:'🧳 A tour group has landed: {n} people heading up to the hotel' },

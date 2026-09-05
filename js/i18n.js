@@ -50,6 +50,10 @@ const DICT = {
   manual:        ['手動', 'manual'],
   boostTitle:    ['按住超速（會過熱）', 'Hold for overdrive (it overheats)'],
 
+  secRoof:       ['屋頂', 'Roof'],
+  roofHint:      ['純外觀，不影響任何數值。拆樓也會保留。',
+                  'Cosmetic only — no effect on anything. Survives a rebuild.'],
+
   // ---- 分頁
   tabUp:         ['升級', 'Build'],
   tabAuto:       ['自動化', 'Dispatch'],
