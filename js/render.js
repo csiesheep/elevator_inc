@@ -72,6 +72,10 @@ export function layout(cv, ctx, st, sim){
   return true;
 }
 
+// 樓層號牌子的右緣。畫樓層號跟排隊的人都要用它，不能各算各的。
+const numScale = fh => (fh >= 24 ? 3 : 2);
+const numLeft = fh => view.fx0 + 12 + numWidth('88', numScale(fh)) + 2;
+
 export const floorY = f => view.horizon - (f + 1) * view.fh;
 export const floorAt = y => Math.floor((view.horizon - y) / view.fh);
 
@@ -169,7 +173,7 @@ export function draw(ctx, st, sim){
       // 點陣字 + 底板。11px 的 system-ui 在這個尺度會被反鋸齒糊掉，而且
       // 沒有底板的話數字會直接跟室內家具疊在一起。
       const req = sim.shafts.some(s => s.target === f || s.queue.includes(f));
-      const ds = fh >= 24 ? 3 : 2;
+      const ds = numScale(fh);
       const txt = String(f + 1);
       drawPlate(ctx, txt, view.fx0 + 12 + numWidth(txt, ds) / 2,
                 y + (fh - GLYPH_H * ds) / 2, ds,
@@ -203,32 +207,36 @@ export function draw(ctx, st, sim){
   for (const [f, list] of perFloor){
     const y = floorY(f);
     if (detail){
-      // 目的地的牌子放在小人「右邊」、垂直置中。放不到上面或下面：樓層只有 26px 高，
-      // 小人就佔 18px；原本畫在腳下的數字其實已經溢出到下一層樓上了。
+      // 隊伍靠著電梯、由右往左排。兩個理由：排隊的人本來就該在門口，
+      // 而且原本從左邊排起時，第一個人的牌子會緊貼左緣的樓層號。
+      // 每一格內部仍是「小人在左、目的地牌在右」——垂直方向塞不下牌子，
+      // 樓層只有 26px 高、小人就佔 18px（原本畫在腳下的數字已經溢出到下一層樓）。
       const csF = Math.max(1, Math.min(3, Math.floor(fh / 11)));
       const ds = fh >= 22 ? 2 : 1;
       const step = SPRITE_W * csF + numWidth('88', ds) + 14;
+      const stop = numLeft(fh) + 10;          // 樓層號右緣之後才准站人
       let n = 0;
       for (const p of list){
-        const x = view.fx0 + 22 + step * n;
-        if (x + step > view.shaftX - 4) break;
+        const x = view.shaftX - 6 - step * (n + 1);
+        if (x < stop) break;
         drawPerson(ctx, x + SPRITE_W * csF / 2, y + fh / 2 + 6, null, false, p);
         const txt = String(p.dest + 1);
         const urgent = (p.left / p.patience) < 0.25;
         drawPlate(ctx, txt, x + SPRITE_W * csF + 4 + numWidth(txt, ds) / 2,
                   y + (fh - GLYPH_H * ds) / 2, ds,
                   urgent ? pal.bad : pal.ink, pal.numPlate, 2);
-        if (++n > 6) break;
+        if (++n >= 6) break;
       }
-      if (list.length > n){
-        ctx.fillStyle = pal.label; ctx.font = '10px system-ui'; ctx.textAlign = 'left';
-        ctx.fillText('+' + (list.length - n), view.shaftX - 16, y + fh / 2 + 4);
-      }
+      // 隊伍還有多長：標在隊尾（左端），不是門口
+      if (list.length > n)
+        drawNum(ctx, '+' + (list.length - n), view.shaftX - 6 - step * n - 6,
+                y + (fh - GLYPH_H * ds) / 2, ds, pal.crowdBar, 'right');
     } else {
-      const w = Math.min(view.shaftX - view.fx0 - 24, list.length * 5);
+      // 人數條也貼著電梯往左長，跟上面同一個方向
+      const w = Math.min(view.shaftX - numLeft(fh) - 12, list.length * 5);
       const worst = Math.min(...list.map(p => p.left / p.patience));
       ctx.fillStyle = worst < 0.25 ? pal.bad : pal.crowdBar;
-      ctx.fillRect(view.fx0 + 18, y + Math.max(0, fh / 2 - 1.5), w, Math.max(1.5, fh - 2));
+      ctx.fillRect(view.shaftX - 6 - w, y + Math.max(0, fh / 2 - 1.5), w, Math.max(1.5, fh - 2));
     }
   }
 
