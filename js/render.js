@@ -65,8 +65,18 @@ export function layout(cv, ctx, st, sim){
   // 只有真的畫得出數字時才加寬。樓層一多（100 層時每層 3.7px）轎廂裡什麼都
   // 畫不下，這時候還把井道撐開只是白白吃掉樓層的寬度。
   const wide = view.manual && view.fh >= 16;
-  const per = wide ? 60 : 30;   // 60 才排得下 3 欄目的地（2 欄只有 4 格，塞不下一車的人）
-  view.shaftW = Math.min(inner * (wide ? 0.56 : 0.46), n * per + 10);
+  let per = 30;
+  if (wide){
+    // 手動期一定要看得到「全部」的目的地，所以井道要寬到排得下滿載的一車。
+    // 依據是**載客量**而不是當下車上幾個人——後者每次有人上下車版面就會抖，
+    // 那比截斷還糟。載客量只在買升級時才變。
+    const carH = Math.max(4, view.fh - 2);
+    const rows = Math.max(1, Math.floor(carH / (GLYPH_H + 2)));      // ×1 的列高
+    const target = Math.min(derived(st).capacity, Math.max(1, st.floors - 1));
+    const cw = numWidth('8'.repeat(String(st.floors).length), 1);
+    per = Math.max(60, Math.min(120, Math.ceil(target / rows) * (cw + 2) + 14));
+  }
+  view.shaftW = Math.min(inner * (wide ? 0.60 : 0.46), n * per + 10);
   view.shaftX = view.fx1 - view.shaftW;
   view.colW = view.shaftW / n;
   return true;
@@ -280,23 +290,31 @@ export function draw(ctx, st, sim){
         // 你要的是下一個該點哪一層，不是誰坐在裡面。一人一個數字排不下——
         // 原本的做法給每位乘客 6.1px，四個數字是疊在一起的。
         const dests = [...new Set(s.riders.map(r => r.dest + 1))].sort((a, b) => a - b);
-        const ds = carH >= 22 ? 2 : 1;
-        // 排成網格，每格固定兩位數的寬度並靠右對齊。第一版只是把數字連著放，
-        // 間距 3px 不夠：「1 3 5 8」會讀成「1358」，兩位數更糟。
-        const cw = numWidth('88', ds), gap = ds * 3, ch = GLYPH_H * ds + 3;
-        const cols = Math.max(1, Math.floor((w - 6 + gap) / (cw + gap)));
-        const rows = Math.max(1, Math.floor(carH / ch));
-        const slots = cols * rows;
-        const show = dests.length > slots ? slots - 1 : dests.length;   // 放不下就留一格給 +N
-        const gw = cols * cw + (cols - 1) * gap;
-        const gh = rows * ch - 3;
-        const gx = x + (w - gw) / 2, gy = y + (carH - gh) / 2;
-        const cell = (i, txt, color, sc) => {
-          const r = Math.floor(i / cols), c = i % cols;
-          drawNum(ctx, txt, gx + c * (cw + gap) + cw, gy + r * ch, sc, color, 'right');
+        // 手動期一定要看到「全部」的目的地——那是你決定點哪層的依據，少一個就漏一趟。
+        // 所以不是固定字級再用 +N 截斷，而是從大到小試，挑第一個裝得下全部的字級：
+        // 車上人少就大大地寫，人多就縮小，但不省略。
+        const digits = String(dests[dests.length - 1]).length;
+        const fit = sc => {
+          const cw = numWidth('8'.repeat(digits), sc);
+          const gap = Math.max(2, sc * 2), ch = GLYPH_H * sc + Math.max(2, sc);
+          const cols = Math.max(1, Math.floor((w - 6 + gap) / (cw + gap)));
+          const rows = Math.max(1, Math.floor(carH / ch));
+          return { sc, cw, gap, ch, cols, rows, ok: GLYPH_H * sc <= carH - 2 && cols * rows >= dests.length };
         };
-        for (let i = 0; i < show; i++) cell(i, String(dests[i]), pal.inkCar, ds);
-        if (show < dests.length) cell(show, '+' + (dests.length - show), pal.crowdBar, ds);
+        let g = null;
+        for (const sc of [3, 2, 1]){ const t = fit(sc); if (t.ok || sc === 1){ g = t; break; } }
+        const slots = g.cols * g.rows;
+        // 只有連 ×1 都排不下時才截斷——那表示車真的太小，畫得下也看不清
+        const show = dests.length > slots ? slots - 1 : dests.length;
+        const gw = g.cols * g.cw + (g.cols - 1) * g.gap;
+        const gh = g.rows * g.ch - (g.ch - GLYPH_H * g.sc);
+        const gx = x + (w - gw) / 2, gy = y + (carH - gh) / 2;
+        const cell = (i, txt, color) => {
+          const r = Math.floor(i / g.cols), c = i % g.cols;
+          drawNum(ctx, txt, gx + c * (g.cw + g.gap) + g.cw, gy + r * g.ch, g.sc, color, 'right');
+        };
+        for (let i = 0; i < show; i++) cell(i, String(dests[i]), pal.inkCar);
+        if (show < dests.length) cell(show, '+' + (dests.length - show), pal.crowdBar);
       } else {
         // 有調度演算法之後就不用你點了，目的地變成雜訊——改成看人。
         const shown = Math.min(s.riders.length, 4);
