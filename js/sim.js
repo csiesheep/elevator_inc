@@ -3,8 +3,7 @@
 import { CONFIG as C, PASSENGERS, BANDS, EVENTS, WEEKDAYS, bandOf, tierAt,
          TENANTS, tenantById, defaultTenant } from './content.js';
 import { t, L, getLang } from './i18n.js';
-import { derived, isLeased, occOf, builtInBand, leasedInBand, leasedTotal,
-         bandLeases, tenantMix } from './state.js';
+import { derived, builtInBand, tenantMix } from './state.js';
 
 let nextId = 1;
 const d0 = st => derived(st);
@@ -71,7 +70,7 @@ function windowWeight(h, win){
 
 // 2 垂直人口分布：某一層在這個時刻、當「起點」或「終點」的權重
 function floorWeight(st, f, h, role){
-  if (!isLeased(st, f)) return 0;          // 10 空樓層不會產生任何乘客
+  // 蓋好就有人：大廳以上每一層都會產生乘客，沒有「空樓層」這回事（招商已取消）。
   const b = bandOf(f + 1);
   let w = (b.pop != null ? b.pop : 1) * tenantMix(st, b).pop;   // A 租戶決定人流量
   w *= windowWeight(h, role === 'dest' ? b.up : b.down);
@@ -163,44 +162,41 @@ function bandDemand(st, h, lo, hi){
 // 8 突發流量事件
 function floorInBand(st, key, simTopAll){
   if (key === 'lobby') return 0;
-  if (key === 'any'){
-    for (let tries = 0; tries < 12; tries++){
-      const f = (Math.random() * Math.max(1, simTopAll)) | 0;
-      if (isLeased(st, f)) return f;
-    }
-    return 0;
-  }
+  // 每一層都有人，所以不用再重抽到「租出去的那層」為止——直接抽。
+  // 上界是 simTopAll + 1：舊版寫 Math.max(1, simTopAll)，最頂那層永遠抽不到。
+  if (key === 'any') return (Math.random() * Math.max(1, simTopAll + 1)) | 0;
   const b = BANDS.find(x => x.key === key);
   if (!b) return -1;
   const lo = Math.min(b.from - 1, st.floors - 1);
   const hi = Math.min(b.to - 1, st.floors - 1);
   if (hi < lo) return -1;
-  // 只挑有租戶的樓層，空樓層不會有人開會也不會有人搬家
-  const leased = leasedInBand(st, b);
-  if (leased <= 0) return -1;
-  return lo + ((Math.random() * Math.min(leased, hi - lo + 1)) | 0);
+  // 還沒蓋到這一帶就沒有事件（注意 lo/hi 在這種情況下仍然非空，所以這關不能省）
+  const built = builtInBand(st, b);
+  if (built <= 0) return -1;
+  return lo + ((Math.random() * Math.min(built, hi - lo + 1)) | 0);
 }
 
-// A：你租了什麼租戶，就會發生什麼事件。每種租戶各自累積自己的計時器。
+// A：每一帶的租戶會發生什麼事件。每一帶各自累積自己的計時器。
+// 招商取消之後資料來源換成「這一帶的 defaultTenant × 蓋了幾層」，機制本身不動——
+// 這是 #1–#7（每種樓層自己的事件與人物）要接的地方，到時候只換 tenant 的來源。
+// ⚠ 現況：七個 defaultTenant 全都是 plain 且沒有 event，所以這裡目前一次也不會觸發。
 function tenantEvents(st, sim, dt){
   sim.tenantT = sim.tenantT || {};
-  const simTopAll = st.floors - 1;
   for (const b of BANDS){
-    const m = bandLeases(st, b);
-    for (const id in m){
-      const count = m[id] || 0;
-      const t = tenantById(id);
-      if (!t || !t.event || count <= 0) continue;
-      const key = b.key + ':' + id;
-      if (sim.tenantT[key] == null) sim.tenantT[key] = rollGap(t);
-      // 租得越多，事件「稍微」更頻繁、而且規模更大。
-      // 一開始寫成線性（× 層數），20 層會議中心就變成每 9 秒一次散場，太吵。
-      sim.tenantT[key] -= dt * (1 + count / 8);
-      if (sim.tenantT[key] <= 0){
-        sim.tenantT[key] = rollGap(t);
-        const ev = EVENTS.find(e => e.id === t.event);
-        if (ev) schedule(st, sim, ev, b, t, 1 + count / 25);
-      }
+    const count = builtInBand(st, b);
+    if (count <= 0) continue;
+    const id = defaultTenant(b.key);
+    const tn = tenantById(id);
+    if (!tn || !tn.event) continue;
+    const key = b.key + ':' + id;
+    if (sim.tenantT[key] == null) sim.tenantT[key] = rollGap(tn);
+    // 樓層越多，事件「稍微」更頻繁、而且規模更大。
+    // 一開始寫成線性（× 層數），20 層會議中心就變成每 9 秒一次散場，太吵。
+    sim.tenantT[key] -= dt * (1 + count / 8);
+    if (sim.tenantT[key] <= 0){
+      sim.tenantT[key] = rollGap(tn);
+      const ev = EVENTS.find(e => e.id === tn.event);
+      if (ev) schedule(st, sim, ev, b, tn, 1 + count / 25);
     }
   }
 }
@@ -484,43 +480,10 @@ export function step(st, sim, dt){
     sim.spawnT += -Math.log(1 - Math.random()) / Math.max(1e-4, rate);
   }
 
-  // --- 11 口碑迴圈：評價太差租戶搬走，評價夠好會有人主動上門
-  sim.churnT = (sim.churnT || 0) + dt;
-  if (sim.churnT >= C.CHURN_EVERY){
-    sim.churnT = 0;
-    if (st.rating < C.CHURN_RATING && leasedTotal(st) > C.FLOORS_START){
-      // 從最高（最貴）的那一帶開始跑掉——高租金的租戶最沒耐性
-      for (let i = BANDS.length - 1; i >= 0; i--){
-        const b = BANDS[i];
-        if (leasedInBand(st, b) <= 0) continue;
-        const m = bandLeases(st, b);
-        // 先走的是最貴的那種租戶
-        let pick = null, best = -1;
-        for (const id in m){
-          if (!m[id]) continue;
-          const t = tenantById(id);
-          const v = t ? t.fare : 1;
-          if (v > best){ best = v; pick = id; }
-        }
-        if (!pick) continue;
-        m[pick]--; if (m[pick] <= 0) delete m[pick];
-        const tn = tenantById(pick);
-        sim.toasts.push({ txt:t('tenantLeft', L(b,'name','bands'),
-          tn ? L(tn,'name','tenants') : '', st.rating.toFixed(1)), life:4 });
-        break;
-      }
-    } else if (st.rating > C.WOM_RATING && Math.random() < C.WOM_CHANCE){
-      for (const b of BANDS){
-        if (leasedInBand(st, b) >= builtInBand(st, b)) continue;
-        const m = bandLeases(st, b);
-        const id = defaultTenant(b.key);
-        m[id] = (m[id] || 0) + 1;
-        st.leased[b.key] = m;
-        sim.toasts.push({ txt:t('tenantJoined', L(b,'name','bands')), life:4 });
-        break;
-      }
-    }
-  }
+  // --- 11 口碑迴圈：評價現在**只**透過 derived().womMult 影響到達率，沒有別的路徑。
+  // 這裡原本有一段每 60 秒的 churn：低評價趕走租戶、高評價免費送一層。招商取消之後
+  // 兩邊都沒有意義了——退租是 owner 裁決掉的「離散懲罰」，送租戶是招商的反向操作，
+  // 而且已經沒有空樓層可以送。評價低的後果就是賺比較少，僅此而已。
 
   // --- 8/A 租戶自己會製造的事件
   tenantEvents(st, sim, dt);
