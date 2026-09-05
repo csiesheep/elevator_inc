@@ -111,6 +111,10 @@ export const AUTOMATION = [
 
 // ---------------------------------------------------------------- 乘客類型
 // fare = 票價倍率, patience = 耐性秒數, size = 佔幾格
+// peaks = 時段欄位（選填）：[{ hours:[a,b], mult:m }, …]，在窗內時抽中的權重 × m。
+//         a > b 代表跨午夜（[22,6] = 晚上 10 點到隔天早上 6 點）。可以列多個窗，會相乘。
+//         沒寫 peaks 的人物乘數是 1，行為跟這個欄位不存在時完全一樣。
+//         事件用 type/types 指定型別的時候不套用 peaks——事件寫了什麼就出什麼。
 export const PASSENGERS = [
   { id:'office',   name:'上班族', fare:1.0, patience:46, size:1, w:100, band:'any',
     note:'量最大。尖峰時段會暴增。' },
@@ -129,7 +133,8 @@ export const PASSENGERS = [
   { id:'mover',    name:'搬家公司', fare:6.0, patience:33, size:4, w:6, band:'resid',
     note:'幾乎塞滿整台電梯。' },
   { id:'guest',    name:'房客',   fare:2.2, patience:52, size:2, w:30,  band:'hotel',
-    note:'帶行李，佔 2 格。飯店層專屬。' },
+    peaks:[{ hours:[22,6], mult:2.2 }],   // 原本寫死在 sim.js 的夜間到達，逐字搬過來
+    note:'帶行李，佔 2 格。飯店層專屬。夜間到達的量是白天的 2.2 倍。' },
   { id:'resident', name:'住戶',   fare:1.3, patience:64, size:1, w:34,  band:'resid',
     note:'常客，耐性好。住宅層專屬。' },
   { id:'observer', name:'觀景客', fare:3.2, patience:76, size:1, w:30,  band:'obs',
@@ -235,7 +240,14 @@ export const defaultTenant = key => {
 export const tenantById = id => TENANTS.find(t => t.id === id);
 
 // ---------------------------------------------------------------- 突發流量事件（5.2 的 8）
-// n = 一次丟出幾個人；at 決定發生在哪一帶；to 決定他們要去哪
+// n     = 一次丟出幾個人；at 決定發生在哪一帶；to 決定他們要去哪
+// hours = [a,b) 這個事件在一天中的哪一段可以發生。**a > b 代表跨午夜**：
+//         [23,4] = 晚上 11 點到隔天凌晨 4 點。只有隨機池的事件需要 hours。
+// type  = 這個事件生出來的人一律是這個人物 id（選填）
+// types = { 人物id: 權重, … } 按權重混（選填，優先於 type）
+//         兩個都沒寫 → 照出發樓層那一帶抽，跟這兩個欄位不存在時完全一樣。
+//         這是「大廳出發的飯店事件要生出房客」唯一能表達的方式：大廳屬零售帶，
+//         照樓層抽永遠抽不到 band:'hotel' 的房客。
 export const EVENTS = [
   { id:'meeting', name:'會議散場', w:30, n:[8,16], at:'office', to:'lobby',
     hours:[10,18], text:'📣 會議散場：{f} 樓一次湧出 {n} 個人' },
@@ -249,6 +261,9 @@ export const EVENTS = [
     hours:[10,20], text:'📷 觀景台排隊人潮：大廳 {n} 個人要上去' },
   { id:'delivery', name:'到貨潮', w:14, n:[5,9], at:'lobby', to:'any',
     hours:[8,16], text:'📦 到貨潮：{n} 個送貨員同時進大廳' },
+  // ⚠ 這一列與下面 byTenant 的「宴會散場」共用 id:'party'，是**故意**的兩件事：
+  //   尾牙散場在隨機池、宴會散場掛在宴會廳租戶上。查詢一律要走 eventById() 並說明
+  //   要哪一種，裸的 EVENTS.find() 只會拿到這一列（見 eventById 的註解）。
   { id:'party', name:'尾牙散場', w:8, n:[12,22], at:'any', to:'lobby',
     hours:[20,24], text:'🎉 尾牙散場：{f} 樓 {n} 個人一起要走' },
   { id:'newyear', name:'跨年倒數', w:5, n:[16,26], at:'lobby', to:'roof',
@@ -270,6 +285,26 @@ export const EVENTS = [
   { id:'seating', name:'整批帶位', byTenant:true, n:[10,18], to:'lobby',
     text:'🍽 空中餐廳換場：{f} 樓 {n} 個人要下去' },
 ];
+
+// 事件查詢。**不要用裸的 EVENTS.find(e => e.id === x)**：id 不是唯一鍵。
+// 'party' 有兩列（隨機池的「尾牙散場」與 byTenant 的「宴會散場」，panic 0.75），
+// .find() 只拿得到第一列，租戶路徑會安靜地拿到錯的那一列。
+//
+// 為什麼不乾脆改掉其中一列的 id：i18n-content.js 的英文對照表以 id 為鍵，換 id 會讓
+// 那一列的英文掉回中文，而 i18n*.js 不歸我改。已回報 orchestrator。
+//   opts.byTenant = true  → 只要租戶事件那一列
+//   opts.byTenant = false → 只要隨機池那一列
+//   沒帶 opts             → 舊行為（第一列），給不在乎的呼叫端用
+export const eventById = (id, opts) => {
+  if (opts && opts.byTenant != null){
+    const want = !!opts.byTenant;
+    const hit = EVENTS.find(e => e.id === id && !!e.byTenant === want);
+    if (hit) return hit;
+  }
+  return EVENTS.find(e => e.id === id);
+};
+
+export const passengerById = id => PASSENGERS.find(p => p.id === id);
 
 // ---------------------------------------------------------------- 成就
 export const ACHIEVEMENTS = [

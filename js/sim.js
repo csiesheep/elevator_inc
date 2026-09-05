@@ -1,7 +1,7 @@
 // sim.js — 模擬。乘客、電梯井、調度演算法、過熱、評價、統計流量模型。
 // 這裡的東西都是暫時的：存檔只存 GameState，不存乘客陣列（設計 4.13）。
 import { CONFIG as C, PASSENGERS, BANDS, EVENTS, WEEKDAYS, bandOf, tierAt,
-         TENANTS, tenantById, defaultTenant } from './content.js';
+         TENANTS, tenantById, defaultTenant, eventById, passengerById } from './content.js';
 import { t, L, getLang } from './i18n.js';
 import { derived, builtInBand, tenantMix } from './state.js';
 
@@ -57,15 +57,46 @@ function rushMult(h){
   return 1;
 }
 
+// 時段窗 [a,b)，**唯一**的判定實作。整個檔案裡所有「現在算不算在這個時間窗裡」
+// 都要走這裡：EVENTS.hours、PASSENGERS.peaks、樓層帶的 up/down 尖峰窗。
+//
+// a > b 代表跨午夜（例：[23,4] = 23:00 到隔天 04:00），窗內是 h>=a 或 h<b。
+// 舊寫法 `h < a || h >= b` 在跨午夜時**兩邊同時成立**，所以窗的兩端都打不到
+// （實測：hours=[23,4] 在 h=1 與 h=23.5 都是 0 次觸發）。
+// a === b 維持舊行為（空窗，永遠為假）——沒有資料用到，改成「全天」等於偷偷發明規則。
+export function inHourWindow(h, win){
+  if (!win) return true;
+  const [a, b] = win;
+  return a <= b ? (h >= a && h < b) : (h >= a || h < b);
+}
+
 // 尖峰窗 [a,b)：窗內 1.8 倍，窗外隨時間距離遞減到 0.45。
 // 這是「調變」不是「開關」——平均值大約 1，所以到達率的基準不會被時段吃掉。
 function windowWeight(h, win){
   if (!win) return 1;
   const [a, b] = win;
-  if (h >= a && h < b) return 1.8;
+  if (inHourWindow(h, win)) return 1.8;
   const d = Math.min(Math.abs(h - a), Math.abs(h - b),
                      24 - Math.abs(h - a), 24 - Math.abs(h - b));
   return Math.max(0.45, 1.25 - d * 0.11);
+}
+
+// 加權抽樣，**唯一**的實作（#8）。回傳落在哪一格的索引；空陣列回傳 -1。
+//
+// 原本這個形狀在 pickFloor / pickType / fireEvent 各抄了一份，三份都只防了
+// 「池子是空的」、沒防「池子非空但權重全為 0」。total 為 0 時 r = 0，第一圈
+// `r -= 0` 就 <= 0，於是**永遠回傳第 0 項**——一個充滿自信的錯答案。
+// 實測（權重全為 0、40 層）：900 個乘客只落在 2 個樓層（0 與 1）。
+// 權重全為 0 的正確意思是「這些選項一樣可能」，所以退回均勻抽樣。
+export function pickIndex(w){
+  const n = w.length;
+  if (n <= 0) return -1;
+  let total = 0;
+  for (let i = 0; i < n; i++) total += w[i] > 0 ? w[i] : 0;   // 負權重當 0，別讓它把總和吃掉
+  if (total <= 0 || !Number.isFinite(total)) return (Math.random() * n) | 0;   // NaN 也走這裡
+  let r = Math.random() * total;
+  for (let i = 0; i < n; i++){ r -= w[i] > 0 ? w[i] : 0; if (r <= 0) return i; }
+  return n - 1;   // 浮點殘差跑完整圈：落在最後一項，不是第一項
 }
 
 // 2 垂直人口分布：某一層在這個時刻、當「起點」或「終點」的權重
@@ -80,18 +111,51 @@ function floorWeight(st, f, h, role){
 
 // 依人口權重抽一層（lo..hi 含端點）
 function pickFloor(st, h, role, lo, hi){
-  let total = 0;
   const n = hi - lo + 1;
   if (n <= 0) return lo;
   const w = new Array(n);
-  for (let i = 0; i < n; i++){ w[i] = floorWeight(st, lo + i, h, role); total += w[i]; }
-  let r = Math.random() * total;
-  for (let i = 0; i < n; i++){ r -= w[i]; if (r <= 0) return lo + i; }
-  return hi;
+  for (let i = 0; i < n; i++) w[i] = floorWeight(st, lo + i, h, role);
+  return lo + pickIndex(w);
 }
 
 // ------------------------------------------------------------ 生成乘客
-function pickType(st, floor, h){
+// 人物的時段欄位：peaks:[{ hours:[a,b], mult:m }, …]，hours 跨午夜照樣成立。
+// 沒寫 peaks 的人物乘數是 1 —— 這是「新欄位一律有預設值」的那個預設值。
+function peakMult(p, h){
+  if (!p.peaks) return 1;
+  let m = 1;
+  for (const k of p.peaks) if (inHourWindow(h, k.hours)) m *= (k.mult != null ? k.mult : 1);
+  return m;
+}
+
+// 事件指定的人物型別。ev.type = 單一 id；ev.types = { id: 權重 }。
+// 回傳 [人物, 權重] 的池；沒指定、或 id 全部打錯，回傳 null（呼叫端退回樓層帶的預設）。
+// 事件指定的權重是**字面值**，不再乘 rushMult / peaks / rare ——
+// 事件寫了什麼就出什麼，不然事件的組成會被時段偷偷改掉。
+function forcedTypePool(ev){
+  if (!ev) return null;
+  const pool = [];
+  if (ev.types){
+    for (const id in ev.types){
+      const p = passengerById(id);
+      if (p && ev.types[id] > 0) pool.push([p, ev.types[id]]);
+    }
+  } else if (ev.type){
+    const p = passengerById(ev.type);
+    if (p) pool.push([p, 1]);
+  }
+  return pool.length ? pool : null;
+}
+
+// ev 沒帶或沒指定型別時，行為跟今天完全一樣：照出發樓層那一帶抽。
+function pickType(st, floor, h, ev){
+  const forced = forcedTypePool(ev);
+  const pool = forced || bandTypePool(st, floor, h);
+  if (!pool.length) return PASSENGERS[0];
+  return pool[pickIndex(pool.map(x => x[1]))][0];
+}
+
+function bandTypePool(st, floor, h){
   const band = bandOf(floor + 1).key;
   const pool = [];
   for (const p of PASSENGERS){
@@ -99,18 +163,15 @@ function pickType(st, floor, h){
     else if (p.band !== 'any' && p.band !== band) continue;
     let w = p.w;
     if (p.id === 'office')  w *= rushMult(h);
-    if (p.id === 'guest' && (h >= 22 || h < 6)) w *= 2.2;
+    w *= peakMult(p, h);          // 原本是寫死的 `guest && (h>=22||h<6) → ×2.2`，現在是資料
     if (p.rare) w *= 0.25;
     pool.push([p, w]);
   }
-  if (!pool.length) return PASSENGERS[0];
-  let total = pool.reduce((a, x) => a + x[1], 0), r = Math.random() * total;
-  for (const [p, w] of pool){ r -= w; if (r <= 0) return p; }
-  return pool[0][0];
+  return pool;
 }
 
-function makePassenger(st, sim, origin, dest, h){
-  const type = pickType(st, origin, h);
+function makePassenger(st, sim, origin, dest, h, ev){
+  const type = pickType(st, origin, h, ev);
   // 樓層越高，來回一趟本來就越久，耐性要跟著放大；否則 190 樓的人在物理上
   // 不可能被服務到（單程就超過他的耐性），只會變成必然的流失。
   const far = Math.max(origin, dest);
@@ -195,7 +256,9 @@ function tenantEvents(st, sim, dt){
     sim.tenantT[key] -= dt * (1 + count / 8);
     if (sim.tenantT[key] <= 0){
       sim.tenantT[key] = rollGap(tn);
-      const ev = EVENTS.find(e => e.id === tn.event);
+      // 有兩列 id:'party'（尾牙散場在隨機池、宴會散場掛在宴會廳），裸 .find() 只拿得到
+      // 第一列，租戶路徑會安靜地拿到隨機池那一列（實測：耐性倍率 1，不是 0.75）。
+      const ev = eventById(tn.event, { byTenant: true });
       if (ev) schedule(st, sim, ev, b, tn, 1 + count / 25);
     }
   }
@@ -222,12 +285,11 @@ function fireEvent(st, sim){
   const simTopAll = st.floors - 1;
   const pool = EVENTS.filter(e => {
     if (e.byTenant) return false;              // 租戶事件不進隨機池
-    if (h < e.hours[0] || h >= e.hours[1]) return false;
+    if (!inHourWindow(h, e.hours)) return false;
     return floorInBand(st, e.at, simTopAll) >= 0 && floorInBand(st, e.to, simTopAll) >= 0;
   });
   if (!pool.length) return;
-  let total = pool.reduce((a, e) => a + e.w, 0), r = Math.random() * total, ev = pool[0];
-  for (const e of pool){ r -= e.w; if (r <= 0){ ev = e; break; } }
+  const ev = pool[pickIndex(pool.map(e => e.w))];
 
   runEvent(st, sim, ev, null, null, simTopAll);
 }
@@ -246,7 +308,7 @@ function runEvent(st, sim, ev, band, tenant, simTopAll, fixedFloor, scale){
     let to = floorInBand(st, ev.to, simTopAll);
     const o = (!band && ev.at === 'any') ? floorInBand(st, 'any', simTopAll) : from;
     if (to === o || to < 0 || o < 0) continue;
-    const p = makePassenger(st, sim, o, to, h);
+    const p = makePassenger(st, sim, o, to, h, ev);   // ev 決定人物型別（type / types）
     if (ev.panic) p.left = p.patience = p.patience * ev.panic;
     p.surge = d.surgeMult;                       // B 尖峰加給
     p.fromEvent = true;
