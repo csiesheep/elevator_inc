@@ -5,34 +5,116 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Elevator Inc.</title>
 <meta name="description" content="An incremental game about the vertical transport of a tower that keeps growing.">
+<meta name="theme-color" content="#bff0ff">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;600;700&family=Noto+Sans+TC:wght@500;700;900&display=swap">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="css/landing.css">
 </head>
 <body class="landing">
 
+<!-- 天空：滿版、固定在背後 -->
+<div class="scene" aria-hidden="true">
+  <div class="sky">
+    <i style="background:#bff0ff"></i><i style="background:#a5e8ff"></i>
+    <i style="background:#8adcfb"></i><i style="background:#6fd0f7"></i>
+    <i style="background:#5bc6f2; flex-grow:1"></i>
+  </div>
+  <svg class="sun" viewBox="0 0 27 27">
+    <rect x="7"  y="4"  width="13" height="19" fill="#ffd23f"/>
+    <rect x="4"  y="7"  width="19" height="13" fill="#ffd23f"/>
+    <rect x="10" y="2"  width="7"  height="2"  fill="#ffd23f"/>
+    <rect x="10" y="23" width="7"  height="2"  fill="#ffd23f"/>
+    <rect x="2"  y="10" width="2"  height="7"  fill="#ffd23f"/>
+    <rect x="23" y="10" width="2"  height="7"  fill="#ffd23f"/>
+    <rect x="7"  y="7"  width="5"  height="2"  fill="#fff2b0"/>
+    <rect x="7"  y="9"  width="2"  height="5"  fill="#fff2b0"/>
+  </svg>
+  <svg class="cloud drift" viewBox="0 0 28 10">
+    <rect x="6" y="2" width="14" height="3" fill="#ffffff"/>
+    <rect x="3" y="5" width="22" height="3" fill="#ffffff"/>
+    <rect x="9" y="0" width="8"  height="2" fill="#ffffff"/>
+    <rect x="3" y="8" width="19" height="2" fill="#d8f2ff"/>
+  </svg>
+</div>
+
 <button id="lang" class="langBtn">EN</button>
 
 <main id="land">
-  <div class="hero">
-    <div class="tower" aria-hidden="true">
-      <div class="shaft"><div class="car"></div></div>
-    </div>
-    <h1>Elevator&nbsp;Inc.</h1>
-    <p class="tag" data-i18n="landTagline"></p>
-    <p class="save dim" id="saveLine"></p>
+
+  <!-- 大樓站在地平線上；兩側的城市只有寬螢幕看得到 -->
+  <div class="towerWrap">
+    <svg class="city left" viewBox="0 0 55 32" aria-hidden="true">
+      <rect x="0"  y="14" width="13" height="18" fill="#4f9fc4"/>
+      <rect x="15" y="8"  width="10" height="24" fill="#5aa9c9"/>
+      <rect x="27" y="18" width="14" height="14" fill="#4f9fc4"/>
+      <rect x="43" y="12" width="9"  height="20" fill="#5aa9c9"/>
+      <rect x="3"  y="18" width="2" height="2" fill="#bfe9f7"/><rect x="8" y="18" width="2" height="2" fill="#bfe9f7"/>
+      <rect x="18" y="12" width="2" height="2" fill="#bfe9f7"/><rect x="18" y="18" width="2" height="2" fill="#bfe9f7"/>
+      <rect x="31" y="22" width="2" height="2" fill="#bfe9f7"/><rect x="46" y="16" width="2" height="2" fill="#bfe9f7"/>
+    </svg>
+
+    <svg class="tower" viewBox="0 0 74 111" aria-hidden="true">
+      <rect class="beacon" x="34" y="0" width="6" height="4" fill="#ff3d6e"/>
+      <rect x="35" y="4" width="4" height="7" fill="#16183a"/>
+      <rect x="13" y="9"  width="48" height="99" fill="#16183a"/>
+      <rect x="15" y="11" width="44" height="95" fill="#fff8ea"/>
+      <rect x="15" y="11" width="8"  height="95" fill="#e4dcc9"/>
+      <rect x="27" y="94" width="7" height="6" fill="#3ad39a"/><rect x="37" y="94" width="7" height="6" fill="#3ad39a"/>
+      <rect x="27" y="85" width="7" height="6" fill="#3ad39a"/><rect x="37" y="85" width="7" height="6" fill="#fff2b0"/>
+      <rect x="27" y="76" width="7" height="6" fill="#4ec3f0"/><rect x="37" y="76" width="7" height="6" fill="#4ec3f0"/>
+      <rect x="27" y="67" width="7" height="6" fill="#4ec3f0"/><rect x="37" y="67" width="7" height="6" fill="#4ec3f0"/>
+      <rect x="27" y="58" width="7" height="6" fill="#ffb02e"/><rect x="37" y="58" width="7" height="6" fill="#ffb02e"/>
+      <rect x="27" y="49" width="7" height="6" fill="#ffb02e"/><rect x="37" y="49" width="7" height="6" fill="#fff2b0"/>
+      <rect x="27" y="40" width="7" height="6" fill="#a06bff"/><rect x="37" y="40" width="7" height="6" fill="#a06bff"/>
+      <rect x="27" y="31" width="7" height="6" fill="#a06bff"/><rect x="37" y="31" width="7" height="6" fill="#ff6fa5"/>
+      <rect x="27" y="22" width="7" height="6" fill="#ff6fa5"/><rect x="37" y="22" width="7" height="6" fill="#ff6fa5"/>
+      <rect x="27" y="13" width="7" height="6" fill="#ff5c5c"/><rect x="37" y="13" width="7" height="6" fill="#ff5c5c"/>
+      <rect x="47" y="11" width="12" height="95" fill="#2a2d55"/>
+      <rect x="52" y="11" width="2"  height="95" fill="#3d4180"/>
+      <g class="car">
+        <rect x="47" y="90" width="12" height="13" fill="#16183a"/>
+        <rect x="49" y="92" width="8"  height="9"  fill="#ffd23f"/>
+        <rect x="52" y="94" width="2"  height="5"  fill="#16183a"/>
+      </g>
+      <rect x="29" y="98"  width="14" height="10" fill="#16183a"/>
+      <rect x="31" y="100" width="10" height="8"  fill="#7dd8f7"/>
+      <rect x="9"  y="108" width="56" height="3"  fill="#16183a" opacity=".2"/>
+    </svg>
+
+    <svg class="city right" viewBox="0 0 55 32" aria-hidden="true">
+      <rect x="3"  y="12" width="9"  height="20" fill="#5aa9c9"/>
+      <rect x="14" y="18" width="14" height="14" fill="#4f9fc4"/>
+      <rect x="30" y="6"  width="10" height="26" fill="#5aa9c9"/>
+      <rect x="42" y="16" width="13" height="16" fill="#4f9fc4"/>
+      <rect x="6"  y="16" width="2" height="2" fill="#bfe9f7"/><rect x="18" y="22" width="2" height="2" fill="#bfe9f7"/>
+      <rect x="33" y="10" width="2" height="2" fill="#bfe9f7"/><rect x="33" y="16" width="2" height="2" fill="#bfe9f7"/>
+      <rect x="46" y="20" width="2" height="2" fill="#bfe9f7"/>
+    </svg>
   </div>
 
-  <nav class="menu">
-    <button class="big" id="btnStart"></button>
-    <button id="btnRules" data-i18n="btnRules"></button>
-    <button id="btnLedger" data-i18n="btnLedger"></button>
-    <a class="btn" href="https://games.csiesheep.com/" data-i18n="btnMore"></a>
-  </nav>
+  <!-- 地面：滿版綠帶，內容置中在上面 -->
+  <div class="band">
+    <div class="col">
+      <h1 class="wordmark">ELEVATOR INC.</h1>
+      <p class="tag" data-i18n="landTagline"></p>
+      <p class="save" id="saveLine"></p>
 
-  <footer class="foot dim">
-    <a href="https://github.com/csiesheep/elevator_inc">GitHub</a> ·
-    <a href="https://games.csiesheep.com/">games.csiesheep.com</a>
-  </footer>
+      <nav class="menu">
+        <button class="big" id="btnStart"></button>
+        <div class="menuRow">
+          <button id="btnRules" data-i18n="btnRules"></button>
+          <button id="btnLedger" data-i18n="btnLedger"></button>
+          <a class="more" href="https://games.csiesheep.com/" data-i18n="btnMore"></a>
+        </div>
+      </nav>
+
+      <footer class="foot">
+        <a href="https://github.com/csiesheep/elevator_inc">GitHub</a>
+      </footer>
+    </div>
+  </div>
 </main>
 
 <div id="sheetHost"></div>

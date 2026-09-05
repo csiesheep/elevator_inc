@@ -1,0 +1,190 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;600;700&family=Noto+Sans+TC:wght@500;700;900&display=swap">
+  <style>
+    body { margin: 0; }
+    x-dc { display: block; }
+    a { color: #16183a; } a:hover { color: #ff3d6e; }
+    .px { font-family: "Press Start 2P", "Courier New", monospace; }
+    .pxs { font-family: "Pixelify Sans", "Courier New", monospace; }
+    .han { font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; }
+    svg { shape-rendering: crispEdges; }
+
+    .car { animation: ride 7.5s steps(11) infinite; }
+    @keyframes ride {
+      0%, 6%   { transform: translateY(0); }
+      44%, 56% { transform: translateY(-84px); }
+      94%, 100%{ transform: translateY(0); }
+    }
+    .beacon { animation: blink 1.6s steps(1) infinite; }
+    @keyframes blink { 0%, 55% { opacity: 1; } 56%, 100% { opacity: .2; } }
+    .cloudA { animation: drift 30s linear infinite; }
+    @keyframes drift { from { transform: translateX(0); } to { transform: translateX(1440px); } }
+
+    .btn {
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+      border: 4px solid #16183a; box-shadow: 7px 7px 0 #16183a; cursor: pointer;
+      transition: transform .06s steps(2), box-shadow .06s steps(2);
+    }
+    .btn:hover { transform: translate(2px, 2px); box-shadow: 5px 5px 0 #16183a; }
+    .btn:active { transform: translate(7px, 7px); box-shadow: 0 0 0 #16183a; }
+    .scan {
+      position: absolute; inset: 0; pointer-events: none;
+      background: repeating-linear-gradient(180deg, rgba(22,24,58,.05) 0 2px, transparent 2px 4px);
+    }
+    @media (prefers-reduced-motion: reduce) { .car, .beacon, .cloudA { animation: none; } }
+  </style>
+</helmet>
+
+<div style="position: relative; width: 1280px; height: 860px; overflow: hidden; background: #bff0ff;">
+
+  <!-- 天空：硬邊色帶 -->
+  <div style="position: absolute; inset: 0; display: flex; flex-direction: column;">
+    <div style="height: 108px; background: #bff0ff;"></div>
+    <div style="height: 96px;  background: #a5e8ff;"></div>
+    <div style="height: 96px;  background: #8adcfb;"></div>
+    <div style="height: 90px;  background: #6fd0f7;"></div>
+    <div style="flex-grow: 1;  background: #5bc6f2;"></div>
+  </div>
+
+  <!-- 太陽 -->
+  <svg width="108" height="108" viewBox="0 0 27 27" style="position: absolute; left: 108px; top: 68px;">
+    <rect x="7"  y="4"  width="13" height="19" fill="#ffd23f"/>
+    <rect x="4"  y="7"  width="19" height="13" fill="#ffd23f"/>
+    <rect x="10" y="2"  width="7"  height="2"  fill="#ffd23f"/>
+    <rect x="10" y="23" width="7"  height="2"  fill="#ffd23f"/>
+    <rect x="2"  y="10" width="2"  height="7"  fill="#ffd23f"/>
+    <rect x="23" y="10" width="2"  height="7"  fill="#ffd23f"/>
+    <rect x="7"  y="7"  width="5"  height="2"  fill="#fff2b0"/>
+    <rect x="7"  y="9"  width="2"  height="5"  fill="#fff2b0"/>
+  </svg>
+
+  <!-- 雲 -->
+  <svg class="cloudA" width="168" height="60" viewBox="0 0 28 10" style="position: absolute; left: -190px; top: 96px;">
+    <rect x="6" y="2" width="14" height="3" fill="#ffffff"/>
+    <rect x="3" y="5" width="22" height="3" fill="#ffffff"/>
+    <rect x="9" y="0" width="8"  height="2" fill="#ffffff"/>
+    <rect x="3" y="8" width="19" height="2" fill="#d8f2ff"/>
+  </svg>
+  <svg width="120" height="44" viewBox="0 0 20 8" style="position: absolute; right: 118px; top: 150px;">
+    <rect x="4" y="2" width="12" height="3" fill="#ffffff"/>
+    <rect x="2" y="5" width="16" height="2" fill="#ffffff"/>
+    <rect x="7" y="0" width="7"  height="2" fill="#ffffff"/>
+  </svg>
+
+  <!-- 兩側的城市：桌機才會出現，用來填滿寬螢幕的天空 -->
+  <svg width="330" height="190" viewBox="0 0 55 32" style="position: absolute; left: 0; top: 262px;">
+    <rect x="0"  y="14" width="13" height="18" fill="#4f9fc4"/>
+    <rect x="15" y="8"  width="10" height="24" fill="#5aa9c9"/>
+    <rect x="27" y="18" width="14" height="14" fill="#4f9fc4"/>
+    <rect x="43" y="12" width="9"  height="20" fill="#5aa9c9"/>
+    <rect x="3"  y="18" width="2" height="2" fill="#bfe9f7"/><rect x="8" y="18" width="2" height="2" fill="#bfe9f7"/>
+    <rect x="18" y="12" width="2" height="2" fill="#bfe9f7"/><rect x="18" y="18" width="2" height="2" fill="#bfe9f7"/>
+    <rect x="31" y="22" width="2" height="2" fill="#bfe9f7"/><rect x="46" y="16" width="2" height="2" fill="#bfe9f7"/>
+  </svg>
+  <svg width="330" height="190" viewBox="0 0 55 32" style="position: absolute; right: 0; top: 262px;">
+    <rect x="3"  y="12" width="9"  height="20" fill="#5aa9c9"/>
+    <rect x="14" y="18" width="14" height="14" fill="#4f9fc4"/>
+    <rect x="30" y="6"  width="10" height="26" fill="#5aa9c9"/>
+    <rect x="42" y="16" width="13" height="16" fill="#4f9fc4"/>
+    <rect x="6"  y="16" width="2" height="2" fill="#bfe9f7"/><rect x="18" y="22" width="2" height="2" fill="#bfe9f7"/>
+    <rect x="33" y="10" width="2" height="2" fill="#bfe9f7"/><rect x="33" y="16" width="2" height="2" fill="#bfe9f7"/>
+    <rect x="46" y="20" width="2" height="2" fill="#bfe9f7"/>
+  </svg>
+
+  <!-- 地面 -->
+  <div style="position: absolute; left: 0; right: 0; top: 445px; bottom: 0; background: #3ad39a;"></div>
+  <div style="position: absolute; left: 0; right: 0; top: 445px; height: 10px; background: #2ab887;"></div>
+
+  <!-- 主角大樓：站在地平線上，置中 -->
+  <div style="position: absolute; left: 0; right: 0; top: 118px; display: flex; justify-content: center;">
+    <svg width="222" height="333" viewBox="0 0 74 111">
+      <rect class="beacon" x="34" y="0" width="6" height="4" fill="#ff3d6e"/>
+      <rect x="35" y="4" width="4" height="7" fill="#16183a"/>
+      <rect x="13" y="9"  width="48" height="99" fill="#16183a"/>
+      <rect x="15" y="11" width="44" height="95" fill="#fff8ea"/>
+      <rect x="15" y="11" width="8"  height="95" fill="#e4dcc9"/>
+
+      <rect x="27" y="94" width="7" height="6" fill="#3ad39a"/><rect x="37" y="94" width="7" height="6" fill="#3ad39a"/>
+      <rect x="27" y="85" width="7" height="6" fill="#3ad39a"/><rect x="37" y="85" width="7" height="6" fill="#fff2b0"/>
+      <rect x="27" y="76" width="7" height="6" fill="#4ec3f0"/><rect x="37" y="76" width="7" height="6" fill="#4ec3f0"/>
+      <rect x="27" y="67" width="7" height="6" fill="#4ec3f0"/><rect x="37" y="67" width="7" height="6" fill="#4ec3f0"/>
+      <rect x="27" y="58" width="7" height="6" fill="#ffb02e"/><rect x="37" y="58" width="7" height="6" fill="#ffb02e"/>
+      <rect x="27" y="49" width="7" height="6" fill="#ffb02e"/><rect x="37" y="49" width="7" height="6" fill="#fff2b0"/>
+      <rect x="27" y="40" width="7" height="6" fill="#a06bff"/><rect x="37" y="40" width="7" height="6" fill="#a06bff"/>
+      <rect x="27" y="31" width="7" height="6" fill="#a06bff"/><rect x="37" y="31" width="7" height="6" fill="#ff6fa5"/>
+      <rect x="27" y="22" width="7" height="6" fill="#ff6fa5"/><rect x="37" y="22" width="7" height="6" fill="#ff6fa5"/>
+      <rect x="27" y="13" width="7" height="6" fill="#ff5c5c"/><rect x="37" y="13" width="7" height="6" fill="#ff5c5c"/>
+
+      <rect x="47" y="11" width="12" height="95" fill="#2a2d55"/>
+      <rect x="52" y="11" width="2"  height="95" fill="#3d4180"/>
+      <g class="car">
+        <rect x="47" y="90" width="12" height="13" fill="#16183a"/>
+        <rect x="49" y="92" width="8"  height="9"  fill="#ffd23f"/>
+        <rect x="52" y="94" width="2"  height="5"  fill="#16183a"/>
+      </g>
+
+      <rect x="29" y="98" width="14" height="10" fill="#16183a"/>
+      <rect x="31" y="100" width="10" height="8" fill="#7dd8f7"/>
+      <rect x="9"  y="108" width="56" height="3" fill="#16183a" opacity=".2"/>
+    </svg>
+  </div>
+
+  <!-- 內容：置中單欄，跟手機版同一套順序 -->
+  <div style="position: absolute; left: 0; right: 0; bottom: 28px; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 0 40px;">
+
+    <h1 class="px" style="margin: 0; text-align: center; font-size: 34px; line-height: 1.34; color: #16183a; text-shadow: 5px 5px 0 #ffd23f;">
+      ELEVATOR INC.
+    </h1>
+
+    <p class="pxs" style="margin: 0; text-align: center; font-size: 21px; line-height: 1.7; font-weight: 500; color: #16183a; max-width: 720px;">
+      You run the vertical transport of a tower that keeps growing — and the taller it gets, the further behind you fall.
+    </p>
+
+    <div class="pxs" style="display: flex; align-items: center; gap: 9px; padding: 7px 14px; background: #16183a; color: #ffe9a8; font-size: 15px; font-weight: 600; letter-spacing: .06em;">
+      <span style="width: 8px; height: 8px; background: #3ad39a; display: block;"></span>
+      50 FLOORS · 120 DELIVERED · ★3.0
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 620px; margin-top: 4px;">
+      <div class="btn" style="background: #ff5c5c; padding: 16px 24px;">
+        <svg width="24" height="24" viewBox="0 0 12 12"><rect x="3" y="1" width="3" height="10" fill="#fff"/><rect x="6" y="3" width="3" height="6" fill="#fff"/><rect x="9" y="5" width="2" height="2" fill="#fff"/></svg>
+        <span class="pxs" style="font-size: 25px; font-weight: 700; color: #fff; letter-spacing: .04em;">CONTINUE</span>
+        <span class="pxs" style="font-size: 15px; color: #ffd9d9; letter-spacing: .12em;">PLAY</span>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px;">
+        <div class="btn" style="background: #fff8ea; padding: 13px 12px;">
+          <svg width="20" height="20" viewBox="0 0 10 10"><rect x="0" y="0" width="10" height="10" fill="#16183a"/><rect x="2" y="2" width="6" height="1" fill="#fff8ea"/><rect x="2" y="4" width="6" height="1" fill="#fff8ea"/><rect x="2" y="6" width="4" height="1" fill="#fff8ea"/></svg>
+          <span class="pxs" style="font-size: 19px; font-weight: 700; color: #16183a;">HOW TO PLAY</span>
+        </div>
+        <div class="btn" style="background: #fff8ea; padding: 13px 12px;">
+          <svg width="20" height="20" viewBox="0 0 10 10"><rect x="0" y="0" width="10" height="10" fill="#16183a"/><rect x="2" y="2" width="2" height="6" fill="#3ad39a"/><rect x="6" y="4" width="2" height="4" fill="#ffd23f"/></svg>
+          <span class="pxs" style="font-size: 19px; font-weight: 700; color: #16183a;">LEDGER</span>
+        </div>
+        <div class="btn" style="background: #7dd8f7; padding: 13px 12px;">
+          <svg width="20" height="20" viewBox="0 0 10 10"><rect x="0" y="1" width="4" height="3" fill="#16183a"/><rect x="6" y="1" width="4" height="3" fill="#16183a"/><rect x="0" y="6" width="4" height="3" fill="#16183a"/><rect x="6" y="6" width="4" height="3" fill="#16183a"/></svg>
+          <span class="pxs" style="font-size: 19px; font-weight: 700; color: #16183a;">MORE GAMES</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="pxs" style="display: flex; gap: 9px; font-size: 14px; color: #16183a; opacity: .75; margin-top: 2px;">
+      <a href="#">GitHub</a><span>·</span><a href="#">games.csiesheep.com</a>
+    </div>
+  </div>
+
+  <div class="pxs btn" style="position: absolute; right: 34px; top: 30px; background: #fff8ea; padding: 10px 16px; font-size: 15px; font-weight: 700; color: #16183a; letter-spacing: .1em;">中</div>
+
+  <div class="scan"></div>
+</div>
+</x-dc>
+</body>
+</html>

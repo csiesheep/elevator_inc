@@ -1,0 +1,164 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;600;700&family=Noto+Sans+TC:wght@500;700;900&display=swap">
+  <style>
+    body { margin: 0; }
+    x-dc { display: block; }
+    a { color: #fff8ea; } a:hover { color: #ffd23f; }
+    .px { font-family: "Press Start 2P", "Courier New", monospace; }
+    .pxs { font-family: "Pixelify Sans", "Courier New", monospace; }
+    .han { font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; }
+    svg { shape-rendering: crispEdges; }
+    .cursor { animation: nudge 1s steps(2) infinite; }
+    @keyframes nudge { 0%, 50% { transform: translateX(0); } 51%, 100% { transform: translateX(6px); } }
+    .car { animation: ride 6s steps(8) infinite; }
+    @keyframes ride {
+      0%, 8%   { transform: translateY(0); }
+      46%, 58% { transform: translateY(-56px); }
+      92%, 100%{ transform: translateY(0); }
+    }
+    .row { border: 4px solid #16183a; box-shadow: 6px 6px 0 #16183a; cursor: pointer; }
+    .row:hover { transform: translate(2px, 2px); box-shadow: 4px 4px 0 #16183a; }
+    /* 底色的方格網，像 8-bit 背景磚 */
+    .tiles {
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(45deg, rgba(255,255,255,.07) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.07) 75%),
+        linear-gradient(45deg, rgba(255,255,255,.07) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.07) 75%);
+      background-size: 32px 32px;
+      background-position: 0 0, 16px 16px;
+    }
+    @media (prefers-reduced-motion: reduce) { .cursor, .car { animation: none; } }
+  </style>
+</helmet>
+
+<div style="position: relative; width: 1280px; height: 860px; overflow: hidden; background: #7a5cff;">
+  <div class="tiles"></div>
+
+  <!-- 角落的像素裝飾 -->
+  <svg width="120" height="120" viewBox="0 0 10 10" style="position: absolute; left: 26px; bottom: 26px; opacity: .5;">
+    <rect x="0" y="4" width="2" height="2" fill="#ffd23f"/><rect x="4" y="0" width="2" height="2" fill="#3ad39a"/>
+    <rect x="8" y="6" width="2" height="2" fill="#ff5c5c"/><rect x="4" y="8" width="2" height="2" fill="#7dd8f7"/>
+  </svg>
+  <svg width="120" height="120" viewBox="0 0 10 10" style="position: absolute; right: 26px; top: 26px; opacity: .5;">
+    <rect x="2" y="2" width="2" height="2" fill="#ffd23f"/><rect x="6" y="4" width="2" height="2" fill="#ff6fa5"/>
+    <rect x="0" y="8" width="2" height="2" fill="#3ad39a"/>
+  </svg>
+
+  <!-- 機台面板 -->
+  <div style="position: absolute; left: 96px; top: 74px; width: 1088px; background: #fff8ea; border: 6px solid #16183a; box-shadow: 14px 14px 0 rgba(22,24,58,.45); padding: 0 0 34px;">
+
+    <!-- 招牌燈箱 -->
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 20px; background: #ffd23f; border-bottom: 6px solid #16183a; padding: 26px 34px;">
+      <h1 class="px" style="margin: 0; font-size: 40px; line-height: 1.2; color: #16183a; text-shadow: 5px 5px 0 #ff5c5c;">ELEVATOR INC.</h1>
+      <div class="pxs" style="display: flex; align-items: center; gap: 12px;">
+        <span style="padding: 9px 15px; background: #16183a; color: #ffd23f; font-size: 15px; font-weight: 700; letter-spacing: .1em;">1 PLAYER</span>
+        <span class="row" style="display: block; padding: 9px 15px; background: #fff8ea; font-size: 15px; font-weight: 700; color: #16183a; letter-spacing: .1em;">EN</span>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 372px; gap: 40px; padding: 34px;">
+
+      <!-- 選單 -->
+      <div style="display: flex; flex-direction: column; gap: 18px;">
+        <p class="han" style="margin: 0; font-size: 17px; line-height: 1.7; font-weight: 500; color: #3a3d66; text-wrap: pretty;">
+          你經營一棟不斷長高的大樓的垂直運輸，而大樓越高，你越忙不過來。
+        </p>
+
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <svg class="cursor" width="26" height="26" viewBox="0 0 13 13"><rect x="2" y="1" width="3" height="11" fill="#16183a"/><rect x="5" y="3" width="3" height="7" fill="#16183a"/><rect x="8" y="5" width="3" height="3" fill="#16183a"/></svg>
+            <div class="row" style="flex-grow: 1; display: flex; align-items: center; gap: 16px; background: #ff5c5c; padding: 18px 22px;">
+              <span class="han" style="font-size: 22px; font-weight: 900; color: #fff;">繼續遊戲</span>
+              <span class="pxs" style="margin-left: auto; font-size: 15px; color: #ffd9d9; letter-spacing: .12em;">PRESS START</span>
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <div style="width: 26px;"></div>
+            <div class="row" style="flex-grow: 1; display: flex; align-items: center; gap: 16px; background: #fff8ea; padding: 15px 22px;">
+              <span class="han" style="font-size: 18px; font-weight: 700; color: #16183a;">玩法說明</span>
+              <span class="pxs" style="margin-left: auto; font-size: 14px; color: #6b6f9e; letter-spacing: .1em;">HOW TO PLAY</span>
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <div style="width: 26px;"></div>
+            <div class="row" style="flex-grow: 1; display: flex; align-items: center; gap: 16px; background: #fff8ea; padding: 15px 22px;">
+              <span class="han" style="font-size: 18px; font-weight: 700; color: #16183a;">帳本</span>
+              <span class="pxs" style="margin-left: auto; font-size: 14px; color: #6b6f9e; letter-spacing: .1em;">LEDGER</span>
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <div style="width: 26px;"></div>
+            <div class="row" style="flex-grow: 1; display: flex; align-items: center; gap: 16px; background: #7dd8f7; padding: 15px 22px;">
+              <span class="han" style="font-size: 18px; font-weight: 700; color: #16183a;">更多遊戲</span>
+              <span class="pxs" style="margin-left: auto; font-size: 14px; color: #16183a; opacity: .7;">games.csiesheep.com</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 機台螢幕：直接放遊戲裡那個深色井道畫面 -->
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <div style="background: #16183a; border: 5px solid #16183a; padding: 12px;">
+          <div style="position: relative; background: #0f1116; height: 330px; overflow: hidden;">
+            <svg width="100%" height="330" viewBox="0 0 84 110" preserveAspectRatio="xMidYMax meet">
+              <rect x="6"  y="6"  width="46" height="9" fill="#2a3550"/>
+              <rect x="6"  y="17" width="46" height="9" fill="#243a44"/>
+              <rect x="6"  y="28" width="46" height="9" fill="#3a2f22"/>
+              <rect x="6"  y="39" width="46" height="9" fill="#2e2740"/>
+              <rect x="6"  y="50" width="46" height="9" fill="#23384a"/>
+              <rect x="6"  y="61" width="46" height="9" fill="#2a3550"/>
+              <rect x="6"  y="72" width="46" height="9" fill="#243a44"/>
+              <rect x="6"  y="83" width="46" height="9" fill="#3a2f22"/>
+              <rect x="6"  y="94" width="46" height="9" fill="#2e2740"/>
+              <rect x="14" y="86" width="3" height="5" fill="#8fa4c8"/>
+              <rect x="20" y="86" width="3" height="5" fill="#8fa4c8"/>
+              <rect x="14" y="64" width="3" height="5" fill="#e2645a"/>
+              <rect x="30" y="42" width="3" height="5" fill="#8fa4c8"/>
+              <rect x="58" y="4"  width="20" height="100" fill="#161a22" stroke="#2c313d" stroke-width="1"/>
+              <g class="car">
+                <rect x="60" y="86" width="16" height="12" fill="#20242e" stroke="#f0c04a" stroke-width="1"/>
+                <rect x="66" y="88" width="4"  height="8"  fill="#39404f"/>
+              </g>
+            </svg>
+            <div class="pxs" style="position: absolute; left: 10px; top: 8px; font-size: 13px; color: #5ddc9a; letter-spacing: .06em;">$447K</div>
+            <div class="pxs" style="position: absolute; right: 10px; top: 8px; font-size: 12px; color: #8b93a7;">★2.98</div>
+          </div>
+        </div>
+
+        <!-- 存檔狀態 -->
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;">
+          <div style="background: #16183a; padding: 11px 12px;">
+            <div class="pxs" style="font-size: 12px; color: #8f95d6; letter-spacing: .1em;">FLOORS</div>
+            <div class="pxs" style="font-size: 24px; font-weight: 700; color: #ffd23f;">50</div>
+          </div>
+          <div style="background: #16183a; padding: 11px 12px;">
+            <div class="pxs" style="font-size: 12px; color: #8f95d6; letter-spacing: .1em;">SERVED</div>
+            <div class="pxs" style="font-size: 24px; font-weight: 700; color: #3ad39a;">120</div>
+          </div>
+          <div style="background: #16183a; padding: 11px 12px;">
+            <div class="pxs" style="font-size: 12px; color: #8f95d6; letter-spacing: .1em;">RATING</div>
+            <div class="pxs" style="font-size: 24px; font-weight: 700; color: #7dd8f7;">3.0</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pxs" style="position: absolute; left: 0; right: 0; bottom: 26px; display: flex; justify-content: center; gap: 10px; font-size: 15px; color: #fff8ea; opacity: .85;">
+    <a href="#">GitHub</a><span>·</span><a href="#">games.csiesheep.com</a>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

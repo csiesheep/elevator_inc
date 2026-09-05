@@ -1,97 +1,199 @@
-/* landing.css — 首頁。只在 body.landing 生效，不干擾遊戲本身的版面。 */
+/* landing.css — 首頁的像素風。只在 body.landing 生效，遊戲本體的深色介面不受影響。
+   一套版面吃手機到桌機：內容永遠是一條置中單欄，畫面滿版流出去，
+   多出來的寬度交給兩側的城市去填。 */
+
+/* style.css 給 html 上了 overflow:hidden（遊戲頁需要），首頁要能捲，
+   不然矮視窗（橫著拿的手機）會把選單裁掉。 */
+html:has(body.landing){ height: auto; overflow-y: auto; }
+
 body.landing{
-  display:block; overflow:auto; user-select:text;
-  background:
-    radial-gradient(1200px 600px at 50% -10%, #1b2432 0%, transparent 60%),
-    var(--bg);
+  --ink:      #16183a;   /* 深藍，所有的線與字 */
+  --cream:    #fff8ea;
+  --sun:      #ffd23f;
+  --grass:    #3ad39a;
+  --grassDk:  #2ab887;
+  --red:      #ff5c5c;
+  --cyan:     #7dd8f7;
+
+  display: block; height: auto; min-height: 100%;
+  overflow-x: hidden; overflow-y: auto;
+  user-select: text; background: #5bc6f2;
+  font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
 }
+body.landing .px  { font-family: "Press Start 2P", "Courier New", monospace; }
+body.landing .pxs { font-family: "Pixelify Sans", "Courier New", monospace; }
+body.landing svg  { shape-rendering: crispEdges; }
+
+/* ---------------- 天空（固定在背後，永遠鋪滿） */
+.scene{ position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+.sky{ position: absolute; inset: 0; display: flex; flex-direction: column; }
+.sky i{ display: block; height: 12vh; }
+.sun{
+  position: absolute; left: clamp(16px, 6vw, 108px); top: clamp(48px, 9vh, 88px);
+  width: clamp(58px, 9vw, 108px); height: auto;
+}
+.cloud{ position: absolute; top: clamp(96px, 15vh, 150px); width: clamp(104px, 14vw, 168px); height: auto; }
+.drift{ left: -200px; animation: drift 34s linear infinite; }
+@keyframes drift{ from { transform: translateX(0); } to { transform: translateX(calc(100vw + 220px)); } }
+
+/* ---------------- 版面骨架 */
 #land{
-  max-width:520px; margin:0 auto; min-height:100%;
-  padding:48px 22px 32px; display:flex; flex-direction:column; gap:26px;
+  position: relative; z-index: 1;
+  min-height: 100vh; min-height: 100dvh;
+  display: flex; flex-direction: column;
 }
 
-.langBtn{
-  position:fixed; top:14px; right:14px; z-index:20;
-  background:var(--panel); border:1px solid var(--line); color:var(--text);
-  border-radius:9px; padding:7px 12px; font:inherit; font-size:12px; cursor:pointer;
+/* 大樓：站在綠地的上緣 */
+.towerWrap{
+  position: relative;
+  display: flex; justify-content: center; align-items: flex-end;
+  padding-top: clamp(26px, 7vh, 92px);
+  margin-bottom: -4px;          /* 讓大樓底部壓在地平線上 */
 }
-.langBtn:hover{border-color:var(--hi)}
+.tower{ width: clamp(164px, 21vw, 232px); height: auto; position: relative; z-index: 1; }
+.city{ display: none; }         /* 窄螢幕不畫兩側的城市 */
 
-/* ---- 標題區 */
-.hero{text-align:center}
-.hero h1{
-  margin:14px 0 6px; font-size:34px; letter-spacing:.01em; font-weight:800;
-}
-.tag{margin:0 auto; max-width:26em; font-size:13.5px; line-height:1.65; color:#c2c9da}
-.save{font-size:12px; margin:12px 0 0; font-variant-numeric:tabular-nums}
-
-/* 一根會動的井道，當作 logo */
-.tower{height:132px; display:flex; justify-content:center; align-items:flex-end}
-.shaft{
-  position:relative; width:34px; height:132px; border:1px solid var(--line);
-  border-radius:4px; background:linear-gradient(#12161d,#171c26);
-  overflow:hidden;
-}
-.shaft::before{
-  content:''; position:absolute; inset:0;
-  background:repeating-linear-gradient(#1d2531 0 1px, transparent 1px 22px);
-}
-.car{
-  position:absolute; left:3px; right:3px; height:18px; border-radius:2px;
-  background:#20242e; border:1px solid var(--gold);
-  animation:ride 6.5s cubic-bezier(.45,0,.35,1) infinite;
-}
+.car{ animation: ride 7.5s steps(11) infinite; }
 @keyframes ride{
-  0%   {top:110px}
-  12%  {top:110px}
-  45%  {top:6px}
-  57%  {top:6px}
-  90%  {top:110px}
-  100% {top:110px}
+  0%, 6%   { transform: translateY(0); }
+  44%, 56% { transform: translateY(-84px); }
+  94%, 100%{ transform: translateY(0); }
 }
-@media (prefers-reduced-motion: reduce){ .car{animation:none; top:56px} }
+.beacon{ animation: blink 1.6s steps(1) infinite; }
+@keyframes blink{ 0%, 55% { opacity: 1; } 56%, 100% { opacity: .2; } }
 
-/* ---- 選單 */
-.menu{display:flex; flex-direction:column; gap:9px}
-.menu button, .menu .btn{
-  display:block; width:100%; text-align:center; text-decoration:none;
-  background:var(--panel); border:1px solid var(--line); color:var(--text);
-  border-radius:11px; padding:14px; font:inherit; font-size:15px; cursor:pointer;
+/* 地面 */
+.band{
+  flex: 1; background: var(--grass);
+  border-top: 10px solid var(--grassDk);
+  display: flex; justify-content: center; align-items: center;
+  padding: clamp(18px, 3vh, 30px) 18px clamp(20px, 4vh, 34px);
 }
-.menu button:hover, .menu .btn:hover{border-color:var(--hi); background:#1c2230}
+.col{
+  width: 100%; max-width: 620px;
+  display: flex; flex-direction: column; align-items: center; gap: clamp(11px, 1.6vh, 15px);
+}
+
+/* ---------------- 字 */
+.wordmark{
+  margin: 0; text-align: center; color: var(--ink);
+  font-family: "Press Start 2P", "Courier New", monospace;
+  font-size: clamp(21px, 4.4vw, 34px); line-height: 1.34;
+  text-shadow: 4px 4px 0 var(--sun);
+}
+@media (min-width: 700px){ .wordmark{ text-shadow: 5px 5px 0 var(--sun); } }
+
+.tag{
+  margin: 0; text-align: center; max-width: 720px;
+  font-size: clamp(14px, 1.5vw, 18px); line-height: 1.7; font-weight: 500;
+  color: var(--ink); text-wrap: pretty;
+}
+.save{
+  margin: 0; display: inline-flex; align-items: center; gap: 9px;
+  padding: 7px 14px; background: var(--ink); color: #ffe9a8;
+  font-family: "Pixelify Sans", "Courier New", monospace;
+  font-size: clamp(13px, 1.2vw, 15px); font-weight: 600; letter-spacing: .06em;
+}
+.save::before{ content: ''; width: 8px; height: 8px; background: var(--grass); }
+.save:empty{ display: none; }
+
+/* ---------------- 選單 */
+.menu{ width: 100%; display: flex; flex-direction: column; gap: 12px; margin-top: 3px; }
+.menu button, .menu .more{
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  min-height: 52px; padding: 13px 16px;
+  border: 4px solid var(--ink); box-shadow: 6px 6px 0 var(--ink);
+  background: var(--cream); color: var(--ink);
+  font-family: inherit; font-size: clamp(15px, 1.5vw, 17px); font-weight: 700;
+  text-decoration: none; cursor: pointer;
+  transition: transform .06s steps(2), box-shadow .06s steps(2);
+}
+.menu button:hover, .menu .more:hover{ transform: translate(2px, 2px); box-shadow: 4px 4px 0 var(--ink); }
+.menu button:active, .menu .more:active{ transform: translate(6px, 6px); box-shadow: 0 0 0 var(--ink); }
 .menu .big{
-  background:var(--hi); border-color:var(--hi); color:#08121e; font-weight:800; font-size:16px;
+  background: var(--red); color: #fff; min-height: 58px;
+  font-size: clamp(18px, 2vw, 22px); font-weight: 900; letter-spacing: .04em;
 }
-.menu .big:hover{background:#63b6ff; border-color:#63b6ff}
+.menu .more{ background: var(--cyan); }
+.menuRow{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.menuRow .more{ grid-column: 1 / -1; }   /* 窄螢幕時「更多遊戲」自己一列 */
 
-.foot{margin-top:auto; text-align:center; font-size:11.5px; padding-top:10px}
-.foot a{color:var(--dim)}
+.foot{ display: flex; gap: 9px; margin-top: 4px;
+  font-family: "Pixelify Sans", "Courier New", monospace; font-size: 13px; }
+.foot a{ color: var(--ink); opacity: .75; text-decoration: none; }
+.foot a:hover{ opacity: 1; color: #ff3d6e; text-decoration: underline; }
 
-/* ---- 說明 / 帳本的浮層 */
+/* 語言鍵 */
+.langBtn{
+  position: fixed; top: 14px; right: 14px; z-index: 20;
+  min-width: 48px; min-height: 40px; padding: 9px 14px;
+  background: var(--cream); border: 4px solid var(--ink); box-shadow: 5px 5px 0 var(--ink);
+  color: var(--ink); font-family: "Pixelify Sans", "Courier New", monospace;
+  font-size: 15px; font-weight: 700; letter-spacing: .1em; cursor: pointer;
+}
+.langBtn:active{ transform: translate(5px, 5px); box-shadow: 0 0 0 var(--ink); }
+
+/* ---------------- 寬螢幕：城市出現，後三顆併成一排 */
+@media (min-width: 700px){
+  .city{
+    display: block; position: absolute; bottom: 0;
+    width: clamp(200px, 26vw, 340px); height: auto; opacity: .95;
+  }
+  .city.left{ left: 0; }
+  .city.right{ right: 0; }
+  .menuRow{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .menuRow .more{ grid-column: auto; }
+  .band{ padding-left: 32px; padding-right: 32px; }
+}
+
+/* 很矮的視窗（橫著拿的手機）：把大樓縮小，別把選單擠掉 */
+@media (max-height: 620px){
+  .towerWrap{ padding-top: 14px; }
+  .tower{ width: clamp(120px, 16vh, 168px); }
+  .sun, .cloud{ display: none; }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .car, .beacon, .drift{ animation: none; }
+}
+
+/* ---------------- 說明 / 帳本的浮層 */
 .sheetWrap{
-  position:fixed; inset:0; background:#000b; z-index:40; overflow:auto;
-  display:flex; align-items:flex-start; justify-content:center; padding:24px 16px;
-  backdrop-filter:blur(3px);
+  position: fixed; inset: 0; z-index: 40; overflow: auto;
+  background: rgba(22, 24, 58, .55);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 24px 16px;
 }
 .sheetBox{
-  background:var(--panel); border:1px solid var(--line); border-radius:14px;
-  max-width:520px; width:100%; padding:20px 20px 16px;
+  background: var(--cream); border: 5px solid var(--ink); box-shadow: 10px 10px 0 rgba(22,24,58,.45);
+  max-width: 560px; width: 100%; padding: 22px 22px 18px; color: var(--ink);
 }
-.sheetBox h2{margin:0 0 14px; font-size:20px}
-.sheetBox h3{margin:18px 0 6px; font-size:13px; color:var(--hi); letter-spacing:.04em}
-.sheetBox p, .sheetBox li{font-size:13px; line-height:1.7; color:#c2c9da}
-.sheetBox ul{margin:6px 0; padding-left:1.1em}
+.sheetBox h2{
+  margin: 0 0 16px; font-family: "Press Start 2P", "Courier New", monospace;
+  font-size: 17px; line-height: 1.4; text-shadow: 3px 3px 0 var(--sun);
+}
+.sheetBox h3{
+  margin: 20px 0 6px; font-size: 14px; letter-spacing: .04em; color: #ff3d6e;
+  font-weight: 900;
+}
+.sheetBox p, .sheetBox li{ font-size: 14px; line-height: 1.8; color: #33365e; }
+.sheetBox ul{ margin: 6px 0; padding-left: 1.1em; }
+.sheetBox b{ color: var(--ink); }
 .sheetBox .close{
-  width:100%; margin-top:18px; padding:11px; border-radius:9px; border:1px solid var(--line);
-  background:var(--card); color:var(--text); font:inherit; cursor:pointer;
+  width: 100%; min-height: 50px; margin-top: 20px; padding: 13px;
+  background: var(--cyan); border: 4px solid var(--ink); box-shadow: 6px 6px 0 var(--ink);
+  color: var(--ink); font: inherit; font-weight: 700; cursor: pointer;
 }
-.sheetBox .close:hover{border-color:var(--hi)}
-.ledger{width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums}
-.ledger td{padding:5px 4px; border-bottom:1px solid #21262f}
-.ledger td:last-child{text-align:right; color:var(--text)}
-.ledger td:first-child{color:var(--dim)}
-.keys{display:flex; flex-wrap:wrap; gap:6px; margin:8px 0}
+.sheetBox .close:active{ transform: translate(6px, 6px); box-shadow: 0 0 0 var(--ink); }
+
+.ledger{ width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+.ledger td{ padding: 7px 4px; border-bottom: 2px solid #e3dcc9; }
+.ledger td:first-child{ color: #5c5f8a; }
+.ledger td:last-child{ text-align: right; font-weight: 700; color: var(--ink); }
+
+.keys{ display: flex; flex-wrap: wrap; gap: 7px; margin: 10px 0; }
 .keys kbd{
-  background:var(--card); border:1px solid var(--line); border-bottom-width:2px;
-  border-radius:5px; padding:2px 7px; font:inherit; font-size:11.5px; color:var(--text);
+  background: var(--ink); color: var(--cream); border: 0; border-radius: 0;
+  padding: 5px 10px; font-family: "Pixelify Sans", "Courier New", monospace;
+  font-size: 13px;
 }
