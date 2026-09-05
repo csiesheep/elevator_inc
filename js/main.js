@@ -7,6 +7,7 @@ import { createSim, syncShafts, step, requestFloor, evacuate, fmtShort } from '.
 import { layout, draw, floorAt, view } from './render.js';
 import { buildUI, refreshUI, toast, overlay } from './ui.js';
 import { t, L, getLang, toggleLang } from './i18n.js';
+import { getTheme, toggleTheme } from './theme.js';
 
 const cv = document.getElementById('c');
 const ctx = cv.getContext('2d');
@@ -55,10 +56,16 @@ function applyStaticText(){
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
   document.getElementById('lang').textContent = getLang() === 'zh' ? 'EN' : '中';
   document.getElementById('boost').title = t('boostTitle');
+  const th = document.getElementById('theme');
+  th.textContent = getTheme() === 'night' ? '☀' : '☾';
+  th.title = t('themeTitle');
   document.title = 'Elevator Inc.';
 }
 document.getElementById('lang').addEventListener('click', () => {
   toggleLang(); applyStaticText(); refreshUI(); refreshEvac();
+});
+document.getElementById('theme').addEventListener('click', () => {
+  toggleTheme(); applyStaticText(); refreshUI();   // canvas 下一幀就會用新的顏色表
 });
 applyStaticText();
 

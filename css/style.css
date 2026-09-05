@@ -1,13 +1,28 @@
-:root{
-  --bg:#0f1116; --panel:#171b23; --card:#1c212b; --line:#2a3040;
-  --text:#e8eaf0; --dim:#8b93a7; --money:#5ddc9a; --gold:#f0c04a;
-  --hi:#4aa8ff; --bad:#e2645a;
+/* 兩個美術方向做成主題，右上角那顆鍵切換（theme.js 寫 data-theme 到 <html>）。
+   night = 介面像素化、井道深色；day = 整個變亮，跟首頁同一個世界。 */
+:root, :root[data-theme="night"]{
+  --bg:#0f1116; --panel:#16183a; --card:#1d2046; --line:#4a4f86;
+  --text:#e8eaf0; --dim:#8f95d6; --money:#5ddc9a; --gold:#ffd23f;
+  --hi:#7dd8f7; --bad:#ff8a8a;
+  --edge:#4a4f86;          /* 硬邊的顏色 */
+  --drop:#0b0d20;          /* 硬陰影的顏色 */
+  --chipBg:#23264f; --tabOn:#ffd23f; --tabOnInk:#16183a;
+  --sheet:#16183a; --sheetInk:#e8eaf0;
+}
+:root[data-theme="day"]{
+  --bg:#dceeff; --panel:#fff8ea; --card:#ffffff; --line:#16183a;
+  --text:#16183a; --dim:#6b6f9e; --money:#12915f; --gold:#c08a1a;
+  --hi:#2f6fd0; --bad:#d63b3b;
+  --edge:#16183a;
+  --drop:#16183a;
+  --chipBg:#ffffff; --tabOn:#ffd23f; --tabOnInk:#16183a;
+  --sheet:#fff8ea; --sheetInk:#16183a;
 }
 *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
 html,body{height:100%;margin:0;overflow:hidden}
 body{
   background:var(--bg); color:var(--text);
-  font:14px/1.45 system-ui,-apple-system,"Noto Sans TC","Microsoft JhengHei",sans-serif;
+  font:14px/1.45 "Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
   display:flex; flex-direction:column; user-select:none; overscroll-behavior:none;
 }
 .dim{color:var(--dim)} .good{color:var(--money)} .bad{color:var(--bad)}
@@ -15,21 +30,30 @@ body{
 .center{text-align:center}
 
 /* ---------------- 頂欄 */
-#top{display:flex; align-items:center; gap:12px; padding:8px 12px 4px}
-#cash{font-size:26px; font-weight:800; color:var(--money); font-variant-numeric:tabular-nums; line-height:1.1}
-#rate{font-size:11px; font-variant-numeric:tabular-nums}
-#top .meta{margin-left:auto; text-align:right; font-size:12px; font-variant-numeric:tabular-nums}
+#top{display:flex; align-items:flex-start; flex-wrap:wrap; gap:10px; padding:8px 12px 6px;
+  background:var(--panel); border-bottom:3px solid var(--edge)}
+#cash{font-family:"Pixelify Sans","Courier New",monospace;
+  font-size:28px; font-weight:700; color:var(--money); font-variant-numeric:tabular-nums; line-height:1.1}
+#rate{font-family:"Pixelify Sans","Courier New",monospace; font-size:12px; font-variant-numeric:tabular-nums}
+#top .meta{margin-left:auto; text-align:right; font-size:12px; font-variant-numeric:tabular-nums;
+  font-family:"Pixelify Sans","Courier New",monospace}
 #bp{color:var(--hi)}
-#rating{font-size:12px}
-#top .btns{display:flex; gap:6px}
+#rating{font-size:12px; line-height:1.35}
+#rating .dim{font-size:10.5px}
+#top .btns{display:flex; gap:6px; margin-left:auto}
+@media (max-width:779px){ #top .btns{width:100%; margin-left:0} }
 #top button, #top a{
-  background:var(--panel); border:1px solid var(--line); color:var(--text);
-  min-width:38px; height:38px; border-radius:9px; font-size:16px; cursor:pointer;
+  background:var(--chipBg); border:3px solid var(--edge); color:var(--text);
+  min-width:40px; height:38px; border-radius:0; font-size:16px; cursor:pointer;
+  box-shadow:3px 3px 0 var(--drop);
   display:inline-flex; align-items:center; justify-content:center; text-decoration:none; padding:0 8px;
 }
-#top #lang{font-size:12px; font-weight:700}
-#top button:active,body.boost #boost{border-color:var(--gold); background:#2a2318}
-#hud{padding:0 12px 6px; font-size:11px; color:var(--dim); font-variant-numeric:tabular-nums}
+#top button:active, #top a:active{transform:translate(3px,3px); box-shadow:0 0 0 var(--drop)}
+#top #lang, #top #theme{font-size:12px; font-weight:700}
+body.boost #boost{border-color:var(--gold); background:var(--gold); color:#16183a}
+#hud{padding:5px 12px; font-size:12px; color:var(--dim); font-variant-numeric:tabular-nums;
+  font-family:"Pixelify Sans","Courier New",monospace;
+  background:var(--panel); border-bottom:3px solid var(--edge)}
 
 /* ---------------- 版面 */
 main{flex:1; display:flex; min-height:0; position:relative}
@@ -37,71 +61,78 @@ main{flex:1; display:flex; min-height:0; position:relative}
 canvas{width:100%; height:100%; display:block; touch-action:manipulation; cursor:pointer}
 
 #panel{
-  width:330px; flex:none; background:var(--panel); border-left:1px solid var(--line);
+  width:330px; flex:none; background:var(--panel); border-left:4px solid var(--edge);
   display:flex; flex-direction:column; min-height:0;
 }
 #grabber{display:none}
-#tabs{display:flex; border-bottom:1px solid var(--line); flex:none}
+#tabs{display:flex; border-bottom:3px solid var(--edge); flex:none}
 #tabs button{
-  flex:1; background:none; border:none; color:var(--dim); font:inherit; font-size:12px;
-  padding:10px 2px; cursor:pointer; border-bottom:2px solid transparent;
+  flex:1; background:none; border:none; color:var(--dim); font:inherit; font-size:12.5px;
+  font-weight:700; padding:9px 2px; cursor:pointer;
 }
-#tabs button.on{color:var(--text); border-bottom-color:var(--hi)}
+#tabs button.on{color:var(--tabOnInk); background:var(--tabOn)}
 #panelBody{flex:1; overflow-y:auto; padding:10px; -webkit-overflow-scrolling:touch}
 
 /* ---------------- 卡片 */
 .card{
-  background:var(--card); border:1px solid var(--line); border-radius:9px;
-  padding:8px 10px; margin-bottom:7px; cursor:pointer;
+  background:var(--card); border:3px solid var(--edge); border-radius:0;
+  box-shadow:4px 4px 0 var(--drop);
+  padding:8px 10px; margin:0 4px 10px 0; cursor:pointer;
 }
+.card[data-act]:active{transform:translate(4px,4px); box-shadow:0 0 0 var(--drop)}
 .card[data-act]:hover{border-color:var(--hi)}
 .card.dis{opacity:.45; cursor:default}
-.card.owned{border-color:#2f5b45; cursor:default}
+.card.owned{border-color:var(--money); cursor:default}
 .card.unknown{opacity:.5; cursor:default}
 .card.danger{border-color:var(--bad)}
-.dangerCard{border-color:#4a2b2b}
+.dangerCard{border-color:var(--bad)}
 .cardTop{display:flex; align-items:baseline; gap:8px}
 .cName{font-weight:600; font-size:13px}
 .cName b{color:var(--hi); font-size:12px}
-.cCost{margin-left:auto; font-size:12px; color:var(--gold); font-variant-numeric:tabular-nums; white-space:nowrap}
-.cDetail{font-size:12px; color:#c2c9da; margin-top:3px}
+.cCost{margin-left:auto; font-family:"Pixelify Sans","Courier New",monospace;
+  font-size:13px; color:var(--gold); font-variant-numeric:tabular-nums; white-space:nowrap}
+.cDetail{font-size:12px; color:var(--text); opacity:.85; margin-top:3px}
 .cHint{font-size:11px; color:var(--dim); margin-top:2px}
-.occBar{height:4px; background:#12161d; border-radius:2px; margin:5px 0 3px; overflow:hidden}
+.occBar{height:6px; background:var(--bg); border:2px solid var(--edge); border-radius:0; margin:6px 0 4px; overflow:hidden}
 .occBar i{display:block; height:100%; background:linear-gradient(90deg,#3f7a5c,#5ddc9a)}
 .card.plain{cursor:default}
-.tenant{margin-top:6px; padding:6px 8px; border:1px solid var(--line); border-radius:7px;
-  background:#161a22; cursor:pointer}
+.tenant{margin-top:7px; padding:7px 9px; border:2px solid var(--edge); border-radius:0;
+  background:var(--chipBg); cursor:pointer}
 .tenant:hover{border-color:var(--hi)}
+.tenant:active{transform:translate(2px,2px)}
 .tenant.dis{opacity:.45; cursor:default}
 .tRow{display:flex; align-items:baseline; gap:4px; font-size:12px}
-.tCost{margin-left:auto; color:var(--gold); font-variant-numeric:tabular-nums}
+.tCost{margin-left:auto; color:var(--gold); font-variant-numeric:tabular-nums;
+  font-family:"Pixelify Sans","Courier New",monospace}
 .tMeta{font-size:10.5px; color:var(--dim); margin-top:2px; font-variant-numeric:tabular-nums}
-.tNote{font-size:10.5px; color:#9aa3ba; margin-top:2px}
+.tNote{font-size:10.5px; color:var(--dim); margin-top:2px}
 .warn{color:#f0a04a}
-#evac{position:fixed; right:14px; bottom:70px; z-index:30; padding:10px 14px; border-radius:10px;
-  background:#3a2320; border:1px solid var(--bad); color:#ffd9d4; font:inherit; font-size:13px;
-  font-weight:700; cursor:pointer; box-shadow:0 6px 20px #0007}
+#evac{position:fixed; right:14px; bottom:70px; z-index:30; padding:12px 16px; border-radius:0;
+  background:#ff5c5c; border:4px solid var(--edge); color:#fff; font:inherit; font-size:13px;
+  font-weight:800; cursor:pointer; box-shadow:5px 5px 0 var(--drop)}
+#evac:active{transform:translate(5px,5px); box-shadow:0 0 0 var(--drop)}
 #evac.off{display:none}
-#evac.cool{opacity:.5; border-color:var(--line); background:var(--panel); color:var(--dim)}
+#evac.cool{opacity:.6; background:var(--card); color:var(--dim)}
 @media (min-width:780px){ #evac{bottom:20px; right:360px} }
 .sect{font-size:11px; color:var(--dim); margin:12px 0 6px; letter-spacing:.08em}
 .note{font-size:11.5px; color:var(--dim); margin-bottom:9px; line-height:1.5}
-.statRow{display:flex; flex-wrap:wrap; gap:4px 10px; font-size:11px; color:var(--dim); margin-bottom:9px;
-  font-variant-numeric:tabular-nums}
-.bigNum{font-size:40px; font-weight:800; color:var(--hi); text-align:center; margin:6px 0}
+.statRow{display:flex; flex-wrap:wrap; gap:4px 10px; font-size:11.5px; color:var(--dim); margin-bottom:10px;
+  font-family:"Pixelify Sans","Courier New",monospace; font-variant-numeric:tabular-nums}
+.bigNum{font-family:"Pixelify Sans","Courier New",monospace;
+  font-size:44px; font-weight:700; color:var(--hi); text-align:center; margin:6px 0}
 
 .tb{width:100%; border-collapse:collapse; font-size:11.5px; margin-bottom:12px;
   font-variant-numeric:tabular-nums}
-.tb th{color:var(--dim); font-weight:500; text-align:left; padding:3px 4px; border-bottom:1px solid var(--line)}
-.tb td{padding:3px 4px; border-bottom:1px solid #21262f}
-.tb td.r{text-align:right; color:#c2c9da}
+.tb th{color:var(--dim); font-weight:700; text-align:left; padding:4px; border-bottom:3px solid var(--edge)}
+.tb td{padding:4px 4px; border-bottom:2px solid var(--line)}
+.tb td.r{text-align:right; color:var(--text)}
 
 /* ---------------- 提示 */
 #toasts{position:fixed; left:50%; bottom:16px; transform:translateX(-50%);
   display:flex; flex-direction:column; gap:6px; align-items:center; pointer-events:none; z-index:50}
 .toast{
-  background:#232a36; border:1px solid var(--line); color:var(--text);
-  padding:7px 13px; border-radius:20px; font-size:12.5px; box-shadow:0 6px 20px #0008;
+  background:var(--card); border:3px solid var(--edge); color:var(--text);
+  padding:8px 14px; border-radius:0; font-size:12.5px; box-shadow:4px 4px 0 var(--drop);
   animation:pop .22s ease-out;
 }
 .toast.out{opacity:0; transition:opacity .4s}
@@ -109,11 +140,13 @@ canvas{width:100%; height:100%; display:block; touch-action:manipulation; cursor
 
 .overlay{position:fixed; inset:0; background:#000a; display:flex; align-items:center;
   justify-content:center; padding:20px; z-index:100; backdrop-filter:blur(3px)}
-.sheet{background:var(--panel); border:1px solid var(--line); border-radius:14px;
-  padding:20px; max-width:400px; font-size:13.5px; line-height:1.6}
+.sheet{background:var(--sheet); color:var(--sheetInk); border:5px solid var(--edge); border-radius:0;
+  box-shadow:10px 10px 0 var(--drop); padding:20px; max-width:400px; font-size:13.5px; line-height:1.6}
 .sheet h2{margin:0 0 10px; font-size:19px}
-.sheet .big{width:100%; margin-top:16px; padding:11px; background:var(--hi); border:none;
-  border-radius:9px; color:#08121e; font:inherit; font-weight:700; cursor:pointer}
+.sheet .big{width:100%; margin-top:16px; padding:13px; background:var(--tabOn);
+  border:4px solid var(--edge); border-radius:0; box-shadow:5px 5px 0 var(--drop);
+  color:#16183a; font:inherit; font-weight:800; cursor:pointer}
+.sheet .big:active{transform:translate(5px,5px); box-shadow:0 0 0 var(--drop)}
 
 /* ---------------- 手機直式：底部抽屜 */
 @media (max-width:779px){
@@ -121,13 +154,13 @@ canvas{width:100%; height:100%; display:block; touch-action:manipulation; cursor
   #panel{
     position:fixed; left:0; right:0; bottom:0; width:auto; height:62vh;
     border-left:none; border-top:1px solid var(--line);
-    border-radius:14px 14px 0 0; transform:translateY(calc(62vh - 46px));
-    transition:transform .22s ease; z-index:20; box-shadow:0 -8px 30px #0006;
+    border-top:4px solid var(--edge); border-radius:0; transform:translateY(calc(62vh - 46px));
+    transition:transform .22s ease; z-index:20; box-shadow:0 -6px 0 var(--drop);
   }
   body.open #panel{transform:translateY(0)}
   #grabber{display:block; height:16px; flex:none; position:relative}
   #grabber::after{content:''; position:absolute; left:50%; top:6px; transform:translateX(-50%);
-    width:38px; height:4px; border-radius:2px; background:#39415a}
+    width:44px; height:5px; border-radius:0; background:var(--edge)}
   #tabs button{font-size:11.5px; padding:8px 1px}
   #stage{padding-bottom:52px}
   #toasts{bottom:56px}

@@ -3,6 +3,7 @@ import { CONFIG as C, bandOf } from './content.js';
 import { derived, isLeased } from './state.js';
 import { hourOf, dayName, fmtShort } from './sim.js';
 import { t } from './i18n.js';
+import { P } from './theme.js';
 
 export const view = { W:0, H:0, pad:10, fh:0, shaftX:0, shaftW:0, colW:0 };
 
@@ -36,6 +37,7 @@ export function draw(ctx, st, sim){
   const d = derived(st);
   const h = hourOf(st);
   ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = P().bg; ctx.fillRect(0, 0, W, H);
 
   const detail = fh >= 16;
   const simTop = Math.min(st.floors, C.SIM_FLOORS);
@@ -45,18 +47,28 @@ export function draw(ctx, st, sim){
     const y = floorY(f), band = bandOf(f + 1);
     const abstract = f >= C.SIM_FLOORS;
     const empty = !isLeased(st, f);
-    ctx.fillStyle = empty ? `rgba(30,34,42,${abstract ? 0.5 : 0.85})`
-                          : shade(band.color, f % 2 ? 0.42 : 0.34, abstract ? 0.55 : 1);
+    const pal = P();
+    ctx.fillStyle = empty
+      ? `rgba(${pal.empty},${abstract ? 0.5 : 0.85})`
+      : (pal.floorFlat
+          ? (abstract ? pal.floorFlatAbstract : pal.floorFlat[f % 2])
+          : shade(band.color, f % 2 ? pal.floorA : pal.floorB,
+                  abstract ? pal.abstractAlpha : pal.floorAlpha));
     ctx.fillRect(pad, y, W - pad * 2, Math.max(1, fh - (fh > 6 ? 1 : 0)));
+    // 左緣的樓層帶色條：整片樓層底色太暗會看不出分帶，色條負責把它講清楚
+    if (!empty && fh >= 4){
+      ctx.fillStyle = shade(band.color, pal.stripe, abstract ? 0.6 : 1);
+      ctx.fillRect(pad, y, Math.min(7, Math.max(3, fh * 0.5)), Math.max(1, fh - (fh > 6 ? 1 : 0)));
+    }
     if (empty && fh >= 5){          // 空樓層畫成工地的斜線
-      ctx.strokeStyle = 'rgba(120,130,150,.16)'; ctx.lineWidth = 1;
+      ctx.strokeStyle = P().emptyHatch; ctx.lineWidth = 1;
       ctx.beginPath();
       for (let x = pad; x < W - pad; x += 9){ ctx.moveTo(x, y + fh); ctx.lineTo(x + fh, y); }
       ctx.stroke();
     }
     if (detail){
       const req = sim.shafts.some(s => s.target === f || s.queue.includes(f));
-      ctx.fillStyle = req ? '#7cc4ff' : '#7c8499';
+      ctx.fillStyle = req ? P().floorNumOn : P().floorNum;
       ctx.font = '600 11px system-ui'; ctx.textAlign = 'left';
       ctx.fillText(String(f + 1), pad + 6, y + fh / 2 + 4);
     }
@@ -65,10 +77,10 @@ export function draw(ctx, st, sim){
   // 抽象樓層的分界線
   if (st.floors > C.SIM_FLOORS){
     const y = floorY(C.SIM_FLOORS - 1);
-    ctx.strokeStyle = '#59627a'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
+    ctx.strokeStyle = P().divider; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(W - pad, y); ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = '#8d97ae'; ctx.font = '10px system-ui'; ctx.textAlign = 'left';
+    ctx.fillStyle = P().label; ctx.font = '10px system-ui'; ctx.textAlign = 'left';
     ctx.save();
     ctx.beginPath(); ctx.rect(pad, y - 14, view.shaftX - pad - 6, 14); ctx.clip();
     ctx.fillText(t('modelLine', fmtShort(sim.abstract.income), Math.round(sim.abstract.ratio*100)),
@@ -88,14 +100,14 @@ export function draw(ctx, st, sim){
       const my = spanTop + k * spanH;
       const col = i % sim.shafts.length;
       const mx = view.shaftX + col * view.colW + view.colW / 2 + ((i % 3) - 1) * 3;
-      ctx.fillStyle = `rgba(140,180,230,${0.10 + 0.28 * sim.abstract.ratio})`;
+      ctx.fillStyle = `rgba(${P().motes},${0.10 + 0.28 * sim.abstract.ratio})`;
       ctx.fillRect(mx - 1, my, 2, 3);
     }
   }
   // 空中大廳
   if (sim.lobby){
     const y = floorY(sim.lobby);
-    ctx.strokeStyle = '#f0c04a'; ctx.lineWidth = 1.5;
+    ctx.strokeStyle = P().carDoors; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(pad, y + fh); ctx.lineTo(W - pad, y + fh); ctx.stroke();
   }
 
@@ -104,14 +116,14 @@ export function draw(ctx, st, sim){
   for (const p of heavy){
     const y = floorY(p.origin) + fh / 2;
     const urgent = p.left / p.patience < 0.3;
-    ctx.fillStyle = urgent ? '#e2645a' : '#f0c04a';
+    ctx.fillStyle = urgent ? P().bad : P().sampled;
     ctx.beginPath(); ctx.arc(pad + 14, y, Math.max(3, Math.min(5, fh / 2)), 0, 7); ctx.fill();
     ctx.font = '700 10px system-ui'; ctx.textAlign = 'left';
     ctx.fillText(`×${p.w} → ${p.dest + 1}`, pad + 22, y + 3.5);
     // 耐性條
     const bw = 26, r = Math.max(0, p.left / p.patience);
-    ctx.fillStyle = '#2a2f3b'; ctx.fillRect(pad + 22, y + 6, bw, 2);
-    ctx.fillStyle = urgent ? '#e2645a' : '#5ddc9a';
+    ctx.fillStyle = P().patienceBg; ctx.fillRect(pad + 22, y + 6, bw, 2);
+    ctx.fillStyle = urgent ? P().bad : P().money;
     ctx.fillRect(pad + 22, y + 6, bw * r, 2);
   }
 
@@ -130,14 +142,14 @@ export function draw(ctx, st, sim){
         if (++n > 6) break;
       }
       if (list.length > 7){
-        ctx.fillStyle = '#8d97ae'; ctx.font = '10px system-ui'; ctx.textAlign = 'left';
+        ctx.fillStyle = P().label; ctx.font = '10px system-ui'; ctx.textAlign = 'left';
         ctx.fillText('+' + (list.length - 7), pad + 26 + 7 * 20, y + fh / 2 + 4);
       }
     } else {
       // 樓太矮就畫成一條人數條
       const w = Math.min(view.shaftX - pad - 24, list.length * 5);
       const worst = Math.min(...list.map(p => p.left / p.patience));
-      ctx.fillStyle = worst < 0.25 ? '#e2645a' : '#7f89a3';
+      ctx.fillStyle = worst < 0.25 ? P().bad : P().crowdBar;
       ctx.fillRect(pad + 20, y + Math.max(0, fh / 2 - 1.5), w, Math.max(1.5, fh - 2));
     }
   }
@@ -146,23 +158,23 @@ export function draw(ctx, st, sim){
   for (let i = 0; i < sim.shafts.length; i++){
     const s = sim.shafts[i];
     const x = view.shaftX + i * view.colW + 2, w = view.colW - 4;
-    ctx.fillStyle = '#161a22'; ctx.fillRect(x, pad, w, H - pad * 2);
-    ctx.strokeStyle = s.express ? '#c08a3a' : '#2c313d'; ctx.lineWidth = 1;
+    ctx.fillStyle = P().shaft; ctx.fillRect(x, pad, w, H - pad * 2);
+    ctx.strokeStyle = s.express ? P().shaftExpress : P().shaftEdge; ctx.lineWidth = 1;
     ctx.strokeRect(x + .5, pad + .5, w - 1, H - pad * 2 - 1);
     if (s.express && s.from){
-      ctx.fillStyle = 'rgba(240,192,74,.06)';
+      ctx.fillStyle = P().expressTint;
       ctx.fillRect(x, floorY(s.to), w, (s.to - s.from + 1) * fh);
     }
 
     const carH = Math.max(4, fh - 2), y = floorY(s.pos) + 1;
-    ctx.fillStyle = '#20242e'; ctx.fillRect(x + 1, y, w - 2, carH);
-    ctx.strokeStyle = s.lock > 0 ? '#e2645a' : (s.mode === 'doors' ? '#f0c04a' : '#3d4557');
+    ctx.fillStyle = P().car; ctx.fillRect(x + 1, y, w - 2, carH);
+    ctx.strokeStyle = s.lock > 0 ? P().bad : (s.mode === 'doors' ? P().carDoors : P().carEdge);
     ctx.lineWidth = s.mode === 'doors' ? 2 : 1;
     ctx.strokeRect(x + 1.5, y + .5, w - 3, carH - 1);
 
     const heavyRiders = s.riders.filter(r => (r.w || 1) > 1).length;
     if (heavyRiders){
-      ctx.fillStyle = '#f0c04a';
+      ctx.fillStyle = P().sampled;
       ctx.beginPath(); ctx.arc(x + w - 4, y + 4, 2.5, 0, 7); ctx.fill();
     }
     if (detail && s.riders.length){
@@ -171,7 +183,7 @@ export function draw(ctx, st, sim){
         drawPerson(ctx, x + (w) * (k + 0.5) / Math.min(6, Math.max(1, cap)), y + carH / 2 + 6, String(p.dest + 1), true, p);
       });
     } else if (s.riders.length){
-      ctx.fillStyle = '#8fa4c8';
+      ctx.fillStyle = P().riderBar;
       ctx.fillRect(x + 2, y + 1, (w - 4) * Math.min(1, s.riders.length / Math.max(1, d.capacity)), Math.max(1, carH - 2));
     }
 
@@ -182,14 +194,14 @@ export function draw(ctx, st, sim){
       open = s.mode === 'held' ? 1 : (t < 0.35 ? t / 0.35 : (t > L - 0.35 ? Math.max(0, (L - t) / 0.35) : 1));
     }
     const half = (w - 2) / 2, slide = half * open;
-    ctx.fillStyle = '#39404f';
+    ctx.fillStyle = P().door;
     ctx.fillRect(x + 1, y, half - slide, carH);
     ctx.fillRect(x + 1 + half + slide, y, half - slide, carH);
 
     // 熱量條
     if (s.heat > 0.05 || s.lock > 0){
       const hp = s.lock > 0 ? 1 : s.heat / d.heatMax;
-      ctx.fillStyle = s.lock > 0 ? '#e2645a' : (hp > 0.7 ? '#f0a04a' : '#6d7690');
+      ctx.fillStyle = s.lock > 0 ? P().bad : (hp > 0.7 ? P().heatWarm : P().heatCool);
       ctx.fillRect(x + 1, pad + 2, (w - 2) * hp, 2);
     }
   }
@@ -198,43 +210,44 @@ export function draw(ctx, st, sim){
   ctx.textAlign = 'right'; ctx.font = '700 13px system-ui';
   for (const p of sim.pops){
     ctx.globalAlpha = Math.max(0, Math.min(1, p.life));
-    ctx.fillStyle = p.bad ? '#e2645a' : '#5ddc9a';
+    ctx.fillStyle = p.bad ? P().bad : P().money;
     ctx.fillText(p.txt, view.shaftX - 6, floorY(p.floor) + fh / 2 + p.off - (1 - p.life) * 26);
   }
   ctx.globalAlpha = 1;
 
   // ---- 夜色
   const nt = nightTint(h);
-  if (nt > 0){ ctx.fillStyle = `rgba(18,22,44,${nt})`; ctx.fillRect(0, 0, W, H); }
+  if (nt > 0){ ctx.fillStyle = `rgba(${P().nightTint},${nt * P().nightMax / 0.55})`; ctx.fillRect(0, 0, W, H); }
 
   // ---- 時鐘
   const hh = String(Math.floor(h)).padStart(2, '0');
   const mm = String(Math.floor((h % 1) * 60)).padStart(2, '0');
-  ctx.textAlign = 'left'; ctx.font = '600 11px system-ui'; ctx.fillStyle = '#8d97ae';
+  ctx.textAlign = 'left'; ctx.font = '600 11px system-ui'; ctx.fillStyle = P().label;
   ctx.fillText(`${dayName(st)} ${hh}:${mm}`, pad + 2, pad + 10);
   let hx = pad + 76;
   if ((h >= 8 && h < 10) || (h >= 17 && h < 19)){
-    ctx.fillStyle = '#f0a04a'; ctx.fillText(t('peak'), hx, pad + 10); hx += 34;
+    ctx.fillStyle = P().warn; ctx.fillText(t('peak'), hx, pad + 10); hx += 34;
   }
-  if (sim.mood >= 1.25){ ctx.fillStyle = '#e2645a'; ctx.fillText(t('busy'), hx, pad + 10); }
-  else if (sim.mood <= 0.75){ ctx.fillStyle = '#6d7690'; ctx.fillText(t('quiet'), hx, pad + 10); }
+  if (sim.mood >= 1.25){ ctx.fillStyle = P().bad; ctx.fillText(t('busy'), hx, pad + 10); }
+  else if (sim.mood <= 0.75){ ctx.fillStyle = P().heatCool; ctx.fillText(t('quiet'), hx, pad + 10); }
 }
 
 function drawPerson(ctx, x, y, label, inCar, p){
   const urgent = p && (p.left / p.patience) < 0.25;
   const wob = urgent ? Math.sin(performance.now() / 90 + x) * 1.2 : 0;
-  ctx.fillStyle = inCar ? '#2b2f3a' : '#333949';
-  ctx.strokeStyle = urgent ? '#e2645a' : (inCar ? '#7f88a0' : '#9aa3ba');
+  const pal = P();
+  ctx.fillStyle = inCar ? pal.riderFill : pal.personFill;
+  ctx.strokeStyle = urgent ? pal.bad : (inCar ? pal.riderStroke : pal.personStroke);
   ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.arc(x + wob, y - 9, 3.4, 0, 7); ctx.fill(); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(x + wob, y - 5); ctx.lineTo(x + wob, y + 1); ctx.stroke();
-  ctx.fillStyle = urgent ? '#e2645a' : '#cfd6e6';
+  ctx.fillStyle = urgent ? pal.bad : pal.personText;
   ctx.font = '600 9px system-ui'; ctx.textAlign = 'center';
   ctx.fillText(label, x + wob, y + 10);
   if (p && p.patience < 500){
     const w = 12, ratio = Math.max(0, p.left / p.patience);
-    ctx.fillStyle = '#2a2f3b'; ctx.fillRect(x - w/2, y - 16, w, 2);
-    ctx.fillStyle = ratio < 0.25 ? '#e2645a' : ratio < 0.6 ? '#f0a04a' : '#5ddc9a';
+    ctx.fillStyle = pal.patienceBg; ctx.fillRect(x - w/2, y - 16, w, 2);
+    ctx.fillStyle = ratio < 0.25 ? pal.bad : ratio < 0.6 ? pal.warn : pal.money;
     ctx.fillRect(x - w/2, y - 16, w * ratio, 2);
   }
 }
