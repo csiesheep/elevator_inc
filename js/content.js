@@ -28,7 +28,6 @@ export const CONFIG = {
   SAVE_EVERY:     15,
   OFFLINE_CAP_H:  4,
   OFFLINE_RATE:   0.5,
-  PRESTIGE_FLOOR: 40,     // 開放拆樓的門檻
   PRESTIGE_DIV:   1e4,    // 藍圖 = floor(sqrt(本輪總收入 / 這個數))。收入不再有抽象層灌水，除數跟著降
   ENDING_FLOOR:   100,
   ORBIT_CASH:     2e7,    // 結局的價碼。要在「單一輪」裡存到，拆樓會歸零，所以這個數字

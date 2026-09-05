@@ -240,9 +240,6 @@ export function buySkill(st, id){
 export function prestigeGain(st){
   return Math.floor(Math.sqrt(st.runRevenue / C.PRESTIGE_DIV));
 }
-export function canPrestige(st){
-  return st.floors >= C.PRESTIGE_FLOOR && prestigeGain(st) >= 1;
-}
 export function doPrestige(st){
   const gain = prestigeGain(st);
   const carry = {

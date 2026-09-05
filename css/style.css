@@ -19,6 +19,15 @@
   --chipBg:#ffffff; --tabOn:#ffd23f; --tabOnInk:#16183a;
   --sheet:#fff8ea; --sheetInk:#16183a;
 }
+/* 拆樓頁的「保留／歸零」：是清單不是按鈕，所以沒有邊框、陰影與 hover */
+.ledger{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin:2px 4px 12px 0}
+.ledHead{display:flex; align-items:center; gap:6px; font-size:11px; letter-spacing:.06em;
+  color:var(--dim); margin-bottom:5px}
+.ledHead i{width:7px; height:7px; display:inline-block}
+.ledHead i.keep{background:var(--money)} .ledHead i.lose{background:var(--bad)}
+.ledItem{font-size:12px; line-height:1.85; color:var(--text)}
+.ledCol:last-child .ledItem{opacity:.7}
+
 .roofRow{display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 2px}
 .roofChip{font:inherit; font-size:12px; padding:6px 10px; cursor:pointer;
   background:var(--chipBg); color:var(--text); border:2px solid var(--edge);

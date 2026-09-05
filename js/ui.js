@@ -2,7 +2,7 @@
 import { UPGRADES, AUTOMATION, SKILLS, PASSENGERS, BANDS, ACHIEVEMENTS, CONFIG as C,
          tenantsFor, tenantById } from './content.js';
 import { derived, upgradeCost, upgradeMaxed, buyUpgrade, buyAutomation, skillCost, buySkill,
-         prestigeGain, canPrestige, algoName,
+         prestigeGain, algoName,
          builtInBand, leasedInBand, occOf, leaseCost, canLease, buyLease, leaseBlocked,
          tenantCount, tenantMix, save } from './state.js';
 import { fmtShort, dayName, hourOf } from './sim.js';
@@ -247,17 +247,23 @@ function tabStats(){
 
 function tabPrestige(){
   const st = app.st;
-  const gain = prestigeGain(st), ok = canPrestige(st);
+  const gain = prestigeGain(st);
+  const col = (key, listKey, kind) =>
+    `<div class="ledCol"><div class="ledHead"><i class="${kind}"></i>${t(key)}</div>`
+    + t(listKey).split('|').map(x => `<div class="ledItem">${x}</div>`).join('')
+    + `</div>`;
+
   let h = `<div class="note">${t('presIntro')}</div>`;
   h += `<div class="bigNum">📐 ${gain}</div>
-    <div class="note center">${t('presGain')}<br><span class="dim">${t('presFormula')}</span></div>`;
-  h += `<div class="card"><div class="cardTop"><span class="cName">${t('presKeep')}</span></div>
-    <div class="cDetail">${t('presKeepList')}</div></div>`;
-  h += `<div class="card"><div class="cardTop"><span class="cName">${t('presLose')}</span></div>
-    <div class="cDetail">${t('presLoseList')}</div></div>`;
-  h += `<div class="card ${ok ? 'danger' : 'dis'}" ${ok ? 'data-act="prestige" data-id="p"' : ''}>
+    <div class="note center">${t('presGain')}<br>
+      <span class="dim">${t('presFormula', C.PRESTIGE_DIV.toLocaleString('en-US'))}</span></div>`;
+  // 保留／歸零是「說明」，不是「可以按的東西」。用 .card 會長得跟購買鍵
+  // 一模一樣（同樣的邊框、陰影、hover），玩家會一直想去點它。
+  h += `<div class="ledger">${col('presKeep', 'presKeepList', 'keep')}${col('presLose', 'presLoseList', 'lose')}</div>`;
+  // 拆樓沒有門檻，隨時都能拆。藍圖是 0 的時候只提醒，不擋。
+  h += `<div class="card danger" data-act="prestige" data-id="p">
     <div class="cardTop"><span class="cName">${t('presDo')}</span></div>
-    <div class="cHint">${ok ? t('presReady') : t('presNotReady', C.PRESTIGE_FLOOR, app.st.floors)}</div></div>`;
+    <div class="cHint">${gain > 0 ? t('presReady') : t('presZero')}</div></div>`;
   return h;
 }
 
