@@ -183,7 +183,7 @@ export const SKILLS = [
   // 建築
   { id:'a_floor', branch:'建築', name:'深基礎',       max:8,  cost:l=>2+l,      detail:'起始樓層 +5' },
   { id:'a_cost',  branch:'建築', name:'預鑄工法',     max:6,  cost:l=>3+l*2,    detail:'加蓋樓層成本 -10%（相乘）' },
-  { id:'a_rate',  branch:'建築', name:'招商部門',     max:6,  cost:l=>2+l,      detail:'起始評價 +0.3、評價上升快 20%' },
+  { id:'a_rate',  branch:'建築', name:'公關部門',     max:6,  cost:l=>2+l,      detail:'起始評價 +0.3、評價上升快 20%' },
 ];
 
 // ---------------------------------------------------------------- 租戶類型（5.6 的 A）

@@ -90,7 +90,7 @@ export const EN = {
     o_evac:  { name:'Evacuation mode',    detail:'Unlocks a button that sends every car to the surge floor (cooldown 90/70/50s)' },
     a_floor: { name:'Deep foundation',    detail:'Start with +5 floors' },
     a_cost:  { name:'Precast construction', detail:'Floor construction -10% (multiplicative)' },
-    a_rate:  { name:'Leasing department', detail:'Starting rating +0.3, rating climbs 20% faster' },
+    a_rate:  { name:'PR department',      detail:'Starting rating +0.3, rating climbs 20% faster' },
   },
 
   achievements: {
