@@ -5,7 +5,8 @@
 // 不是從 content.js 讀的。這是刻意的：見 harness.js 開頭第 1 點。
 
 import { section, check, eq, near, ok, nonEmpty, R, summary } from './harness.js';
-import { CONFIG as C, BANDS, UPGRADES, PASSENGERS } from '../js/content.js';
+import { CONFIG as C, BANDS, UPGRADES, PASSENGERS, ACHIEVEMENTS } from '../js/content.js';
+import { EN } from '../js/i18n-content.js';
 import * as S from '../js/state.js';
 import * as M from '../js/sim.js';
 
@@ -342,6 +343,58 @@ check('乘客的必要欄位都在', () => {
       if (p[f] === undefined) bad.push(p.id + '.' + f);
   }
   return ok(bad.length === 0, '缺欄位：' + bad.join(', '));
+});
+
+// ---------------------------------------------------------------- 8 文案 vs 程式碼
+// 為什麼有這一組：一趟掃描抓到三處「文案在描述一個跟程式碼不一樣的東西」——
+// `tall` 成就的英文寫 `Reach 100 floors` 而判定是 `floors>=70`、`o_algo` 賣一個
+// 不存在的好處、`skylobby` 的說明講一個已拆掉的機制。**三個都只有人眼抓得到。**
+//
+// 這一組擋得住可機檢的那一半：成就的門檻數字，要跟中英文案裡的數字對得上。
+// **它擋不住「這句話描述的機制還存不存在」**——那仍然要靠人去掃。
+// 同一段話要同時寫下還證明得了什麼、不再證明什麼；只寫否定句的話，
+// 讀者會自己補上界線，而且補得比事實大。
+section('8 文案 vs 程式碼');
+
+// 刻意不一致的例外。**每一條都要寫理由**——一個沒有理由的例外，跟沒有這條
+// guard 是一樣的，只是多了一層「看起來有在管」的錯覺。
+const COPY_OK = {
+  five: '門檻 4.9 是容差，文案講 5.0 是玩家看得到的框架。判定放寬一點，免得浮點數讓玩家卡在 4.97 拿不到。',
+};
+
+const copyNums = t => (String(t).match(/[0-9]+(?:\.[0-9]+)?/g) || []).map(Number);
+
+check('成就的門檻數字與中英文案一致', () => {
+  const bad = [], checked = [];
+  for (const a of ACHIEVEMENTS){
+    const want = copyNums(a.test);
+    if (!want.length) continue;
+    const en = (EN.achievements && EN.achievements[a.id]) || {};
+    for (const pair of [['zh', a.note], ['en', en.note]]){
+      const got = copyNums(pair[1] || '');
+      if (!got.length) continue;
+      checked.push(a.id + ':' + pair[0]);
+      if (got.some(n => want.indexOf(n) >= 0)) continue;
+      if (COPY_OK[a.id]) continue;
+      bad.push(a.id + '(' + pair[0] + ')：判定 ' + want.join('/')
+               + '，文案寫 ' + got.join('/') + ' — 「' + pair[1] + '」');
+    }
+  }
+  const ne = nonEmpty(checked.length,
+    '沒有任何一條成就同時有「數字門檻」和「提到數字的文案」，這條 guard 從來沒有試過');
+  if (ne !== true) return ne;
+  return ok(bad.length === 0,
+    '比對了 ' + checked.length + ' 組，' + bad.length + ' 組對不上｜' + bad.join('｜'));
+});
+
+check('刻意不一致的例外都寫了理由', () => {
+  const ids = ACHIEVEMENTS.map(a => a.id);
+  const ne = nonEmpty(Object.keys(COPY_OK).length, 'COPY_OK 是空的，這條沒有東西可以檢查');
+  if (ne !== true) return ne;
+  const bad = Object.keys(COPY_OK).filter(id =>
+    ids.indexOf(id) < 0 || !COPY_OK[id] || COPY_OK[id].length < 15);
+  return ok(bad.length === 0,
+    '這些例外的 id 不存在、或理由太短（沒有理由的例外等於沒有這條 guard）：' + bad.join(', '));
 });
 
 export { summary };
