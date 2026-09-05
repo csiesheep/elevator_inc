@@ -13,7 +13,7 @@
 // 世界裡的樓，而不是一張剖面圖。
 
 import { CONFIG as C, bandOf } from './content.js';
-import { derived, isLeased, isManual } from './state.js';
+import { derived, isManual } from './state.js';
 import { hourOf, dayName, fmtShort } from './sim.js';
 import { t } from './i18n.js';
 import { P, setHour, mix } from './theme.js';
@@ -159,27 +159,18 @@ export function draw(ctx, st, sim){
   const fw = view.fx1 - view.fx0;
   for (let f = 0; f < st.floors; f++){
     const y = floorY(f), band = bandOf(f + 1);
-    const empty = !isLeased(st, f);
     const bh = Math.max(1, fh - (fh > 6 ? 1 : 0));
-    ctx.fillStyle = empty
-      ? shade(pal.empty, 1, pal.emptyAlpha)
-      : shade(band.color, f % 2 ? pal.floorA : pal.floorB, pal.floorAlpha);
+    // 蓋好的樓層一定有人（招商已移除），所以沒有「空樓層」這種畫法了
+    ctx.fillStyle = shade(band.color, f % 2 ? pal.floorA : pal.floorB, pal.floorAlpha);
     ctx.fillRect(view.fx0, y, fw, bh);
 
-    if (!empty){
-      // 左緣的樓層帶色條。門檻不能設在 4：100 層擠滿畫面時每層只有 3px，
-      // 色條會整條消失，而那時候它是唯一還看得出樓層帶的東西。
-      if (fh >= 2){
-        ctx.fillStyle = shade(band.color, pal.stripe, 1);
-        ctx.fillRect(view.fx0, y, Math.min(10, Math.max(5, fh * 0.6)), bh);
-      }
-      drawInterior(ctx, band.key, band.color, view.fx0 + 8, view.shaftX - 4, y, fh, pal);
-    } else if (fh >= 5){
-      ctx.strokeStyle = shade(pal.emptyHatch, 1, pal.emptyHatchA); ctx.lineWidth = 1;
-      ctx.beginPath();
-      for (let x = view.fx0; x < view.fx1; x += 9){ ctx.moveTo(x, y + fh); ctx.lineTo(x + fh, y); }
-      ctx.stroke();
+    // 左緣的樓層帶色條。門檻不能設在 4：100 層擠滿畫面時每層只有 3px，
+    // 色條會整條消失，而那時候它是唯一還看得出樓層帶的東西。
+    if (fh >= 2){
+      ctx.fillStyle = shade(band.color, pal.stripe, 1);
+      ctx.fillRect(view.fx0, y, Math.min(10, Math.max(5, fh * 0.6)), bh);
     }
+    drawInterior(ctx, band.key, band.color, view.fx0 + 8, view.shaftX - 4, y, fh, pal);
     if (fh >= 13){
       // 點陣字 + 底板。11px 的 system-ui 在這個尺度會被反鋸齒糊掉，而且
       // 沒有底板的話數字會直接跟室內家具疊在一起。

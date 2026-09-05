@@ -1,10 +1,8 @@
 // ui.js — 面板。手機用底部抽屜，桌機用右側欄。
-import { UPGRADES, AUTOMATION, SKILLS, PASSENGERS, BANDS, ACHIEVEMENTS, CONFIG as C,
-         tenantsFor, tenantById } from './content.js';
+import { UPGRADES, AUTOMATION, SKILLS, PASSENGERS, BANDS, ACHIEVEMENTS,
+         CONFIG as C } from './content.js';
 import { derived, upgradeCost, upgradeMaxed, buyUpgrade, buyAutomation, skillCost, buySkill,
-         prestigeGain, algoName,
-         builtInBand, leasedInBand, occOf, leaseCost, canLease, buyLease, leaseBlocked,
-         tenantCount, tenantMix, save } from './state.js';
+         prestigeGain, algoName, save } from './state.js';
 import { fmtShort, dayName, hourOf } from './sim.js';
 import { STYLES as ROOF_STYLES } from './roof.js';
 import { t, L } from './i18n.js';
@@ -30,7 +28,6 @@ export function buildUI(a){
     if (act === 'up')     { if (buyUpgrade(st, id)) app.onBuy(id); }
     if (act === 'auto')   { if (buyAutomation(st, id)) app.onBuy(id); }
     if (act === 'skill')  { buySkill(st, id); }
-    if (act === 'lease')  { buyLease(st, id, el.dataset.tenant); }
     if (act === 'prestige') app.onPrestige();
     if (act === 'orbit')  app.onOrbit();
     if (act === 'roof')   { st.roofStyle = id; save(st); }
@@ -91,39 +88,6 @@ function tabUpgrades(){
     <span>${t('statAccel')} ${d.accel.toFixed(2)}</span>
     <span>${t('statCap')} ${d.capacity}</span><span>${t('statDoor')} ${d.door.toFixed(2)}s</span>
     <span>${t('statShaft')} ${d.shafts}</span></div>`;
-  // ---- 10 招商：蓋好的樓層要先招到租戶才有人搭電梯
-  const bands = BANDS.filter(b => builtInBand(st, b) > 0);
-  const vacant = bands.reduce((a, b) => a + (builtInBand(st, b) - leasedInBand(st, b)), 0);
-  const blocked = leaseBlocked(st);
-  h += `<div class="sect">${t('secLeasing')}${vacant ? ` <span class="bad">${t('vacantFloors', vacant)}</span>` : ''}</div>`;
-  if (blocked) h += `<div class="note bad">${t('leaseBlocked', st.rating.toFixed(1), C.LEASE_BLOCK)}</div>`;
-  else if (!vacant) h += `<div class="note">${t('allLeased')}</div>`;
-  for (const b of bands){
-    const built = builtInBand(st, b), leased = leasedInBand(st, b);
-    const full = leased >= built;
-    const pct = Math.round(occOf(st, b) * 100);
-    const mix = tenantMix(st, b);
-    h += `<div class="card plain">
-      <div class="cardTop"><span class="cName">${L(b,'name','bands')} <b>${leased}/${built}</b></span>
-        <span class="cCost">${full ? t('fullyLeased') : t('vacantFloors', built - leased)}</span></div>
-      <div class="occBar"><i style="width:${pct}%"></i></div>
-      <div class="cHint">${t('occupancy')} ${pct}% · ${t('tenantMixLine', mix.fare.toFixed(2), mix.pop.toFixed(2))}</div>`;
-    if (!full && !blocked){
-      for (const tn of tenantsFor(b.key)){
-        const c = leaseCost(st, b, tn.id);
-        const have = tenantCount(st, b, tn.id);
-        h += `<div class="tenant ${st.cash < c ? 'dis' : ''}"
-          ${st.cash < c ? '' : `data-act="lease" data-id="${b.key}" data-tenant="${tn.id}"`}>
-          <div class="tRow"><b>${L(tn,'name','tenants')}</b>${have ? `<span class="dim"> ×${have}</span>` : ''}
-            <span class="tCost">$${fmtShort(c)}</span></div>
-          <div class="tMeta">${t('tenantFare')} ×${tn.fare.toFixed(2)} · ${t('tenantPop')} ×${tn.pop.toFixed(2)}${
-            tn.event ? ` · <span class="warn">${t('tenantBursts')}</span>` : ''}</div>
-          <div class="tNote">${L(tn,'note','tenants')}</div></div>`;
-      }
-    }
-    h += `</div>`;
-  }
-
   h += `<div class="sect">${t('secElevator')}</div>`;
   for (const u of UPGRADES){
     const maxed = upgradeMaxed(st, u.id), c = upgradeCost(st, u.id);
@@ -227,9 +191,6 @@ function tabStats(){
     [t('rowServed'), `${Math.round(st.stats.served)} / ${Math.round(st.stats.abandoned)}`],
     [t('rowLostPct'), st.stats.served + st.stats.abandoned > 0
        ? Math.round(st.stats.abandoned / (st.stats.served + st.stats.abandoned) * 100) + '%' : '—'],
-    [t('rowOccupancy'), (() => { let bu = 0, le = 0;
-        for (const b of BANDS){ bu += builtInBand(st, b); le += leasedInBand(st, b); }
-        return bu ? `${le}/${bu} (${Math.round(le / bu * 100)}%)` : '—'; })()],
     [t('rowWom'), '×' + d.womMult.toFixed(2)],
     [t('rowRunRev'), '$' + fmtShort(st.runRevenue)],
     [t('rowLifetime'), '$' + fmtShort(st.lifetimeRevenue)],

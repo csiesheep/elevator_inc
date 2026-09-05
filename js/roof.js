@@ -234,7 +234,12 @@ function grid(style, W, h){
 
 export function drawRoof(ctx, style, bx, by, buildingW, h){
   const over = Math.round(buildingW * OVER);
-  const x0 = bx - over, W = buildingW + over * 2;
+  // W 是格子數，必須是非負整數。buildingW 一路來自 getBoundingClientRect()，
+  // 在多數視窗寬度下是小數（375px 的手機上量到 297.20001220703125），於是
+  // blank() 裡的 new Array(317.2...) 丟 RangeError。那個例外會從 draw() 一路
+  // 逃到 frame()，而 requestAnimationFrame(frame) 是 frame() 的最後一行——
+  // 排不到下一幀，整個遊戲迴圈就死在第一幀，樓一層都畫不出來。
+  const x0 = bx - over, W = Math.max(0, Math.round(buildingW + over * 2));
   const c = COLORS[style] || COLORS.chinese;
   const n = P().night;
   const col = { b: mix(c.body[0], c.body[1], 1 - n), s: mix(c.shade[0], c.shade[1], 1 - n),
