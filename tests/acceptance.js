@@ -224,6 +224,48 @@ check('加蓋 + 升級的總額（招商移除後應接手 81.7% 的缺口）', 
   return 'TODO';   // 招商還在，目標值等移除後由 orchestrator 定
 });
 
+// ---------------------------------------------------------------- 7 招商移除（尚未實作）
+// 這一組在實作**之前**就寫好。功能還不存在時回報 TODO，不是紅——把「還沒做」
+// 和「做了但錯」混成同一種紅，一整張 issue 可以在功能不存在時被標記成完成。
+//
+// owner 裁決（2026-09-05，逐字）：問「取消招商之後，評價低於 1.0 的懲罰是什麼？」
+// 答「**沒有懲罰**」。所以評價只保留乘數的角色（票價、人流），沒有離散的懲罰事件。
+section('7 招商移除');
+const leasingGone = typeof S.buyLease !== 'function';
+
+check('招商 API 已移除', () => leasingGone ? true : 'TODO');
+check('蓋好的樓層就會有人（不需要招商）', () => {
+  if (!leasingGone) return 'TODO';
+  const st = S.newGame(); st.floors = 30;
+  const sim = M.createSim(st); M.syncShafts(st, sim);
+  let steps = 0;
+  while (sim.waiting.length < 30 && steps++ < 40000) M.step(st, sim, 1 / 20);
+  const ne = nonEmpty(sim.waiting.length, '跑了 ' + steps + ' 步都沒有乘客');
+  if (ne !== true) return ne;
+  // 要真的分散在整棟樓，不能全擠在大廳——那是 pickFloor 的零權重回退的樣子
+  const floors = new Set(sim.waiting.map(p => p.origin));
+  return ok(floors.size >= 5,
+    `${sim.waiting.length} 個乘客只出現在 ${floors.size} 個樓層：`
+    + [...floors].map(f => f + 1).sort((a, b) => a - b).join(','));
+});
+check('低評價沒有離散的懲罰（owner 裁決：沒有懲罰）', () => {
+  if (!leasingGone) return 'TODO';
+  const st = S.newGame(); st.floors = 30;
+  const sim = M.createSim(st); M.syncShafts(st, sim);
+  const snap = () => JSON.stringify({ floors: st.floors, up: st.up, auto: st.auto });
+  st.rating = 0.85;                       // 壓在地板附近
+  const before = snap();
+  for (let i = 0; i < 3000; i++) M.step(st, sim, 1 / 20);
+  return ok(snap() === before,
+    '評價壓在 0.85 跑了 150 秒，狀態被動到了：' + before + ' → ' + snap());
+});
+check('評價仍然是乘數（低評價 = 賺比較少，不是被罰）', () => {
+  const lo = S.newGame(); lo.rating = 0.8;
+  const hi = S.newGame(); hi.rating = 5.0;
+  const a = S.derived(lo).fareMult, b = S.derived(hi).fareMult;
+  return ok(b > a * 1.5, `票價乘數沒有拉開：0.8 星 ${a}、5.0 星 ${b}`);
+});
+
 // ---------------------------------------------------------------- 6 乘客表
 section('6 乘客');
 check('每一種乘客都掛在存在的樓層帶上', () => {
