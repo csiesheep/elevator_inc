@@ -12,7 +12,7 @@
 // 完全被那個分岔吃掉（打蠟開/關的收入中位數差了 12 倍，而打蠟根本不可能有那種
 // 影響力）。而且拿掉一列資料會改變 Math.random 的消耗順序，同一個種子並不會走
 // 同一條軌跡，所以 (B) 的配對比較從一開始就不成立。
-import { CONFIG as C, PASSENGERS, EVENTS, UPGRADES, AUTOMATION } from '../js/content.js';
+import { CONFIG as C, PASSENGERS, EVENTS, UPGRADES, AUTOMATION, TENANTS } from '../js/content.js';
 import * as M from '../js/sim.js';
 import * as S from '../js/state.js';
 import { setLang } from '../js/i18n.js';
@@ -187,6 +187,67 @@ const DAYS = 25;
 export async function run(){
   const out = [];
   const say = (title, body) => out.push({ title, body });
+
+  // ---------------------------------------------------------------- 順手撞到的：o_warn
+  // 我要接「封鎖事件也要能被預警」的時候發現接不上，因為那條路今天根本沒有人走。
+  // 結構：schedule() 在 sim.js 只有一個呼叫點，在 tenantEvents() 裡面，而那裡需要
+  // 「這一帶的 defaultTenant 帶 event 欄位」——七個 plain 租戶一個都沒有。
+  // 隨機事件走的是 fireEvent() → runEvent()，**完全繞過 schedule()**。
+  // 所以 o_warn（人流預警，4 級共 2+4+6+8 = 20 張藍圖）目前 100% 沒有效果。
+  // 這跟 #29 的 o_algo 是同一個形狀。下面是實證，不是只有讀程式碼。
+  {
+    const paxSnap = PASSENGERS.map(p => ({ ...p }));
+    const evSnap = EVENTS.map(e => ({ ...e }));
+    const origRandom = Math.random;
+    let randomPending = 0, randomWarn = 0, tenantPending = 0, tenantWarn = 0, fired = 0;
+    try {
+      Math.random = seeded(4242);
+      // (a) 隨機事件 + o_warn 4 級（32 秒預告）
+      const st = S.newGame(); st.floors = 40; st.skills = { o_warn: 4 };
+      Object.assign(st.auto, { autodoor:1, fifo:1, scan:1, look:1 });
+      const sim = M.createSim(st); M.syncShafts(st, sim);
+      for (let i = 0; i < 4000; i++){
+        st.t += 0; sim.spawnT = 999; sim.eventT = C.DAY_SECONDS;   // 逼事件檢查
+        M.step(st, sim, DT);
+        randomPending = Math.max(randomPending, sim.pending.length);
+        randomWarn += sim.toasts.filter(x => /⏰/.test(x.txt)).length;
+        sim.toasts.length = 0;
+        if (sim.lastEvent){ fired++; sim.lastEvent = null; }
+        if (sim.waiting.length > 100) sim.waiting.length = 0;
+      }
+      // (b) 存活對照：把 hotel 的 plain 租戶接上事件，同一支 o_warn 立刻活過來
+      const tSnap = TENANTS.map(t => ({ ...t }));
+      try {
+        const room = TENANTS.find(t => t.id === 'room');
+        room.event = 'banquet'; room.every = [180, 260];
+        const st2 = S.newGame(); st2.floors = 45; st2.skills = { o_warn: 4 };
+        Object.assign(st2.auto, { autodoor:1, fifo:1, scan:1, look:1 });
+        const sim2 = M.createSim(st2); M.syncShafts(st2, sim2);
+        for (let i = 0; i < 600; i++){
+          sim2.spawnT = 999; sim2.tenantT = { 'hotel:room': 0.0001 };
+          M.step(st2, sim2, DT);
+          tenantPending = Math.max(tenantPending, sim2.pending.length);
+          tenantWarn += sim2.toasts.filter(x => /⏰/.test(x.txt)).length;
+          sim2.toasts.length = 0;
+          if (sim2.waiting.length > 100) sim2.waiting.length = 0;
+        }
+      } finally { TENANTS.length = 0; for (const t of tSnap) TENANTS.push(t); }
+    } finally {
+      Math.random = origRandom;
+      PASSENGERS.length = 0; for (const p of paxSnap) PASSENGERS.push(p);
+      EVENTS.length = 0; for (const e of evSnap) EVENTS.push(e);
+    }
+    say('⚠ 順手撞到的缺陷：o_warn（人流預警）目前是 no-op', [
+      `隨機事件路徑（o_warn 滿級 = 提前 32 秒）：觸發 ${fired} 次事件，`
+        + `sim.pending 最多 ${randomPending} 筆、⏰ 預警提示 ${randomWarn} 次`,
+      `存活對照（把 hotel 的 plain 租戶接上 event 之後）：`
+        + `sim.pending 最多 ${tenantPending} 筆、⏰ 預警提示 ${tenantWarn} 次`,
+      `→ 機制本身是好的，但**唯一走得到它的路（租戶事件）今天一次也不會發生**，`
+        + `而隨機事件從 fireEvent() 直接呼叫 runEvent()，繞過 schedule()。`,
+      `o_warn 是 4 級、共 2+4+6+8 = 20 張藍圖的技能，文案寫「事件提前 8 秒預告，畫面會倒數」。`
+        + `這跟 #29 的 o_algo 是同一個形狀。我沒有動它——回報給 orchestrator 裁決。`,
+    ]);
+  }
 
   // ---------------------------------------------------------------- 事件池的形狀
   const pool = poolByHour();
