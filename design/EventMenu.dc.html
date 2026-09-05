@@ -1,0 +1,190 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+  <style>
+    body { margin: 0; }
+    x-dc { display: block; }
+    a { color: #7dd8f7; } a:hover { color: #ffd23f; }
+    .pxs { font-family: "Pixelify Sans", "Courier New", monospace; }
+    .k { color: #e8eaf0; font-weight: 700; }
+    .mono { font-family: ui-monospace, monospace; font-size: 11.5px; color: #8f95d6; }
+    code { font-family: ui-monospace, monospace; color: #7dd8f7; font-size: .94em; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th { text-align: left; padding: 6px 10px 6px 0; font-size: 11px; color: #6b6f9e;
+         font-weight: 500; border-bottom: 1px solid #2a2d55; }
+    td { text-align: left; padding: 6px 10px 6px 0; font-size: 12px; color: #b9bfd8;
+         border-bottom: 1px solid #1c1f36; line-height: 1.5; vertical-align: top; }
+    td.nm { color: #e8eaf0; font-weight: 700; }
+    .tag { font-size: 10px; border: 1px solid; padding: 1px 5px; white-space: nowrap; }
+    p.lead { margin: 0 0 14px; font-size: 12.5px; line-height: 1.85; color: #8f95d6; max-width: 76em; }
+  </style>
+</helmet>
+
+<div style="width: 1120px; background: #0f1116; padding: 26px 30px 40px;
+     font-family: 'Noto Sans TC','PingFang TC',sans-serif; color: #e8eaf0;">
+
+  <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:6px">
+    <h1 class="pxs" style="margin:0;font-size:26px;font-weight:700;color:#ffd23f">事件與人物菜單</h1>
+    <span style="font-size:12.5px;color:#8f95d6">七個樓層帶 × 10 個事件 + 5 個人物，給你挑</span>
+  </div>
+
+  <p class="lead">
+    成本標籤：<span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span>
+    現有的事件表填一列就好 ·
+    <span class="tag" style="color:#f0c04a;border-color:#f0c04a">小改</span>
+    要加一個欄位或一個判斷 ·
+    <span class="tag" style="color:#e2645a;border-color:#e2645a">新機制</span>
+    要寫新的東西（不共乘、限時、成對、招來同伴、封鎖樓層）。
+  </p>
+
+  <div style="border:2px solid #4a2530;background:#1a1218;padding:14px 16px;margin:18px 0 8px">
+    <div class="k" style="font-size:13.5px;margin-bottom:6px">先講一件會影響你怎麼挑的事：招商是目前 81.7% 的錢坑</div>
+    <p style="margin:0;font-size:12.5px;line-height:1.8;color:#c9bfc4">
+      實測把 100 層全部招滿要 <span class="k">$1,204,053</span>；整棵現金升級樹只要
+      <span class="k">$263,362</span>，現金階的自動化 $6,310。<span class="k">招商佔全部現金支出的 81.7%</span>。
+      拿掉它等於拿掉五分之四的錢坑——錢會沒地方花，升級一下就全滿。<br><br>
+      所以取消招商的同時得決定<b>什麼來接手</b>。最省事的是把加蓋樓層的成本曲線拉陡（一個數字），
+      但也可以讓事件自己扛：例如<b>事件要先花錢準備</b>（辦活動、佈置、加派人手），
+      把「花錢換人流」從一次性的招商變成持續性的營運決策。這個要你先定調，
+      因為它會決定下面這些事件裡哪些該有成本、哪些是純獎勵。
+    </p>
+  </div>
+
+
+  <div style="margin-top:30px">
+    <div style="display:flex;align-items:baseline;gap:12px;border-left:6px solid #3a4a63;padding-left:12px">
+      <h2 class="pxs" style="margin:0;font-size:19px;color:#ffd23f">零售</h2>
+      <span class="mono" style="font-size:11.5px;color:#6b6f9e">1–10 F</span>
+      <span style="font-size:12px;color:#8f95d6">量最大、單價最低、離大廳最近。人潮是它的本體</span>
+    </div>
+    <table>
+      <tr><th style="width:130px">事件</th><th style="width:110px">方向</th><th style="width:60px">人數</th>
+          <th style="width:60px">時段</th><th>說明</th><th style="width:74px">成本</th></tr>
+      <tr><td class="nm">週年慶開門</td><td class="mono">大廳 → 零售</td><td class="mono">14–24</td><td class="mono">10–12</td><td>鐵門一開，一整批人同時往上衝</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">美食街午餐</td><td class="mono">零售 → 大廳</td><td class="mono">10–18</td><td class="mono">11–14</td><td>中午整層一起下樓吃飯</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">電影散場</td><td class="mono">零售 → 大廳</td><td class="mono">12–22</td><td class="mono">任意</td><td>一整廳同時出來，而且都很急</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">清晨到貨</td><td class="mono">大廳 → 零售</td><td class="mono">6–10</td><td class="mono">6–9</td><td>送貨員推車進場，每個佔兩格</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">新品首賣排隊</td><td class="mono">大廳 → 零售</td><td class="mono">18–30</td><td class="mono">9–11</td><td>排隊的人一次放行，全部去同一層</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">打烊清場</td><td class="mono">零售 → 大廳</td><td class="mono">10–16</td><td class="mono">21–23</td><td>關店，所有人下樓，沒有人上樓</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">走失兒童</td><td class="mono">零售 ↔ 零售</td><td class="mono">1</td><td class="mono">任意</td><td>一個小孩在樓層間來回，送到大廳有獎勵</td><td><span class="tag" style="color:#f0c04a;border-color:#f0c04a">小改</span></td></tr><tr><td class="nm">地板打蠟</td><td class="mono">—</td><td class="mono">0</td><td class="mono">任意</td><td>某一層暫時不能停靠，電梯要跳過它</td><td><span class="tag" style="color:#e2645a;border-color:#e2645a">新機制</span></td></tr><tr><td class="nm">試吃推銷</td><td class="mono">零售 ↔ 零售</td><td class="mono">2–4</td><td class="mono">13–18</td><td>幾個人一直上下樓，不會離開</td><td><span class="tag" style="color:#f0c04a;border-color:#f0c04a">小改</span></td></tr><tr><td class="nm">抽獎公布</td><td class="mono">零售 → 大廳</td><td class="mono">8–14</td><td class="mono">19–21</td><td>中獎的人急著下樓領獎，耐性只剩一半</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr>
+    </table>
+    <table style="margin-top:10px">
+      <tr><th style="width:130px">人物</th><th style="width:60px">單價</th><th style="width:56px">耐性</th>
+          <th style="width:50px">佔位</th><th>特殊</th><th style="width:74px">成本</th></tr>
+      <tr><td class="nm">推嬰兒車的家長</td><td class="mono">×1.2</td><td class="mono">70</td><td class="mono">3</td><td>開門時間 +1.5 秒</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">大包小包購物客</td><td class="mono">×2.0</td><td class="mono">48</td><td class="mono">2</td><td>送得夠快會給小費（額外現金）</td><td><span class="tag" style="color:#f0c04a;border-color:#f0c04a">小改</span></td></tr><tr><td class="nm">打烊清潔工</td><td class="mono">×0</td><td class="mono">999</td><td class="mono">1</td><td>不付錢，但會提升評價</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">網紅排隊客</td><td class="mono">×1.4</td><td class="mono">40</td><td class="mono">1</td><td>送到之後會再招來 2–3 個同伴</td><td><span class="tag" style="color:#e2645a;border-color:#e2645a">新機制</span></td></tr><tr><td class="nm">試吃推銷員</td><td class="mono">×0.6</td><td class="mono">999</td><td class="mono">1</td><td>不會離開，一直在零售層之間移動</td><td><span class="tag" style="color:#f0c04a;border-color:#f0c04a">小改</span></td></tr>
+    </table>
+  </div>
+  <div style="margin-top:30px">
+    <div style="display:flex;align-items:baseline;gap:12px;border-left:6px solid #3f5a52;padding-left:12px">
+      <h2 class="pxs" style="margin:0;font-size:19px;color:#ffd23f">辦公</h2>
+      <span class="mono" style="font-size:11.5px;color:#6b6f9e">11–20 F</span>
+      <span style="font-size:12px;color:#8f95d6">尖峰極端：早上全部上去、傍晚全部下來，中間很閒</span>
+    </div>
+    <table>
+      <tr><th style="width:130px">事件</th><th style="width:110px">方向</th><th style="width:60px">人數</th>
+          <th style="width:60px">時段</th><th>說明</th><th style="width:74px">成本</th></tr>
+      <tr><td class="nm">會議散場</td><td class="mono">辦公 → 大廳</td><td class="mono">8–16</td><td class="mono">10–18</td><td>（現有）一次湧出一整間會議室</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">全員大會</td><td class="mono">辦公 → 辦公</td><td class="mono">14–24</td><td class="mono">9–11</td><td>所有樓層的人集中到同一層</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">消防演習</td><td class="mono">任意 → 大廳</td><td class="mono">10–18</td><td class="mono">9–17</td><td>（現有）全部疏散，而且很不耐煩</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">客戶來訪</td><td class="mono">大廳 → 辦公</td><td class="mono">1</td><td class="mono">10–16</td><td>一位貴客，單價極高、耐性極低</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">新人報到</td><td class="mono">大廳 → 辦公</td><td class="mono">5–9</td><td class="mono">8–10</td><td>一群人第一次來，開門時間變長</td><td><span class="tag" style="color:#f0c04a;border-color:#f0c04a">小改</span></td></tr><tr><td class="nm">系統當機</td><td class="mono">辦公 → 大廳</td><td class="mono">16–26</td><td class="mono">任意</td><td>整棟辦公層同時放棄工作下樓</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">加班到深夜</td><td class="mono">辦公 → 大廳</td><td class="mono">3–6</td><td class="mono">21–24</td><td>零星幾個人，但單價高</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">咖啡時間</td><td class="mono">辦公 → 零售</td><td class="mono">8–14</td><td class="mono">14–16</td><td>跨帶：辦公層下去零售層</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">季度稽核</td><td class="mono">大廳 → 辦公</td><td class="mono">2–3</td><td class="mono">9–12</td><td>稽核員不跟別人共乘</td><td><span class="tag" style="color:#e2645a;border-color:#e2645a">新機制</span></td></tr><tr><td class="nm">裁員日</td><td class="mono">辦公 → 大廳</td><td class="mono">10–18</td><td class="mono">任意</td><td>單向下樓，而且沒有人願意等</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr>
+    </table>
+    <table style="margin-top:10px">
+      <tr><th style="width:130px">人物</th><th style="width:60px">單價</th><th style="width:56px">耐性</th>
+          <th style="width:50px">佔位</th><th>特殊</th><th style="width:74px">成本</th></tr>
+      <tr><td class="nm">CEO</td><td class="mono">×8.0</td><td class="mono">17</td><td class="mono">1</td><td>（現有）讓他等會重扣評價</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">面試者</td><td class="mono">×1.0</td><td class="mono">25</td><td class="mono">1</td><td>遲到會扣評價，準時到會加評價</td><td><span class="tag" style="color:#f0c04a;border-color:#f0c04a">小改</span></td></tr><tr><td class="nm">法務稽核</td><td class="mono">×6.5</td><td class="mono">30</td><td class="mono">1</td><td>不與任何人共乘</td><td><span class="tag" style="color:#e2645a;border-color:#e2645a">新機制</span></td></tr><tr><td class="nm">影印機維修員</td><td class="mono">×4.0</td><td class="mono">55</td><td class="mono">3</td><td>帶工具，佔三格</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">遠距工作者</td><td class="mono">×2.2</td><td class="mono">80</td><td class="mono">1</td><td>只在 22:00–5:00 出現</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr>
+    </table>
+  </div>
+  <div style="margin-top:30px">
+    <div style="display:flex;align-items:baseline;gap:12px;border-left:6px solid #5c4a3a;padding-left:12px">
+      <h2 class="pxs" style="margin:0;font-size:19px;color:#ffd23f">飯店</h2>
+      <span class="mono" style="font-size:11.5px;color:#6b6f9e">21–45 F</span>
+      <span style="font-size:12px;color:#8f95d6">行李佔位、晝夜顛倒；單價高但慢</span>
+    </div>
+    <table>
+      <tr><th style="width:130px">事件</th><th style="width:110px">方向</th><th style="width:60px">人數</th>
+          <th style="width:60px">時段</th><th>說明</th><th style="width:74px">成本</th></tr>
+      <tr><td class="nm">旅行團進房</td><td class="mono">大廳 → 飯店</td><td class="mono">6–12</td><td class="mono">15–23</td><td>（現有）一團人帶行李上樓</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">退房潮</td><td class="mono">飯店 → 大廳</td><td class="mono">6–12</td><td class="mono">7–12</td><td>（現有）拖著行李下樓</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">超級貴賓</td><td class="mono">大廳 → 飯店</td><td class="mono">1</td><td class="mono">任意</td><td>你點的那個。單價是一般房客的數十倍，但他不與人共乘，讓他等一次評價重摔</td><td><span class="tag" style="color:#e2645a;border-color:#e2645a">新機制</span></td></tr><tr><td class="nm">婚宴散場</td><td class="mono">飯店 → 大廳</td><td class="mono">14–24</td><td class="mono">21–24</td><td>一次一大群，都累了、耐性打折</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">客房服務</td><td class="mono">飯店 ↔ 飯店</td><td class="mono">2–4</td><td class="mono">任意</td><td>推車佔四格，樓層之間短程移動</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">深夜抵達</td><td class="mono">大廳 → 飯店</td><td class="mono">2–5</td><td class="mono">23–4</td><td>半夜到的旅客，單價高、人少</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">早餐時段</td><td class="mono">飯店 → 零售</td><td class="mono">10–18</td><td class="mono">7–9</td><td>跨帶：飯店層下去吃早餐再上來</td><td><span class="tag" style="color:#f0c04a;border-color:#f0c04a">小改</span></td></tr><tr><td class="nm">名人與媒體</td><td class="mono">大廳 → 飯店</td><td class="mono">1+8</td><td class="mono">任意</td><td>一個名人加一群記者，記者會塞爆電梯</td><td><span class="tag" style="color:#f0c04a;border-color:#f0c04a">小改</span></td></tr><tr><td class="nm">會議代表團</td><td class="mono">大廳 → 飯店</td><td class="mono">12–20</td><td class="mono">8–10</td><td>整團同時到，全部同一層</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">行李推車卡住</td><td class="mono">—</td><td class="mono">0</td><td class="mono">任意</td><td>一台電梯的門暫時關不上</td><td><span class="tag" style="color:#e2645a;border-color:#e2645a">新機制</span></td></tr>
+    </table>
+    <table style="margin-top:10px">
+      <tr><th style="width:130px">人物</th><th style="width:60px">單價</th><th style="width:56px">耐性</th>
+          <th style="width:50px">佔位</th><th>特殊</th><th style="width:74px">成本</th></tr>
+      <tr><td class="nm">超級貴賓</td><td class="mono">×40.0</td><td class="mono">20</td><td class="mono">4</td><td>你點的那個：單價是房客的十幾倍、不與人共乘、讓他等一次評價重摔</td><td><span class="tag" style="color:#e2645a;border-color:#e2645a">新機制</span></td></tr><tr><td class="nm">新婚夫婦</td><td class="mono">×3.0</td><td class="mono">60</td><td class="mono">2</td><td>兩個人必須同一台電梯，分開送不算</td><td><span class="tag" style="color:#e2645a;border-color:#e2645a">新機制</span></td></tr><tr><td class="nm">客房服務推車</td><td class="mono">×2.5</td><td class="mono">999</td><td class="mono">4</td><td>幾乎塞滿電梯，短程</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">行李員</td><td class="mono">×0</td><td class="mono">999</td><td class="mono">2</td><td>不付錢，但提升評價</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">夜歸房客</td><td class="mono">×4.5</td><td class="mono">45</td><td class="mono">2</td><td>只在 23:00–4:00 出現，單價高</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr>
+    </table>
+  </div>
+  <div style="margin-top:30px">
+    <div style="display:flex;align-items:baseline;gap:12px;border-left:6px solid #4a3f5c;padding-left:12px">
+      <h2 class="pxs" style="margin:0;font-size:19px;color:#ffd23f">住宅</h2>
+      <span class="mono" style="font-size:11.5px;color:#6b6f9e">46–70 F</span>
+      <span style="font-size:12px;color:#8f95d6">作息穩定、常客、耐性好。變化來自生活事件</span>
+    </div>
+    <table>
+      <tr><th style="width:130px">事件</th><th style="width:110px">方向</th><th style="width:60px">人數</th>
+          <th style="width:60px">時段</th><th>說明</th><th style="width:74px">成本</th></tr>
+      <tr><td class="nm">早晨通勤</td><td class="mono">住宅 → 大廳</td><td class="mono">12–20</td><td class="mono">7–9</td><td>住戶集體下樓上班</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">傍晚回家</td><td class="mono">大廳 → 住宅</td><td class="mono">12–20</td><td class="mono">18–21</td><td>反過來，全部上樓</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">搬家日</td><td class="mono">住宅 → 大廳</td><td class="mono">4–8</td><td class="mono">任意</td><td>（現有）幾乎塞滿整台電梯</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">外送高峰</td><td class="mono">大廳 → 住宅</td><td class="mono">8–14</td><td class="mono">18–20</td><td>送餐員：送到夠快有小費</td><td><span class="tag" style="color:#f0c04a;border-color:#f0c04a">小改</span></td></tr><tr><td class="nm">停水通知</td><td class="mono">住宅 → 大廳</td><td class="mono">10–16</td><td class="mono">任意</td><td>整棟住戶下樓提水，單向</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">社區聚會</td><td class="mono">住宅 → 住宅</td><td class="mono">10–18</td><td class="mono">19–21</td><td>所有住戶集中到同一層</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">遛狗時間</td><td class="mono">住宅 → 大廳</td><td class="mono">4–8</td><td class="mono">6–8</td><td>一人一狗，兩個一組要一起搭</td><td><span class="tag" style="color:#e2645a;border-color:#e2645a">新機制</span></td></tr><tr><td class="nm">裝修工班</td><td class="mono">大廳 → 住宅</td><td class="mono">3–5</td><td class="mono">8–10</td><td>每個佔三格，帶工具</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">半夜回家</td><td class="mono">大廳 → 住宅</td><td class="mono">2–4</td><td class="mono">0–3</td><td>沒幾個人，但這時候只有你在跑</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">停電</td><td class="mono">住宅 → 大廳</td><td class="mono">16–26</td><td class="mono">任意</td><td>全部往下，而且耐性只剩三分之一</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr>
+    </table>
+    <table style="margin-top:10px">
+      <tr><th style="width:130px">人物</th><th style="width:60px">單價</th><th style="width:56px">耐性</th>
+          <th style="width:50px">佔位</th><th>特殊</th><th style="width:74px">成本</th></tr>
+      <tr><td class="nm">搬家公司</td><td class="mono">×6.0</td><td class="mono">33</td><td class="mono">4</td><td>（現有）幾乎塞滿整台</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">遛狗的住戶</td><td class="mono">×1.4</td><td class="mono">70</td><td class="mono">2</td><td>人跟狗要一起，狗會讓其他乘客耐性 -10%</td><td><span class="tag" style="color:#e2645a;border-color:#e2645a">新機制</span></td></tr><tr><td class="nm">外送員</td><td class="mono">×2.8</td><td class="mono">28</td><td class="mono">1</td><td>限時：夠快給小費，太慢直接消失</td><td><span class="tag" style="color:#f0c04a;border-color:#f0c04a">小改</span></td></tr><tr><td class="nm">深夜回家的人</td><td class="mono">×2.4</td><td class="mono">90</td><td class="mono">1</td><td>只在 0:00–4:00，耐性極好</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">裝修工班</td><td class="mono">×5.0</td><td class="mono">50</td><td class="mono">3</td><td>帶工具、佔三格</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr>
+    </table>
+  </div>
+  <div style="margin-top:30px">
+    <div style="display:flex;align-items:baseline;gap:12px;border-left:6px solid #3a5570;padding-left:12px">
+      <h2 class="pxs" style="margin:0;font-size:19px;color:#ffd23f">觀景台</h2>
+      <span class="mono" style="font-size:11.5px;color:#6b6f9e">71–85 F</span>
+      <span style="font-size:12px;color:#8f95d6">單向朝聖：上去慢、下來一次全走</span>
+    </div>
+    <table>
+      <tr><th style="width:130px">事件</th><th style="width:110px">方向</th><th style="width:60px">人數</th>
+          <th style="width:60px">時段</th><th>說明</th><th style="width:74px">成本</th></tr>
+      <tr><td class="nm">觀景台人潮</td><td class="mono">大廳 → 觀景</td><td class="mono">8–16</td><td class="mono">10–20</td><td>（現有）排隊上去</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">夕陽時段</td><td class="mono">大廳 → 觀景</td><td class="mono">16–26</td><td class="mono">17–19</td><td>一天最大的一波，全部往上</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">打烊清場</td><td class="mono">觀景 → 大廳</td><td class="mono">18–28</td><td class="mono">22–23</td><td>一次全下來，電梯要連跑好幾趟</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">求婚</td><td class="mono">大廳 → 觀景</td><td class="mono">2</td><td class="mono">18–21</td><td>兩個人要一起搭，送到夠快評價大漲</td><td><span class="tag" style="color:#e2645a;border-color:#e2645a">新機制</span></td></tr><tr><td class="nm">校外教學</td><td class="mono">大廳 → 觀景</td><td class="mono">20–30</td><td class="mono">9–12</td><td>人最多的一次，但單價最低</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">攝影團</td><td class="mono">大廳 → 觀景</td><td class="mono">4–8</td><td class="mono">5–7</td><td>帶腳架，每個佔三格，趕日出</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">起霧</td><td class="mono">—</td><td class="mono">0</td><td class="mono">任意</td><td>一段時間內沒有人要上觀景台</td><td><span class="tag" style="color:#f0c04a;border-color:#f0c04a">小改</span></td></tr><tr><td class="nm">煙火之夜</td><td class="mono">大廳 → 觀景</td><td class="mono">24–36</td><td class="mono">20–22</td><td>最大的一波，塞爆</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">懼高症</td><td class="mono">觀景 → 大廳</td><td class="mono">1–3</td><td class="mono">任意</td><td>上去馬上要下來，耐性極低</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">無人機表演</td><td class="mono">觀景 → 觀景</td><td class="mono">6–12</td><td class="mono">19–21</td><td>在觀景層之間移動，看不同角度</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr>
+    </table>
+    <table style="margin-top:10px">
+      <tr><th style="width:130px">人物</th><th style="width:60px">單價</th><th style="width:56px">耐性</th>
+          <th style="width:50px">佔位</th><th>特殊</th><th style="width:74px">成本</th></tr>
+      <tr><td class="nm">觀景客</td><td class="mono">×3.2</td><td class="mono">76</td><td class="mono">1</td><td>（現有）成群往上</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">求婚的情侶</td><td class="mono">×5.0</td><td class="mono">55</td><td class="mono">2</td><td>兩人要同車，送到夠快評價大漲</td><td><span class="tag" style="color:#e2645a;border-color:#e2645a">新機制</span></td></tr><tr><td class="nm">攝影團</td><td class="mono">×4.0</td><td class="mono">85</td><td class="mono">3</td><td>帶腳架，佔三格</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">懼高症遊客</td><td class="mono">×2.0</td><td class="mono">18</td><td class="mono">1</td><td>上去馬上要下來，耐性極低</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">導遊</td><td class="mono">×1.0</td><td class="mono">95</td><td class="mono">1</td><td>出現時會帶來 4–6 個觀景客</td><td><span class="tag" style="color:#e2645a;border-color:#e2645a">新機制</span></td></tr>
+    </table>
+  </div>
+  <div style="margin-top:30px">
+    <div style="display:flex;align-items:baseline;gap:12px;border-left:6px solid #5c3a4a;padding-left:12px">
+      <h2 class="pxs" style="margin:0;font-size:19px;color:#ffd23f">實驗樓層</h2>
+      <span class="mono" style="font-size:11.5px;color:#6b6f9e">86–99 F</span>
+      <span style="font-size:12px;color:#8f95d6">人少、單價極高、什麼都可能出錯</span>
+    </div>
+    <table>
+      <tr><th style="width:130px">事件</th><th style="width:110px">方向</th><th style="width:60px">人數</th>
+          <th style="width:60px">時段</th><th>說明</th><th style="width:74px">成本</th></tr>
+      <tr><td class="nm">樣本急送</td><td class="mono">大廳 → 實驗</td><td class="mono">1</td><td class="mono">任意</td><td>有時限：夠快送到給大筆獎金，太慢什麼都沒有</td><td><span class="tag" style="color:#e2645a;border-color:#e2645a">新機制</span></td></tr><tr><td class="nm">實驗外洩</td><td class="mono">實驗 → 大廳</td><td class="mono">10–18</td><td class="mono">任意</td><td>緊急疏散，耐性只剩四分之一</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">夜班交接</td><td class="mono">實驗 ↔ 實驗</td><td class="mono">8–14</td><td class="mono">22–24</td><td>一批上一批下，同時發生</td><td><span class="tag" style="color:#f0c04a;border-color:#f0c04a">小改</span></td></tr><tr><td class="nm">經費稽查</td><td class="mono">大廳 → 實驗</td><td class="mono">2–3</td><td class="mono">9–12</td><td>不跟人共乘，單價極高</td><td><span class="tag" style="color:#e2645a;border-color:#e2645a">新機制</span></td></tr><tr><td class="nm">機密貨箱</td><td class="mono">大廳 → 實驗</td><td class="mono">1</td><td class="mono">任意</td><td>佔滿整台電梯，誰都不能一起搭</td><td><span class="tag" style="color:#e2645a;border-color:#e2645a">新機制</span></td></tr><tr><td class="nm">原型機展示</td><td class="mono">實驗 → 觀景</td><td class="mono">6–10</td><td class="mono">14–17</td><td>跨帶：把展示品搬到觀景台</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">電力突波</td><td class="mono">—</td><td class="mono">0</td><td class="mono">任意</td><td>所有電梯的熱量瞬間拉滿，強制停機</td><td><span class="tag" style="color:#f0c04a;border-color:#f0c04a">小改</span></td></tr><tr><td class="nm">動物照護</td><td class="mono">實驗 ↔ 實驗</td><td class="mono">2–4</td><td class="mono">6–8</td><td>短程、固定時間、不會消失</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">資料中心搬遷</td><td class="mono">實驗 → 實驗</td><td class="mono">8–14</td><td class="mono">任意</td><td>大量搬運，每個佔兩格</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">諾貝爾獎來訪</td><td class="mono">大廳 → 實驗</td><td class="mono">1+6</td><td class="mono">任意</td><td>一個貴賓加一群隨行，全棟評價暫時上升</td><td><span class="tag" style="color:#f0c04a;border-color:#f0c04a">小改</span></td></tr>
+    </table>
+    <table style="margin-top:10px">
+      <tr><th style="width:130px">人物</th><th style="width:60px">單價</th><th style="width:56px">耐性</th>
+          <th style="width:50px">佔位</th><th>特殊</th><th style="width:74px">成本</th></tr>
+      <tr><td class="nm">研究員</td><td class="mono">×5.0</td><td class="mono">29</td><td class="mono">1</td><td>（現有）趕時間，不解釋在趕什麼</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">樣本送件員</td><td class="mono">×12.0</td><td class="mono">22</td><td class="mono">1</td><td>有倒數：時間內送到給大筆獎金，超時歸零</td><td><span class="tag" style="color:#e2645a;border-color:#e2645a">新機制</span></td></tr><tr><td class="nm">機密貨箱</td><td class="mono">×15.0</td><td class="mono">999</td><td class="mono">6</td><td>佔滿整台電梯，沒有人能一起搭</td><td><span class="tag" style="color:#e2645a;border-color:#e2645a">新機制</span></td></tr><tr><td class="nm">防護衣技師</td><td class="mono">×6.0</td><td class="mono">60</td><td class="mono">2</td><td>開門時間 +2 秒（要消毒）</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">實驗動物管理員</td><td class="mono">×3.5</td><td class="mono">70</td><td class="mono">2</td><td>固定時段出現，短程</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr>
+    </table>
+  </div>
+  <div style="margin-top:30px">
+    <div style="display:flex;align-items:baseline;gap:12px;border-left:6px solid #2f4f6b;padding-left:12px">
+      <h2 class="pxs" style="margin:0;font-size:19px;color:#ffd23f">屋頂</h2>
+      <span class="mono" style="font-size:11.5px;color:#6b6f9e">100 F</span>
+      <span style="font-size:12px;color:#8f95d6">結局所在。事件應該像倒數計時</span>
+    </div>
+    <table>
+      <tr><th style="width:130px">事件</th><th style="width:110px">方向</th><th style="width:60px">人數</th>
+          <th style="width:60px">時段</th><th>說明</th><th style="width:74px">成本</th></tr>
+      <tr><td class="nm">發射窗口</td><td class="mono">大廳 → 屋頂</td><td class="mono">10–16</td><td class="mono">任意</td><td>倒數期間所有人都要上頂樓</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">纜線檢修</td><td class="mono">大廳 → 屋頂</td><td class="mono">2–4</td><td class="mono">5–7</td><td>工程師，單價高、佔兩格</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">衛星送件</td><td class="mono">大廳 → 屋頂</td><td class="mono">1</td><td class="mono">任意</td><td>佔滿整台電梯的貨櫃</td><td><span class="tag" style="color:#e2645a;border-color:#e2645a">新機制</span></td></tr><tr><td class="nm">貴賓觀禮</td><td class="mono">大廳 → 屋頂</td><td class="mono">6–10</td><td class="mono">任意</td><td>一群人，單價極高</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">暴風警報</td><td class="mono">屋頂 → 大廳</td><td class="mono">12–20</td><td class="mono">任意</td><td>全部撤離，耐性極低</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">軌道班機登機</td><td class="mono">大廳 → 屋頂</td><td class="mono">16–24</td><td class="mono">任意</td><td>最大的一波，全部同一層</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">記者會</td><td class="mono">大廳 → 屋頂</td><td class="mono">8–14</td><td class="mono">10–16</td><td>記者一次上去、一次下來</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">倒數計時</td><td class="mono">—</td><td class="mono">0</td><td class="mono">任意</td><td>一段時間內所有票價加倍</td><td><span class="tag" style="color:#f0c04a;border-color:#f0c04a">小改</span></td></tr><tr><td class="nm">無重力測試</td><td class="mono">屋頂 ↔ 屋頂</td><td class="mono">4–8</td><td class="mono">任意</td><td>在頂層之間移動</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">最後升空</td><td class="mono">大廳 → 屋頂</td><td class="mono">20–30</td><td class="mono">任意</td><td>只發生一次：結局前的最後一批人</td><td><span class="tag" style="color:#e2645a;border-color:#e2645a">新機制</span></td></tr>
+    </table>
+    <table style="margin-top:10px">
+      <tr><th style="width:130px">人物</th><th style="width:60px">單價</th><th style="width:56px">耐性</th>
+          <th style="width:50px">佔位</th><th>特殊</th><th style="width:74px">成本</th></tr>
+      <tr><td class="nm">太空人</td><td class="mono">×30.0</td><td class="mono">40</td><td class="mono">3</td><td>單向上樓，永遠不下來</td><td><span class="tag" style="color:#f0c04a;border-color:#f0c04a">小改</span></td></tr><tr><td class="nm">纜線工程師</td><td class="mono">×7.0</td><td class="mono">65</td><td class="mono">2</td><td>清晨出現，佔兩格</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">軌道乘客</td><td class="mono">×20.0</td><td class="mono">35</td><td class="mono">2</td><td>單價極高，只在發射窗口出現</td><td><span class="tag" style="color:#f0c04a;border-color:#f0c04a">小改</span></td></tr><tr><td class="nm">記者團</td><td class="mono">×2.0</td><td class="mono">50</td><td class="mono">1</td><td>一次來一群</td><td><span class="tag" style="color:#5ddc9a;border-color:#5ddc9a">資料</span></td></tr><tr><td class="nm">塔台管制員</td><td class="mono">×0</td><td class="mono">999</td><td class="mono">1</td><td>不付錢，但在頂樓時全棟評價微升</td><td><span class="tag" style="color:#f0c04a;border-color:#f0c04a">小改</span></td></tr>
+    </table>
+  </div>
+
+  <div style="margin-top:34px;border-top:1px solid #2a2d55;padding-top:16px">
+    <p class="lead" style="margin:0">
+      挑的時候可以直接說「零售 1 3 6、辦公 2 4」這種，或整帶都要。
+      人物跟事件可以分開挑——有些人物不需要專屬事件也成立（他只是會出現在那一帶）。
+    </p>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
