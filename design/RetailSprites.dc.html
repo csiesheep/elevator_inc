@@ -1,0 +1,493 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+  <style>
+    body { margin: 0; }
+    x-dc { display: block; }
+    a { color: #7dd8f7; } a:hover { color: #ffd23f; }
+    canvas { image-rendering: pixelated; display: block; }
+    .pxs { font-family: "Pixelify Sans", "Courier New", monospace; }
+    .k { color: #e8eaf0; font-weight: 700; }
+    code { font-family: ui-monospace, monospace; color: #7dd8f7; font-size: .94em; }
+    th, td { text-align: left; padding: 7px 14px 7px 0; font-size: 12.5px; vertical-align: top; }
+    th { color: #6b6f9e; font-weight: 500; border-bottom: 1px solid #2a2d55; }
+    td { border-bottom: 1px solid #20233c; color: #b9bfd8; line-height: 1.6; }
+    .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+    .cell { display: flex; flex-direction: column; gap: 5px; align-items: center; }
+    .cap { font-size: 10.5px; color: #6b6f9e; text-align: center; }
+    .capk { font-size: 11px; color: #e8eaf0; font-weight: 700; text-align: center; }
+    .capn { font-size: 10px; color: #ffd23f; text-align: center; font-family: ui-monospace, monospace; }
+    h2.pxs { margin: 30px 0 6px; font-size: 17px; color: #ffd23f; }
+    h3 { margin: 18px 0 6px; font-size: 12.5px; color: #8f95d6; font-weight: 700; }
+    p.lead { margin: 0 0 14px; font-size: 12.5px; line-height: 1.8; color: #8f95d6; max-width: 78em; }
+    .panel { background: #0a0c12; border: 1px solid #20233c; padding: 14px 16px 16px; }
+    .lbl { font-size: 11px; color: #6b6f9e; margin-bottom: 8px; letter-spacing: .06em; }
+    .new { color: #5ddc9a; }
+    .old { color: #6b6f9e; }
+    .warnbox { border-left: 3px solid #f0a04a; padding: 8px 0 8px 12px; margin: 12px 0;
+               font-size: 12px; line-height: 1.75; color: #d8c0a0; max-width: 76em; }
+  </style>
+</helmet>
+
+<div style="max-width: 1180px; background: #0f1116; padding: 22px 24px 44px;
+     font-family: 'Noto Sans TC','PingFang TC',sans-serif; color: #e8eaf0;">
+
+  <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:6px">
+    <h1 class="pxs" style="margin:0;font-size:26px;font-weight:700;color:#ffd23f">零售帶的 14 張新圖</h1>
+    <span style="font-size:12.5px;color:#8f95d6">#14–#28 第 5 階段 · 併成一組看</span>
+  </div>
+  <p class="lead">
+    單張看不出問題。這一頁把<span class="k">新的 14 張跟既有的 12 張排在一起</span>，
+    用<span class="k">遊戲真正的樓層底色</span>（<code>retail</code> 帶 <code>#3a4a63</code> 乘上 <code>pal.floorA/floorB</code>），
+    日夜各畫一次，而且用<span class="k">遊戲真正的格子大小</span>——
+    <code>cs = clamp(floor(fh/11), 1, 3)</code>，樓層低於 16px 時等待乘客根本不畫（<code>detail = fh >= 16</code>），
+    所以現場只會出現 <code>cs</code> 1／2／3 三種，而 <span class="k">27 層以上整場都是 cs=1，也就是 7×9 個實體像素</span>。
+    下面每一節的第一個尺寸都是 cs=1，不是放大圖——放大好看不算數。
+  </p>
+
+  <div class="row" style="align-items:center;gap:10px;margin:16px 0 6px">
+    <span style="font-size:12px;color:#8f95d6">外部光線</span>
+    <button id="bNight" style="font:12px 'Noto Sans TC',sans-serif;padding:5px 14px;cursor:pointer;
+      background:#191c3e;color:#e8eaf0;border:1px solid #3f4478">夜（0:00）</button>
+    <button id="bDay" style="font:12px 'Noto Sans TC',sans-serif;padding:5px 14px;cursor:pointer;
+      background:#191c3e;color:#e8eaf0;border:1px solid #3f4478">日（12:00）</button>
+    <span id="now" style="font:12px ui-monospace,monospace;color:#ffd23f"></span>
+    <span style="font-size:11.5px;color:#6b6f9e">
+      —— 室內色（<code>ink</code>／<code>floorA</code>）在 theme.js 裡幾乎不隨時間走，
+      所以這顆鍵按下去差別很小。<span class="k">那正是要確認的事</span>：如果哪一張只在其中一種光線下讀得出來，就是錯的。</span>
+  </div>
+
+  <h2 class="pxs">0 · 接觸印樣：26 張一次看完</h2>
+  <p class="lead">
+    這一張是整趟的驗收憑據。底色是<span class="k">真的樓層底色</span>（奇偶層兩種），
+    上半是放大 10 倍看形狀，最下面三條是<span class="k">遊戲裡真正的三種大小</span>（cs=1／2／3，沒放大）。
+    要看的是：<span class="k">掃過去有沒有哪兩張讓你停下來想「這兩個是不是同一個」</span>。
+  </p>
+  <div class="panel" style="overflow-x:auto"><canvas id="sheet" width="982" height="812"></canvas></div>
+
+  <h2 class="pxs">1 · 全部 26 種，樓層底色，cs=1（現場最常見的大小）</h2>
+  <p class="lead">
+    這是 <span class="k">1:1</span>，7×9 個實體像素。旁邊那格是同一張放大 6 倍、只為了看清楚哪一格是哪一格。
+    先掃這一整排：<span class="k">哪兩張要盯著看才分得出來，就是還沒做完</span>。
+  </p>
+  <div class="panel"><div class="lbl">既有 12 種（不動）</div><div class="row" id="g0old"></div></div>
+  <div class="panel" style="margin-top:12px"><div class="lbl">新增 14 種（#14–#28）</div><div class="row" id="g0new"></div></div>
+
+  <h2 class="pxs">2 · 同一組，cs=2 與 cs=3</h2>
+  <p class="lead">cs=2 出現在 18–26 層，cs=3 出現在 1–17 層。開場的十幾層樓玩家會盯著看，所以這兩級也要成立。</p>
+  <div class="panel"><div class="lbl">cs=2（樓高 22–32px）</div><div class="row" id="g2"></div></div>
+  <div class="panel" style="margin-top:12px"><div class="lbl">cs=3（樓高 33px 以上）</div><div class="row" id="g3"></div></div>
+
+  <h2 class="pxs">3 · 真的樓層：兩層零售，家具、樓層號、目的地牌都在</h2>
+  <p class="lead">
+    上面那幾格是把小人放在純色塊上。實際上他們站在<span class="k">有家具、有左緣色條、右邊還有一塊目的地牌</span>的地方。
+    這一節照 <code>render.js</code> 的排法重畫：隊伍靠著電梯由右往左排，每格 <code>7·cs + 牌寬 + 14</code>。
+  </p>
+  <div class="panel"><div class="lbl">樓高 34px（cs=3，約 10 層樓的塔）</div><canvas id="scene3" width="1140" height="76"></canvas></div>
+  <div class="panel" style="margin-top:12px"><div class="lbl">樓高 24px（cs=2，約 22 層樓）</div><canvas id="scene2" width="1140" height="54"></canvas></div>
+  <div class="panel" style="margin-top:12px"><div class="lbl">樓高 17px（cs=1，約 33 層樓——再低就不畫人了）</div><canvas id="scene1" width="1140" height="40"></canvas></div>
+
+  <h2 class="pxs">4 · 轎廂裡：墨色會翻過來</h2>
+  <p class="lead">
+    在樓層上身體是 <code>pal.ink</code>（<code>#eaf0fb</code>，淺）；進了轎廂變成 <code>pal.inkCar</code>（<code>#12161f</code>，深），
+    但<span class="k">配件色不翻</span>。所以一張圖要在「淺墨深底」跟「深墨淺底」兩種都成立——
+    配件跟身體的對比在這兩種情況下是反過來的。
+  </p>
+  <div class="panel"><div class="lbl">轎廂內 cs=1／放大</div><div class="row" id="gcar"></div></div>
+
+  <h2 class="pxs">5 · urgent 姿勢</h2>
+  <p class="lead">
+    耐性剩 25% 以下時整個身體轉成 <code>pal.bad</code>（<code>#e2645a</code>），只有配件保留自己的顏色，頭上加一個驚嘆號。
+    這一關最容易出事：<span class="k">身體全部變同一個紅之後，只剩剪影跟配件在扛辨識度</span>。
+  </p>
+  <div class="panel"><div class="lbl">既有 12 種 · urgent</div><div class="row" id="gu_old"></div></div>
+  <div class="panel" style="margin-top:12px"><div class="lbl">新增 14 種 · urgent</div><div class="row" id="gu_new"></div></div>
+
+  <h2 class="pxs">6 · 配件色：只有同一帶會撞</h2>
+  <p class="lead">
+    26 種人塞不進 26 個分得開的顏色。所以規則是<span class="k">「同一個樓層帶裡不能撞」</span>，跨帶可以重用。
+    零售帶（1–10F）實際會出現的既有型只有 5 種（<code>band:'any'</code> 的 office／tourist／courier／guard／cat），
+    新的 14 種要跟這 5 種、以及彼此，分得開。下面按色相排，色票畫在真正的樓層底色上。
+  </p>
+  <div class="panel"><div class="row" id="swatch" style="gap:10px"></div></div>
+
+  <h2 class="pxs">7 · 量體分配表（這一組真正的設計）</h2>
+  <p class="lead">識別放在「量體長在哪」，不是放在顏色上。位置夠分，顏色不夠分。</p>
+  <table style="width:100%;border-collapse:collapse;max-width:1000px" id="tbl"></table>
+
+  <div class="warnbox" id="notes"></div>
+</div>
+
+<script type="module">
+import { PEOPLE, SPRITE_W, SPRITE_H } from '../js/sprites.js';
+import { P, setHour, mix } from '../js/theme.js';
+import { MOTIFS, SIGNATURES, MOTIF_W, MOTIF_H } from '../js/interior.js';
+import { numWidth, drawPlate, GLYPH_H } from '../js/digits.js';
+
+// ---- 從 content.js 抄過來的兩個常數（這一頁不 import content.js，免得跟 BE 的改動綁在一起）
+const RETAIL_COLOR = '#3a4a63';
+// 零售帶（1–10F）會出現的既有乘客型：band 是 'any' 的那幾種
+const RETAIL_OLD = ['office','tourist','courier','guard','cat'];
+const OLD = ['office','tourist','courier','guard','ceo','cat','ghost','mover','guest','resident','observer','scientist'];
+const NEW = ['anniv','winner','diner','movie','dolly','queuer','closing','child',
+             'waxer','sampler','stroller','loaded','janitor','influencer'];
+const NAME = {
+  office:'上班族', tourist:'觀光客', courier:'送貨員', guard:'保全', ceo:'CEO', cat:'貓',
+  ghost:'幽靈', mover:'搬家公司', guest:'房客', resident:'住戶', observer:'觀景客', scientist:'研究員',
+  anniv:'週年慶客', winner:'中獎人', diner:'午餐客', movie:'散場觀眾', dolly:'推車送貨員',
+  queuer:'首賣排隊客', closing:'打烊人潮', child:'走失兒童', waxer:'打蠟工', sampler:'試吃推銷員',
+  stroller:'推嬰兒車家長', loaded:'大包小包購物客', janitor:'打烊清潔工', influencer:'網紅排隊客',
+};
+const ISSUE = {
+  anniv:'#14', winner:'#15', diner:'#16', movie:'#17', dolly:'#18', queuer:'#19',
+  closing:'#20', child:'#21', waxer:'#22', sampler:'#23/#28', stroller:'#24',
+  loaded:'#25', janitor:'#26', influencer:'#27',
+};
+const MASS = {
+  anniv:'頭上（貼著）· 1-3-5 錐帽 + normal 就在跑',
+  winner:'頭上（留一列空隙）· 兩手舉的獎券',
+  diner:'肩線 · 滿寬、只有一列的餐盤',
+  movie:'軀幹 · 往下收窄的梯形桶（滿出來兩粒）',
+  dolly:'右側落地 · 兩格寬推車 + 輪子',
+  queuer:'頭框 + 雙腳併攏（全套唯一的獨腳剪影）',
+  closing:'下半身 · 往下張開的圍裙下擺',
+  child:'比例 · 頭大身短，上面飄一顆氣球',
+  waxer:'腳邊 · 貼地的打蠟機（全套唯一重心在地板的）',
+  sampler:'腳邊 · 攤台把腿遮住（站著不走）',
+  stroller:'右下角 · 嬰兒車 + 兩顆輪子',
+  loaded:'兩側對稱 · 掛到膝蓋的購物袋（urgent 也舉不起手）',
+  janitor:'左側落地 · 一格寬拖把桿，落地那列開花',
+  influencer:'右上 · 自拍桿把手機頂到頭外，人整個偏左',
+};
+
+// ---- 跟 render.js 一模一樣的兩個小工具
+function shade(hex, k, alpha){
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.min(255, Math.round(((n >> 16) & 255) * k));
+  const g = Math.min(255, Math.round(((n >> 8) & 255) * k));
+  const b = Math.min(255, Math.round((n & 255) * k));
+  return `rgba(${r},${g},${b},${alpha == null ? 1 : alpha})`;
+}
+function shadeHex(hex, k){
+  const n = parseInt(hex.slice(1), 16);
+  let out = 0;
+  for (const sh of [16, 8, 0]) out |= Math.min(255, Math.round(((n >> sh) & 255) * k)) << sh;
+  return '#' + out.toString(16).padStart(6, '0');
+}
+
+// ---- 跟 drawPerson 一樣的畫法（去掉抖動與耐性條，留墨色規則與驚嘆號）
+function blit(ctx, key, x, y, cs, urgent, inCar){
+  const pal = P();
+  const s = PEOPLE[key];
+  const rows = urgent ? s.urgent : s.normal;
+  ctx.fillStyle = urgent ? pal.bad : (inCar ? pal.inkCar : pal.ink);
+  for (let r = 0; r < SPRITE_H; r++)
+    for (let c = 0; c < SPRITE_W; c++)
+      if (rows[r][c] === '#') ctx.fillRect(x + c * cs, y + r * cs, cs, cs);
+  ctx.fillStyle = s.acc;
+  for (let r = 0; r < SPRITE_H; r++)
+    for (let c = 0; c < SPRITE_W; c++)
+      if (rows[r][c] === 'o') ctx.fillRect(x + c * cs, y + r * cs, cs, cs);
+  if (urgent){
+    ctx.fillStyle = pal.bad;
+    const ex = x + SPRITE_W * cs - cs, ey = y - cs * 4;
+    ctx.fillRect(ex, ey, cs, cs * 2);
+    ctx.fillRect(ex, ey + cs * 3, cs, cs);
+  }
+}
+
+// ---- 一張「小人站在樓層底色上」的卡片：左邊 1:1，右邊放大 6 倍
+function card(key, { cs = 1, urgent = false, inCar = false, zoom = 6, odd = false } = {}){
+  const pal = P();
+  const bg = inCar ? pal.car : shade(RETAIL_COLOR, odd ? pal.floorA : pal.floorB, pal.floorAlpha);
+  const padT = urgent ? 5 : 1;
+  const w1 = SPRITE_W * cs + 4, h1 = SPRITE_H * cs + padT + 2;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'cell';
+  const strip = document.createElement('div');
+  strip.style.cssText = 'display:flex;gap:6px;align-items:flex-end';
+
+  const a = document.createElement('canvas');
+  a.width = w1; a.height = h1;
+  a.style.cssText = `width:${w1}px;height:${h1}px`;
+  const ax = a.getContext('2d');
+  ax.fillStyle = bg; ax.fillRect(0, 0, w1, h1);
+  blit(ax, key, 2, padT, cs, urgent, inCar);
+  strip.appendChild(a);
+
+  if (zoom){
+    const b = document.createElement('canvas');
+    b.width = w1; b.height = h1;
+    b.style.cssText = `width:${w1 * zoom / cs}px;height:${h1 * zoom / cs}px`;
+    const bx = b.getContext('2d');
+    bx.fillStyle = bg; bx.fillRect(0, 0, w1, h1);
+    blit(bx, key, 2, padT, cs, urgent, inCar);
+    strip.appendChild(b);
+  }
+  wrap.appendChild(strip);
+
+  const n = document.createElement('div');
+  n.className = 'capk'; n.textContent = NAME[key] || key;
+  wrap.appendChild(n);
+  const c = document.createElement('div');
+  c.className = 'cap'; c.textContent = key;
+  wrap.appendChild(c);
+  if (ISSUE[key]){
+    const i = document.createElement('div');
+    i.className = 'capn'; i.textContent = ISSUE[key];
+    wrap.appendChild(i);
+  }
+  return wrap;
+}
+
+function fill(id, keys, opt){
+  const el = document.getElementById(id);
+  el.innerHTML = '';
+  keys.forEach((k, i) => el.appendChild(card(k, Object.assign({ odd: i % 2 === 1 }, opt))));
+}
+
+// ---- 真的一段樓層：底色 + 左緣色條 + 家具 + 一排等待的人 + 目的地牌
+function scene(cvId, fh, keys){
+  const cv = document.getElementById(cvId);
+  const ctx = cv.getContext('2d');
+  const pal = P(), W = cv.width;
+  ctx.clearRect(0, 0, W, cv.height);
+
+  for (let i = 0; i < 2; i++){
+    const y = i * fh;
+    ctx.fillStyle = shade(RETAIL_COLOR, i % 2 ? pal.floorA : pal.floorB, pal.floorAlpha);
+    ctx.fillRect(0, y, W, Math.max(1, fh - 1));
+    ctx.fillStyle = shade(RETAIL_COLOR, pal.stripe, 1);
+    ctx.fillRect(0, y, Math.min(10, Math.max(5, fh * 0.6)), Math.max(1, fh - 1));
+    interior(ctx, 8, W - 4, y, fh, pal);
+  }
+
+  const cs = Math.max(1, Math.min(3, Math.floor(fh / 11)));
+  const ds = fh >= 22 ? 2 : 1;
+  const step = SPRITE_W * cs + numWidth('88', ds) + 14;
+  keys.forEach((k, n) => {
+    const band = Math.floor(n / Math.ceil(keys.length / 2));
+    const idx = n % Math.ceil(keys.length / 2);
+    const y = band * fh;
+    const x = W - 8 - step * (idx + 1);
+    if (x < 14) return;
+    blit(ctx, k, x, y + fh / 2 + 6 - SPRITE_H * cs, cs, false, false);
+    const txt = String(3 + idx);
+    drawPlate(ctx, txt, x + SPRITE_W * cs + 4 + numWidth(txt, ds) / 2,
+              y + (fh - GLYPH_H * ds) / 2, ds, pal.ink, pal.numPlate, 2);
+  });
+}
+
+function interior(ctx, x0, x1, y, fh, pal){
+  const color = RETAIL_COLOR;
+  if (fh < 8) return;
+  if (fh >= 14){
+    const m = MOTIFS.retail; if (!m) return;
+    const cs = fh >= 24 ? 2 : 1;
+    const top = y + fh - 1 - MOTIF_H * cs;
+    const gap = cs * 6;
+    const furn = shade(color, pal.furn);
+    const acc = mix(shadeHex(color, pal.furnAcc), pal.winLit, pal.night * 0.8);
+    const glass = shade(color, pal.glassK), glow = pal.tileOrn;
+    for (let x = x0 + 6; x + MOTIF_W * cs < x1; x += MOTIF_W * cs + gap){
+      for (let r = 0; r < MOTIF_H; r++){
+        const row = m[r];
+        let c = 0;
+        while (c < MOTIF_W){
+          const ch = row[c];
+          if (ch === '.'){ c++; continue; }
+          let n = 1;
+          while (c + n < MOTIF_W && row[c + n] === ch) n++;
+          ctx.fillStyle = ch === '#' ? furn : ch === 'o' ? acc : ch === 'g' ? glow : glass;
+          ctx.fillRect(x + c * cs, top + r * cs, n * cs, cs);
+          c += n;
+        }
+      }
+    }
+  } else {
+    const sig = SIGNATURES.retail; if (!sig) return;
+    ctx.fillStyle = mix(shadeHex(color, pal.furnAcc), pal.winLit, pal.night * 0.8);
+    const hh = Math.max(2, fh * 0.4), yy = y + fh * 0.32;
+    let i = 0;
+    for (let x = x0 + 6; x < x1; x += 5, i++)
+      if (sig[i % sig.length] === 'o') ctx.fillRect(x, yy, 3, hh);
+  }
+}
+
+// ---- 色票：按色相排，畫在真的樓層底色上
+function hue(hex){
+  const n = parseInt(hex.slice(1), 16);
+  const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  if (!d) return -1;
+  let h = mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return h * 60;
+}
+function swatches(){
+  const el = document.getElementById('swatch');
+  el.innerHTML = '';
+  const pal = P();
+  const keys = NEW.concat(RETAIL_OLD).sort((a, b) => hue(PEOPLE[a].acc) - hue(PEOPLE[b].acc));
+  keys.forEach(k => {
+    const isNew = NEW.includes(k);
+    const d = document.createElement('div');
+    d.className = 'cell';
+    d.innerHTML =
+      `<div style="width:56px;height:40px;background:${shade(RETAIL_COLOR, pal.floorB, 1)};
+         display:flex;align-items:center;justify-content:center">
+         <div style="width:34px;height:22px;background:${PEOPLE[k].acc}"></div></div>
+       <div class="capk" style="color:${isNew ? '#5ddc9a' : '#6b6f9e'}">${NAME[k]}</div>
+       <div class="cap" style="font-family:ui-monospace,monospace">${PEOPLE[k].acc}</div>
+       <div class="cap">${Math.round(hue(PEOPLE[k].acc))}°</div>`;
+    el.appendChild(d);
+  });
+}
+
+// ---- 表
+function table(){
+  const t = document.getElementById('tbl');
+  t.innerHTML = '<tr><th style="width:56px">issue</th><th style="width:130px">是誰</th>'
+    + '<th style="width:96px">key</th><th>量體長在哪</th></tr>'
+    + NEW.map(k => `<tr><td class="k" style="color:#ffd23f">${ISSUE[k]}</td>`
+        + `<td class="k">${NAME[k]}</td><td><code>${k}</code></td><td>${MASS[k]}</td></tr>`).join('');
+}
+
+// ---- 自動偵測：三態距離最近的幾對，直接印在頁面上
+function nearest(){
+  const all = OLD.concat(NEW);
+  const tri = k => PEOPLE[k].normal.join('').split('');
+  const out = [];
+  for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++){
+    const a = tri(all[i]), b = tri(all[j]);
+    let d = 0; for (let n = 0; n < a.length; n++) if (a[n] !== b[n]) d++;
+    out.push([d, all[i], all[j]]);
+  }
+  out.sort((x, y) => x[0] - y[0]);
+  const line = out.slice(0, 8).map(([d, a, b]) => {
+    const tag = NEW.includes(a) || NEW.includes(b) ? '' : '（兩張都是既有的，不是這次改的）';
+    return `${d} 格：${NAME[a]} / ${NAME[b]}${tag}`;
+  }).join('　·　');
+  document.getElementById('notes').innerHTML =
+    `<b>最像的幾對</b>（63 格裡差幾格，三態：透明／墨／配件）——<br>${line}<br><br>` +
+    `<b>已知還沒解決的</b>：<br>` +
+    `· <span class="k">#23 試吃推銷</span> 與 <span class="k">#28 試吃推銷員</span> 是同一個人（事件生成那個角色），` +
+    `所以共用 <code>sampler</code> 一張圖。15 個項目 → 14 張圖。要不要硬拆成兩張由 owner 決定，` +
+    `但硬拆會是「同一個人畫成兩種樣子」，比共用更糟。<br>` +
+    `· <span class="k">#18 清晨到貨</span> 的 <code>dolly</code> 跟既有的 <code>courier</code> 都是送貨員。` +
+    `事件寫「推車」、既有的是「抱箱」，所以分成兩張；如果 BE 決定直接重用 <code>courier</code>，這張就是多的。<br>` +
+    `· <span class="k">#22 地板打蠟</span> 的機制是「封鎖樓層」，不是生成乘客。` +
+    `這裡畫的是打蠟工（可以當乘客用）；如果需要的是「這層被封鎖」的地面標記（例如立在地上的黃色三角警示牌），` +
+    `那是另一張圖，我沒畫——那要先知道機制怎麼呈現。`;
+}
+
+// ---- 接觸印樣：整組一次畫完，這張才是驗收憑據
+function sheet(hLabel){
+  const cv = document.getElementById('sheet');
+  const ctx = cv.getContext('2d');
+  const pal = P(), W = cv.width;
+  ctx.clearRect(0, 0, W, cv.height);
+  ctx.textBaseline = 'top';
+
+  const ink = pal.ink;
+  let y = 0;
+  const head = (txt, sub) => {
+    ctx.fillStyle = '#ffd23f'; ctx.font = '700 12px "Noto Sans TC",sans-serif';
+    ctx.textAlign = 'left'; ctx.fillText(txt, 0, y);
+    if (sub){ ctx.fillStyle = '#6b6f9e'; ctx.font = '11px "Noto Sans TC",sans-serif';
+              ctx.fillText(sub, ctx.measureText(txt).width + 60, y + 1); }
+    y += 18;
+  };
+
+  // 一整排放大 6 倍的格
+  const Z = 10, CW = 137, CH = 9 * Z + 28;
+  const grid = (keys, cols) => {
+    keys.forEach((k, i) => {
+      const cx = (i % cols) * CW, cy = y + Math.floor(i / cols) * CH;
+      // 底色用真的樓層色，奇偶交替，跟現場一樣
+      ctx.fillStyle = shade(RETAIL_COLOR, i % 2 ? pal.floorA : pal.floorB, pal.floorAlpha);
+      ctx.fillRect(cx, cy, CW - 4, CH - 4);
+      blit(ctx, k, cx + (CW - 4 - 7 * Z) / 2, cy + 3, Z, false, false);
+      ctx.fillStyle = NEW.includes(k) ? '#e8eaf0' : '#7b81ad';
+      ctx.font = '600 10px "Noto Sans TC",sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(NAME[k], cx + (CW - 4) / 2, cy + 9 * Z + 5);
+      ctx.fillStyle = NEW.includes(k) ? '#ffd23f' : '#4d5480';
+      ctx.font = '9px ui-monospace,monospace';
+      ctx.fillText(ISSUE[k] ? ISSUE[k] + '  ' + k : k, cx + (CW - 4) / 2, cy + 9 * Z + 16);
+    });
+    y += Math.ceil(keys.length / cols) * CH + 8;
+    ctx.textAlign = 'left';
+  };
+
+  head('新增 14 種（#14–#28）', '放大 10 倍 · 真的樓層底色 · ' + hLabel);
+  grid(NEW, 7);
+  head('既有 12 種（這趟沒動）', '一起看才知道是不是同一套');
+  grid(OLD, 6);
+
+  // 真正的大小，沒有放大
+  [1, 2, 3].forEach(cs => {
+    head('真正的大小 cs=' + cs, cs === 1 ? '27 層以上整場都是這個大小' :
+         cs === 2 ? '18–26 層' : '1–17 層');
+    const all = NEW.concat(OLD);
+    const step = 7 * cs + 9;
+    ctx.fillStyle = shade(RETAIL_COLOR, pal.floorB, pal.floorAlpha);
+    ctx.fillRect(0, y, step * all.length + 4, 9 * cs + 6);
+    all.forEach((k, i) => blit(ctx, k, 2 + i * step, y + 3, cs, false, false));
+    y += 9 * cs + 12;
+  });
+
+  // urgent 也要一整排：身體全變同一個紅之後還分不分得出來
+  head('urgent（身體全轉 pal.bad）', 'cs=3，只有配件保留自己的顏色');
+  const all = NEW.concat(OLD);
+  const st3 = 7 * 3 + 8;
+  ctx.fillStyle = shade(RETAIL_COLOR, pal.floorA, pal.floorAlpha);
+  ctx.fillRect(0, y, st3 * all.length + 4, 9 * 3 + 18);
+  all.forEach((k, i) => blit(ctx, k, 2 + i * st3, y + 14, 3, true, false));
+  y += 9 * 3 + 24;
+
+  // 轎廂裡：墨色翻過來
+  head('轎廂裡（墨色翻成深色）', 'cs=3，底是 pal.car');
+  ctx.fillStyle = pal.car;
+  ctx.fillRect(0, y, st3 * all.length + 4, 9 * 3 + 6);
+  all.forEach((k, i) => blit(ctx, k, 2 + i * st3, y + 3, 3, false, true));
+  y += 9 * 3 + 10;
+
+  if (y > cv.height) console.warn('接觸印樣畫超出畫布', y, cv.height);
+}
+
+// ---- 全部重畫
+function redraw(h){
+  setHour(h);
+  document.getElementById('now').textContent = h === 0 ? '現在：夜 0:00' : '現在：日 12:00';
+  sheet(h === 0 ? '夜 0:00' : '日 12:00');
+  fill('g0old', OLD, { cs: 1 });
+  fill('g0new', NEW, { cs: 1 });
+  fill('g2', OLD.concat(NEW), { cs: 2, zoom: 4 });
+  fill('g3', OLD.concat(NEW), { cs: 3, zoom: 0 });
+  fill('gcar', OLD.concat(NEW), { cs: 1, inCar: true, zoom: 5 });
+  fill('gu_old', OLD, { cs: 2, urgent: true, zoom: 4 });
+  fill('gu_new', NEW, { cs: 2, urgent: true, zoom: 4 });
+  const half = OLD.concat(NEW);
+  scene('scene3', 34, half.slice(0, 12));
+  scene('scene2', 24, half.slice(0, 16));
+  scene('scene1', 17, half.slice(0, 20));
+  swatches();
+}
+
+document.getElementById('bNight').onclick = () => redraw(0);
+document.getElementById('bDay').onclick = () => redraw(12);
+table();
+nearest();
+redraw(0);
+window.__redraw = redraw;
+</script>
+</x-dc>
+</body>
+</html>
