@@ -4,6 +4,7 @@ import { derived, isLeased } from './state.js';
 import { hourOf, dayName, fmtShort } from './sim.js';
 import { t } from './i18n.js';
 import { P } from './theme.js';
+import { spriteFor, SPRITE_W, SPRITE_H } from './sprites.js';
 
 export const view = { W:0, H:0, pad:10, fh:0, shaftX:0, shaftW:0, colW:0 };
 
@@ -134,16 +135,18 @@ export function draw(ctx, st, sim){
   for (const [f, list] of perFloor){
     const y = floorY(f);
     if (detail){
+      const csF = Math.max(1, Math.min(3, Math.floor(fh / 11)));
+      const step = Math.max(18, SPRITE_W * csF + 5);
       let n = 0;
       for (const p of list){
-        const x = pad + 26 + n * 20;
-        if (x > view.shaftX - 18) break;
+        const x = pad + 20 + step * n + step / 2;
+        if (x + step / 2 > view.shaftX - 6) break;
         drawPerson(ctx, x, y + fh / 2 + 6, String(p.dest + 1), false, p);
         if (++n > 6) break;
       }
-      if (list.length > 7){
+      if (list.length > n){
         ctx.fillStyle = P().label; ctx.font = '10px system-ui'; ctx.textAlign = 'left';
-        ctx.fillText('+' + (list.length - 7), pad + 26 + 7 * 20, y + fh / 2 + 4);
+        ctx.fillText('+' + (list.length - n), view.shaftX - 16, y + fh / 2 + 4);
       }
     } else {
       // 樓太矮就畫成一條人數條
@@ -166,37 +169,51 @@ export function draw(ctx, st, sim){
       ctx.fillRect(x, floorY(s.to), w, (s.to - s.from + 1) * fh);
     }
 
+    const pal = P();
     const carH = Math.max(4, fh - 2), y = floorY(s.pos) + 1;
-    ctx.fillStyle = P().car; ctx.fillRect(x + 1, y, w - 2, carH);
-    ctx.strokeStyle = s.lock > 0 ? P().bad : (s.mode === 'doors' ? P().carDoors : P().carEdge);
-    ctx.lineWidth = s.mode === 'doors' ? 2 : 1;
-    ctx.strokeRect(x + 1.5, y + .5, w - 3, carH - 1);
+    ctx.fillStyle = pal.car; ctx.fillRect(x + 1, y, w - 2, carH);
 
-    const heavyRiders = s.riders.filter(r => (r.w || 1) > 1).length;
-    if (heavyRiders){
-      ctx.fillStyle = P().sampled;
-      ctx.beginPath(); ctx.arc(x + w - 4, y + 4, 2.5, 0, 7); ctx.fill();
-    }
-    if (detail && s.riders.length){
-      const cap = derived(st).capacity;
-      s.riders.slice(0, 6).forEach((p, k) => {
-        drawPerson(ctx, x + (w) * (k + 0.5) / Math.min(6, Math.max(1, cap)), y + carH / 2 + 6, String(p.dest + 1), true, p);
-      });
-    } else if (s.riders.length){
-      ctx.fillStyle = P().riderBar;
-      ctx.fillRect(x + 2, y + 1, (w - 4) * Math.min(1, s.riders.length / Math.max(1, d.capacity)), Math.max(1, carH - 2));
-    }
-
-    // 門
+    // 門。畫在乘客「之前」——原本畫在之後，門一關就把整台車蓋住，
+    // 車裡的人永遠看不見（亮色主題下更明顯，整台變成一個黑盒子）。
     let open = 0;
     if (s.mode === 'doors' || s.mode === 'held'){
       const t = s.doorT, L = s.doorLen;
       open = s.mode === 'held' ? 1 : (t < 0.35 ? t / 0.35 : (t > L - 0.35 ? Math.max(0, (L - t) / 0.35) : 1));
     }
     const half = (w - 2) / 2, slide = half * open;
-    ctx.fillStyle = P().door;
+    ctx.fillStyle = pal.door;
     ctx.fillRect(x + 1, y, half - slide, carH);
     ctx.fillRect(x + 1 + half + slide, y, half - slide, carH);
+    // 門上的觀景窗：讓「隔著門看得到人」講得通
+    if (carH >= 10){
+      const gy = y + carH * 0.18, gh = carH * 0.62;
+      ctx.fillStyle = pal.carGlass;
+      ctx.fillRect(x + 3, gy, half - slide - 2 > 0 ? half - slide - 2 : 0, gh);
+      ctx.fillRect(x + 1 + half + slide + 1, gy, half - slide - 2 > 0 ? half - slide - 2 : 0, gh);
+    }
+
+    // 乘客畫在門之上
+    if (detail && s.riders.length){
+      const shown = Math.min(s.riders.length, 4);
+      const slot = (w - 4) / shown;
+      s.riders.slice(0, shown).forEach((p, k) => {
+        drawPerson(ctx, x + 2 + slot * (k + 0.5), y + carH / 2 + 6, String(p.dest + 1), true, p, slot - 1);
+      });
+    } else if (s.riders.length){
+      ctx.fillStyle = pal.riderBar;
+      ctx.fillRect(x + 2, y + 1, (w - 4) * Math.min(1, s.riders.length / Math.max(1, d.capacity)), Math.max(1, carH - 2));
+    }
+
+    const heavyRiders = s.riders.filter(r => (r.w || 1) > 1).length;
+    if (heavyRiders){
+      ctx.fillStyle = pal.sampled;
+      ctx.beginPath(); ctx.arc(x + w - 4, y + 4, 2.5, 0, 7); ctx.fill();
+    }
+
+    // 外框最後畫，才不會被門或乘客蓋掉
+    ctx.strokeStyle = s.lock > 0 ? pal.bad : (s.mode === 'doors' ? pal.carDoors : pal.carEdge);
+    ctx.lineWidth = s.mode === 'doors' ? 2 : 1;
+    ctx.strokeRect(x + 1.5, y + .5, w - 3, carH - 1);
 
     // 熱量條
     if (s.heat > 0.05 || s.lock > 0){
@@ -232,23 +249,50 @@ export function draw(ctx, st, sim){
   else if (sim.mood <= 0.75){ ctx.fillStyle = P().heatCool; ctx.fillText(t('quiet'), hx, pad + 10); }
 }
 
-function drawPerson(ctx, x, y, label, inCar, p){
-  const urgent = p && (p.left / p.patience) < 0.25;
-  const wob = urgent ? Math.sin(performance.now() / 90 + x) * 1.2 : 0;
+function drawPerson(ctx, x, y, label, inCar, p, maxW){
   const pal = P();
-  ctx.fillStyle = inCar ? pal.riderFill : pal.personFill;
-  ctx.strokeStyle = urgent ? pal.bad : (inCar ? pal.riderStroke : pal.personStroke);
-  ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.arc(x + wob, y - 9, 3.4, 0, 7); ctx.fill(); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(x + wob, y - 5); ctx.lineTo(x + wob, y + 1); ctx.stroke();
+  const urgent = p && (p.left / p.patience) < 0.25;
+  const wob = urgent ? Math.round(Math.sin(performance.now() / 90 + x)) : 0;
+  const { rows, acc } = spriteFor(p && p.type, urgent);
+
+  // 一格幾像素：樓層越高格子越大，但保持整數，才不會糊掉
+  // 樓層 22px 就升到 2 倍，形狀才看得出來；但不能寬過分配到的位置，否則人會疊在一起
+  let cs = Math.max(1, Math.min(3, Math.floor(view.fh / 11)));
+  if (maxW) cs = Math.max(1, Math.min(cs, Math.floor(maxW / SPRITE_W)));
+  const w = SPRITE_W * cs, h = SPRITE_H * cs;
+  const left = Math.round(x - w / 2) + wob, top = Math.round(y - h) + 2;
+
+  const ink = urgent ? pal.bad : (inCar ? pal.inkCar : pal.ink);
+  // 分兩趟畫（身體、配件），省下每格切換顏色的成本
+  ctx.fillStyle = ink;
+  for (let r = 0; r < SPRITE_H; r++){
+    const row = rows[r];
+    for (let c = 0; c < SPRITE_W; c++) if (row[c] === '#') ctx.fillRect(left + c * cs, top + r * cs, cs, cs);
+  }
+  // 配件永遠保留自己的顏色。第一版連配件都轉紅，結果所有人急起來長得一模一樣——
+  // 形狀好不容易換來的辨識度，會被緊急狀態整個吃掉。
+  ctx.fillStyle = acc;
+  for (let r = 0; r < SPRITE_H; r++){
+    const row = rows[r];
+    for (let c = 0; c < SPRITE_W; c++) if (row[c] === 'o') ctx.fillRect(left + c * cs, top + r * cs, cs, cs);
+  }
+  // 急了就在頭上插一個驚嘆號：貓跟幽靈整身都是配件色，光靠身體變紅看不出來
+  if (urgent){
+    ctx.fillStyle = pal.bad;
+    const ex = Math.round(x + w / 2 - cs / 2) + wob, ey = top - cs * 4;
+    ctx.fillRect(ex, ey, cs, cs * 2);
+    ctx.fillRect(ex, ey + cs * 3, cs, cs);
+  }
+
   ctx.fillStyle = urgent ? pal.bad : pal.personText;
   ctx.font = '600 9px system-ui'; ctx.textAlign = 'center';
   ctx.fillText(label, x + wob, y + 10);
+
   if (p && p.patience < 500){
-    const w = 12, ratio = Math.max(0, p.left / p.patience);
-    ctx.fillStyle = pal.patienceBg; ctx.fillRect(x - w/2, y - 16, w, 2);
+    const bw = 12, ratio = Math.max(0, p.left / p.patience);
+    ctx.fillStyle = pal.patienceBg; ctx.fillRect(x - bw/2, top - 4, bw, 2);
     ctx.fillStyle = ratio < 0.25 ? pal.bad : ratio < 0.6 ? pal.warn : pal.money;
-    ctx.fillRect(x - w/2, y - 16, w * ratio, 2);
+    ctx.fillRect(x - bw/2, top - 4, bw * ratio, 2);
   }
 }
 

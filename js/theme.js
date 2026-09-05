@@ -38,7 +38,8 @@ const PALETTES = {
     shaft:     '#161a22', shaftEdge: '#2c313d', shaftExpress: '#c08a3a',
     expressTint: 'rgba(240,192,74,.06)',
     car:       '#20242e', carEdge: '#3d4557', carDoors: '#f0c04a',
-    door:      '#39404f',
+    door:      '#39404f', carGlass: '#171c2f',
+    ink:       '#cfd6e6', inkCar: '#eef2fb',   // 小人的身體顏色
     heatCool:  '#6d7690', heatWarm: '#f0a04a', heatHot: '#e2645a',
     money:     '#5ddc9a', bad: '#e2645a', warn: '#f0a04a',
     personFill:'#333949', personStroke: '#9aa3ba',
@@ -63,8 +64,10 @@ const PALETTES = {
     divider:   '#8a93b5', label: '#5c5f8a',
     shaft:     '#c3d2e6', shaftEdge: '#16183a', shaftExpress: '#c08a3a',
     expressTint: 'rgba(240,192,74,.14)',
-    car:       '#16183a', carEdge: '#16183a', carDoors: '#ffd23f',
-    door:      '#8f9db5',
+    // 亮色版的轎廂本來是深藍實心，看起來就是一個黑盒子，裡面的人也看不到
+    car:       '#eef3fb', carEdge: '#16183a', carDoors: '#ffd23f',
+    door:      '#9fb3cf', carGlass: '#dbe7f7',
+    ink:       '#16183a', inkCar: '#16183a',
     heatCool:  '#8a93b5', heatWarm: '#ff9d2e', heatHot: '#e23b3b',
     money:     '#12915f', bad: '#d63b3b', warn: '#d97a06',
     personFill:'#16183a', personStroke: '#16183a',
