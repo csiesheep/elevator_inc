@@ -143,10 +143,6 @@ function tabUpgrades(){
          data-act="roof" data-id="${s.id}">${L(s, 'name', 'roofs')}</button>`).join('')
      + `</div>`;
 
-  h += `<div class="sect">${t('secDanger')}</div>
-    <div class="card dangerCard" data-act="wipe" data-id="wipe">
-      <div class="cardTop"><span class="cName">${t('wipeName')}</span></div>
-      <div class="cHint">${t('wipeHint')}</div></div>`;
   return h;
 }
 
@@ -264,6 +260,12 @@ function tabPrestige(){
   h += `<div class="card danger" data-act="prestige" data-id="p">
     <div class="cardTop"><span class="cName">${t('presDo')}</span></div>
     <div class="cHint">${gain > 0 ? t('presReady') : t('presZero')}</div></div>`;
+  // 清空存檔跟拆樓放在一起：兩個都是「重來」，只差重來多少。
+  // 放在升級頁很怪——那一頁其他每一張卡都是花錢買東西。
+  h += `<div class="sect">${t('secDanger')}</div>
+    <div class="card dangerCard" data-act="wipe" data-id="wipe">
+      <div class="cardTop"><span class="cName">${t('wipeName')}</span></div>
+      <div class="cHint">${t('wipeHint')}</div></div>`;
   return h;
 }
 
