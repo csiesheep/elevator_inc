@@ -49,7 +49,6 @@ const DICT = {
   modelLine:     ['統計流量 ${0}/秒 · 服務率 {1}%', 'Modelled flow ${0}/s · served {1}%'],
   manual:        ['手動', 'manual'],
   boostTitle:    ['按住超速（會過熱）', 'Hold for overdrive (it overheats)'],
-  themeTitle:    ['切換亮色／深色', 'Switch bright / dark'],
 
   // ---- 分頁
   tabUp:         ['升級', 'Build'],

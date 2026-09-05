@@ -1,5 +1,6 @@
-/* 兩個美術方向做成主題，右上角那顆鍵切換（theme.js 寫 data-theme 到 <html>）。
-   night = 介面像素化、井道深色；day = 整個變亮，跟首頁同一個世界。 */
+/* 這裡的值只是「還沒跑 JS 時的預設」。實際上 theme.js 的 applyChrome()
+   會依遊戲時間把這些變數寫到 <html> 的 style 上，兩套值之間插值——
+   畫布是黃昏的時候，面板不能還停在深夜。手動切換已經拿掉了。 */
 :root, :root[data-theme="night"]{
   --bg:#0f1116; --panel:#16183a; --card:#1d2046; --line:#4a4f86;
   --text:#e8eaf0; --dim:#8f95d6; --money:#5ddc9a; --gold:#ffd23f;
@@ -49,7 +50,7 @@ body{
   display:inline-flex; align-items:center; justify-content:center; text-decoration:none; padding:0 8px;
 }
 #top button:active, #top a:active{transform:translate(3px,3px); box-shadow:0 0 0 var(--drop)}
-#top #lang, #top #theme{font-size:12px; font-weight:700}
+#top #lang{font-size:12px; font-weight:700}
 body.boost #boost{border-color:var(--gold); background:var(--gold); color:#16183a}
 #hud{padding:5px 12px; font-size:12px; color:var(--dim); font-variant-numeric:tabular-nums;
   font-family:"Pixelify Sans","Courier New",monospace;
