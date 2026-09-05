@@ -88,7 +88,7 @@ export const EN = {
     o_warn:  { name:'Crowd forecasting',  detail:'Events are announced 8 seconds early (+8s per level), with a countdown' },
     o_surge: { name:'Surge pay',          detail:'Passengers from an event pay +18%' },
     o_evac:  { name:'Evacuation mode',    detail:'Unlocks a button that sends every car to the surge floor (cooldown 90/70/50s)' },
-    a_floor: { name:'Deep foundation',    detail:'Start with +10 floors' },
+    a_floor: { name:'Deep foundation',    detail:'Start with +5 floors' },
     a_cost:  { name:'Precast construction', detail:'Floor construction -10% (multiplicative)' },
     a_rate:  { name:'Leasing department', detail:'Starting rating +0.3, rating climbs 20% faster' },
   },

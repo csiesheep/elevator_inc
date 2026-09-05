@@ -9,7 +9,7 @@ const SAVE_KEY = 'elevator_inc_v1';
 export function newGame(carry){
   const st = {
     v: 1,
-    cash: 0, bp: (carry && carry.bp) || 0,
+    cash: C.CASH_START, bp: (carry && carry.bp) || 0,
     rating: C.RATING_START,
     floors: C.FLOORS_START,
     t: 0, day: 0,
@@ -29,7 +29,7 @@ export function newGame(carry){
   for (const u of UPGRADES) st.up[u.id] = 0;
   for (const a of AUTOMATION) st.auto[a.id] = !!st.autoPerm[a.id];
   // 地基等級：起始樓層由技能樹決定
-  st.floors = C.FLOORS_START + 10 * (st.skills.a_floor || 0);
+  st.floors = Math.min(C.MAX_FLOORS, C.FLOORS_START + 5 * (st.skills.a_floor || 0));
   st.rating = Math.min(C.RATING_MAX, C.RATING_START + 0.3 * (st.skills.a_rate || 0));
   st.t = C.DAY_SECONDS * 8 / 24;   // 從早上 8 點開場，不要一開局就是半夜
   st.leased = {};
@@ -184,6 +184,9 @@ export function upgradeCost(st, id){
 }
 export function upgradeMaxed(st, id){
   const u = UPGRADES.find(x => x.id === id);
+  // 樓層的上限是 MAX_FLOORS，不是「買了幾段」——深基礎會墊高起始樓層，
+  // 只數段數的話點滿技能樹可以蓋到兩百層，天花板等於不存在。
+  if (id === 'floor' && st.floors >= C.MAX_FLOORS) return true;
   return st.up[id] >= u.max;
 }
 export function buyUpgrade(st, id){
@@ -192,7 +195,7 @@ export function buyUpgrade(st, id){
   if (st.cash < c) return false;
   st.cash -= c; st.up[id]++;
   if (id === 'floor'){
-    st.floors += 5;
+    st.floors = Math.min(C.MAX_FLOORS, st.floors + 5);
     // 建商會先幫你租掉幾層（錨定租戶），剩下的要自己招商
     let left = C.ANCHOR_LEASE;
     for (const b of BANDS){

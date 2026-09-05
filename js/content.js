@@ -2,7 +2,8 @@
 // 這裡改數字 = 調平衡；這裡加一筆 = 加內容。
 
 export const CONFIG = {
-  FLOORS_START:   10,
+  FLOORS_START:   5,
+  CASH_START:     200,    // 開場本金。剛好買不起「自動關門 $60 + 加蓋 $150」兩樣，要選一個
   CRUISE_START:   1.0,    // 樓/秒
   ACC_START:      0.5,    // 樓/秒^2
   CAP_START:      4,
@@ -12,7 +13,8 @@ export const CONFIG = {
   FARE_BASE:      1,      // $ / 樓層差
   STEP:           1/60,
   DAY_SECONDS:    180,    // 一天 = 3 分鐘
-  MAX_FLOORS:     100,    // 樓層上限。整棟樓都逐個模擬乘客，沒有抽象層了
+  MAX_FLOORS:     100,    // 樓層上限。整棟樓都逐個模擬乘客，沒有抽象層了。
+                          // 這是唯一的權威：起始樓層、深基礎、加蓋段數怎麼調都夾在這裡面。
   BOOST_MULT:     1.8,
   HEAT_PER_SEC:   1.0,    // 超速時每秒累積
   OVERHEAT_LOCK:  8.0,    // 過熱停機秒數
@@ -79,14 +81,14 @@ export const UPGRADES = [
     detail:'+2 熱容量 / 冷卻加快', hint:'讓超速撐更久' },
   { id:'shaft',   name:'加一座電梯井', icon:'🛗', base:1400, growth:1.95, max:5,
     detail:'+1 井',        hint:'最貴，而且要有調度演算法才發揮得出來' },
-  { id:'floor',   name:'加蓋 5 層',  icon:'🏗', base:150,  growth:1.34, max:18,
+  { id:'floor',   name:'加蓋 5 層',  icon:'🏗', base:150,  growth:1.34, max:19,
     detail:'+5 樓（其中 2 層附租戶）', hint:'新樓層要招商才會有人；空著不會有任何乘客' },
 ];
 
 // ---------------------------------------------------------------- 自動化階梯
 // 電梯調度是真的電腦科學問題，每一階都真的改變電梯行為（設計 4.8）
 export const AUTOMATION = [
-  { id:'autodoor', name:'自動關門', cur:'cash', cost:120,
+  { id:'autodoor', name:'自動關門', cur:'cash', cost:60,
     plain:'門會自己關。你不用再點一下叫它走。',
     tech:'解除手動關門' },
   { id:'fifo', name:'FIFO 調度', cur:'cash', cost:450,
@@ -187,7 +189,7 @@ export const SKILLS = [
   { id:'o_evac',  branch:'營運', name:'疏散模式',     max:3,  cost:l=>4+l*3,
     detail:'解鎖一鍵疏散：所有電梯立刻趕去爆量的那一層（冷卻 90/70/50 秒）' },
   // 建築
-  { id:'a_floor', branch:'建築', name:'深基礎',       max:10, cost:l=>2+l,      detail:'起始樓層 +10' },
+  { id:'a_floor', branch:'建築', name:'深基礎',       max:8,  cost:l=>2+l,      detail:'起始樓層 +5' },
   { id:'a_cost',  branch:'建築', name:'預鑄工法',     max:6,  cost:l=>3+l*2,    detail:'加蓋樓層成本 -10%（相乘）' },
   { id:'a_rate',  branch:'建築', name:'招商部門',     max:6,  cost:l=>2+l,      detail:'起始評價 +0.3、評價上升快 20%' },
 ];
