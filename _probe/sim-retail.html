@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><title>BE 模擬 — 零售機制</title>
+<style>body{background:#111;color:#ddd;font:12px/1.6 ui-monospace,monospace;padding:16px;max-width:1000px}
+h1{font-size:14px;color:#ffd23f}h2{font-size:12.5px;color:#7dd8f7;margin:16px 0 4px}
+div.b{color:#bbb;margin-left:14px}</style></head>
+<body><h1>第 3 階段：模擬（分布與離群）</h1><div id="out">跑之中…（12 場 × 3 組 A/B，可能要一分鐘）</div>
+<script type="module">
+import { run } from './sim-retail.js';
+const secs = await run();
+document.getElementById('out').innerHTML = secs.map(s =>
+  `<h2>${s.title}</h2>` + s.body.map(b => `<div class="b">${String(b).replace(/</g,'&lt;')}</div>`).join('')).join('');
+window.__sim = secs;
+</script>
+</body></html>
