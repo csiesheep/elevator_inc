@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><title>BE probe — 零售機制</title>
+<style>body{background:#111;color:#ddd;font:12px/1.5 ui-monospace,monospace;padding:16px}
+.r{color:#e2645a}.g{color:#5ddc9a}.n{color:#888}h1{font-size:14px;color:#ffd23f}</style></head>
+<body><h1>封鎖樓層 / 招來同伴 / #30</h1><div id="out">跑之中…</div>
+<script type="module">
+import { run } from './retail.js';
+const rows = await run();
+document.getElementById('out').innerHTML = rows.map(r =>
+  `<div class="${r.ok ? 'g' : 'r'}">${r.ok ? 'GREEN' : 'RED  '} ${r.id} · ${r.label}<br>` +
+  `<span class="n">      ${String(r.msg).replace(/</g,'&lt;')}</span></div>`).join('');
+window.__probe = rows;
+</script>
+</body></html>
