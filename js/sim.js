@@ -17,7 +17,7 @@ export function createSim(st){
     shafts: [], waiting: [], pops: [], toasts: [],
     spawnT: 0, boost: false,
     mood: 1, moodT: 0, eventT: 0,       // 7 今日人潮 / 8 突發事件
-    pending: [], evacUntil: 0, evacReady: 0,   // B 預警與疏散模式
+    evacUntil: 0, evacReady: 0,         // B 疏散模式
     rateWin: 0, rateAcc: 0,
     lobby: 0,
     blocked: {},                        // 封鎖樓層：{ 樓層索引: 解封時的 st.t }
@@ -350,7 +350,7 @@ function tenantEvents(st, sim, dt){
       // 有兩列 id:'party'（尾牙散場在隨機池、宴會散場掛在宴會廳），裸 .find() 只拿得到
       // 第一列，租戶路徑會安靜地拿到隨機池那一列（實測：耐性倍率 1，不是 0.75）。
       const ev = eventById(tn.event, { byTenant: true });
-      if (ev) schedule(st, sim, ev, b, tn, 1 + count / 25);
+      if (ev) runEvent(st, sim, ev, b, tn, st.floors - 1, 1 + count / 25);
     }
   }
 }
@@ -370,18 +370,12 @@ function eventFloor(st, sim, ev, band, simTopAll){
   return -1;
 }
 
-// B 人流預警：有技能就先預告，時間到才真的湧出來
-function schedule(st, sim, ev, band, tenant, scale){
-  const lead = derived(st).warnLead;
-  const simTopAll = st.floors - 1;
-  if (lead <= 0){ runEvent(st, sim, ev, band, tenant, simTopAll, null, scale); return; }
-  const floor = eventFloor(st, sim, ev, band, simTopAll);
-  if (floor < 0) return;
-  sim.pending.push({ ev, band, tenant, floor, at: st.t + lead, scale });
-  sim.toasts.push({ txt:t('warnLead', Math.round(lead),
-    tenant ? L(tenant,'name','tenants') : L(ev,'name','events'), floor + 1), life:3 });
-}
-
+// 這裡曾經有 schedule()：「人流預警」技能（o_warn）把事件延後 warnLead 秒、先跳一則
+// 倒數提示。它只有 tenantEvents() 一個呼叫點，而那條路在招商移除之後 0 次觸發
+// （七個 defaultTenant 都是 plain、都沒有 event），隨機事件則從 fireEvent() 直接
+// 呼叫 runEvent()、根本不經過它。owner 裁決（#32）移除整個技能。
+// 這裡刻意不留一個只剩 pass-through 的空函式：那正是下一個人會照著找一個不存在的
+// 機制的東西。tenantEvents() 現在直接呼叫 runEvent()。
 function rollGap(t){
   const [a, z] = t.every || [180, 260];
   return a + Math.random() * (z - a);
@@ -401,11 +395,14 @@ function fireEvent(st, sim){
   runEvent(st, sim, ev, null, null, simTopAll);
 }
 
-function runEvent(st, sim, ev, band, tenant, simTopAll, fixedFloor, scale){
+// fixedFloor 參數跟著 schedule() 一起拿掉了：它存在的唯一理由是「預警時先抽好樓層、
+// 到期再用同一層跑」，沒有第二個呼叫端。留著一個永遠是 null 的參數，下一個人會以為
+// 有個地方會傳它。
+function runEvent(st, sim, ev, band, tenant, simTopAll, scale){
   const h = hourOf(st);
   const d = derived(st);
   // 租戶事件發生在該租戶所在的那一帶；隨機事件照原本的 at 決定
-  const from = fixedFloor != null ? fixedFloor : eventFloor(st, sim, ev, band, simTopAll);
+  const from = eventFloor(st, sim, ev, band, simTopAll);
   if (from < 0) return;
   // 封鎖樓層：資料寫了 block:[a,b] 才會發生，沒寫的事件一個位元組都沒變。
   let blockSecs = 0;
@@ -689,17 +686,6 @@ export function step(st, sim, dt){
 
   // --- 8/A 租戶自己會製造的事件
   tenantEvents(st, sim, dt);
-
-  // --- B 到期的預警事件
-  if (sim.pending.length){
-    const simTopAll = st.floors - 1;
-    for (let i = sim.pending.length - 1; i >= 0; i--){
-      if (st.t >= sim.pending[i].at){
-        const q = sim.pending.splice(i, 1)[0];
-        runEvent(st, sim, q.ev, q.band, q.tenant, simTopAll, q.floor, q.scale);
-      }
-    }
-  }
 
   // --- 8 隨機突發事件（跟租戶無關的那些）
   sim.eventT += dt;

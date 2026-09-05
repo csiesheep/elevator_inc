@@ -75,7 +75,6 @@ export function derived(st){
   // 11 口碑迴圈：評價不只影響票價，也影響「有多少人願意上門」
   d.womMult = C.WOM_MIN + (C.WOM_MAX - C.WOM_MIN) * (st.rating / C.RATING_MAX);
   // 5.6 的 B：事件工具
-  d.warnLead  = 8 * (sk.o_warn || 0);                       // 提前幾秒預告
   d.surgeMult = 1 + 0.18 * (sk.o_surge || 0);               // 事件乘客的票價加給
   d.evacLevel = sk.o_evac || 0;
   d.evacCool  = d.evacLevel ? [0, 90, 70, 50][d.evacLevel] : 0;
@@ -216,6 +215,14 @@ export function load(){
     // 招商取消：舊存檔的 leased 直接丟掉，不遷移也不報錯。已經蓋好的樓層本來就有人，
     // 玩家什麼都不會失去——那些沒招到商的空樓層現在自己會生出乘客。
     delete st.leased;
+    // 技能會被移除（#32 拿掉了 o_warn）。舊存檔會帶著一個 SKILLS 裡不存在的 id：
+    // 留著它就是一個幽靈——skillCost()／buySkill() 對它會 `s.cost is not a function` 直接炸，
+    // 而 UI 只走 SKILLS 迴圈所以永遠不會顯示它。這裡逐一丟掉，跟上面 leased 同一種處理。
+    // **藍圖不退。** 退幾張是平衡決定（整棵樹因此便宜 20 張），不是載入程式可以自己決定的。
+    if (st.skills && typeof st.skills === 'object'){
+      const known = new Set(SKILLS.map(s => s.id));
+      for (const k in st.skills) if (!known.has(k)) delete st.skills[k];
+    }
     return st;
   } catch(e){ return null; }
 }

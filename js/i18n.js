@@ -167,7 +167,6 @@ const DICT = {
   evacFire:      ['🚨 疏散模式：全部電梯趕往 {0} 樓', '🚨 Evacuating: every car to floor {0}'],
   overheated:    ['🔥 馬達過熱，強制停機 8 秒', '🔥 Motor overheated — 8 second shutdown'],
   ghostBonus:    ['👻 十三樓的房客留下了 ${0}', '👻 The thirteenth floor left you ${0}'],
-  warnLead:      ['⏰ {0} 秒後：{1}（{2} 樓）', '⏰ In {0}s: {1} (floor {2})'],
   gaveUp:        ['走了', 'gave up'],
 
   // ---- 首頁

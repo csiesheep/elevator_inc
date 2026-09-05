@@ -205,8 +205,12 @@ export const SKILLS = [
   { id:'o_algo',  branch:'營運', name:'控制器韌體',   max:4,  cost:l=>3+l*2,    detail:'演算法效率 +8%' },
   { id:'o_fare',  branch:'營運', name:'動態票價',     max:8,  cost:l=>2+l,      detail:'所有票價 +6%' },
   // 5.6 的 B：應付突發事件的工具
-  { id:'o_warn',  branch:'營運', name:'人流預警',     max:4,  cost:l=>2+l*2,
-    detail:'事件提前 8 秒預告（每級 +8 秒），畫面會倒數' },
+  // 這裡曾經有 o_warn「人流預警」（4 級、共 20 張藍圖，文案賣「事件提前 8 秒預告」）。
+  // 它唯一走得到的路是 tenantEvents() → schedule()，而那條路需要「這一帶的
+  // defaultTenant 帶 event」——招商移除之後七個 plain 租戶一個都沒有，所以它 0 次觸發。
+  // 隨機事件從 fireEvent() 直接呼叫 runEvent()，從來就不經過預警。
+  // owner 裁決（#32，2026-09-05）：移除，不修。移除不改變任何玩法（本來就沒作用），
+  // 移掉的是一個會說謊的技能。技能樹因此便宜 20 張藍圖——要不要補回來是 owner 的決定。
   { id:'o_surge', branch:'營運', name:'尖峰加給',     max:6,  cost:l=>2+l,
     detail:'事件產生的乘客票價 +18%' },
   { id:'o_evac',  branch:'營運', name:'疏散模式',     max:3,  cost:l=>4+l*3,
