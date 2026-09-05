@@ -46,7 +46,6 @@ const DICT = {
   quiet:         ['冷清', 'quiet'],
   normal:        ['平常', 'normal'],
   peak:          ['尖峰', 'peak'],
-  modelLine:     ['統計流量 ${0}/秒 · 服務率 {1}%', 'Modelled flow ${0}/s · served {1}%'],
   manual:        ['手動', 'manual'],
   boostTitle:    ['按住超速（會過熱）', 'Hold for overdrive (it overheats)'],
 
@@ -120,10 +119,7 @@ const DICT = {
   algoCoef:      ['（效率係數 {0}）', ' (efficiency {0})'],
   rowServed:     ['送達 / 放棄', 'Delivered / lost'],
   rowLostPct:    ['放棄率', 'Loss rate'],
-  rowHighServe:  ['高樓層服務率', 'Upper-floor service'],
   notBuiltYet:   ['尚未蓋到', 'not built yet'],
-  rowHighIncome: ['高樓層收益', 'Upper-floor income'],
-  rowAbstract:   ['抽象樓層累計', 'Modelled floors total'],
   rowWom:        ['口碑對人流', 'Word of mouth'],
   rowRunRev:     ['本輪收入', 'This run'],
   rowLifetime:   ['總收入', 'Lifetime'],
@@ -171,11 +167,6 @@ const DICT = {
   evacFire:      ['🚨 疏散模式：全部電梯趕往 {0} 樓', '🚨 Evacuating: every car to floor {0}'],
   overheated:    ['🔥 馬達過熱，強制停機 8 秒', '🔥 Motor overheated — 8 second shutdown'],
   ghostBonus:    ['👻 十三樓的房客留下了 ${0}', '👻 The thirteenth floor left you ${0}'],
-  // 招商移除後這兩句就沒有意義了，但 sim.js 的退租／口碑事件還在呼叫它們
-  // （sim.js 是 BE 的檔案）。刪掉活著的 key 畫面會出現 undefined 而且不會報錯，
-  // 所以留到那兩處呼叫點消失為止——已回報 orchestrator（issue #11）。
-  tenantLeft:    ['📉 {0}層的{1}受不了搬走了（評價 {2}）', '📉 A {1} on the {0} floors gave up and left ({2} stars)'],
-  tenantJoined:  ['📈 口碑帶來新租戶：{0}層免費多租出一層', '📈 Word of mouth: a free tenant on the {0} floors'],
   warnLead:      ['⏰ {0} 秒後：{1}（{2} 樓）', '⏰ In {0}s: {1} (floor {2})'],
   gaveUp:        ['走了', 'gave up'],
 

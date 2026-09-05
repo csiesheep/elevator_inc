@@ -30,7 +30,7 @@ export const EN = {
     double:   { name:'Double-decker', plain:'Two cars stacked into one, serving two floors at every stop.',
                 tech:'Capacity ×2, serves floors f and f+1 together' },
     skylobby: { name:'Sky lobby', plain:'A transfer hall halfway up. This is genuinely how real supertall towers are made to work.',
-                tech:'Upper trips start from the sky lobby; modelled throughput ×3' },
+                tech:'A mid-building transfer floor — the express shuttle waits there, and its service range reaches lower' },
   },
 
   passengers: {
@@ -83,7 +83,7 @@ export const EN = {
     m_cap:   { name:'Wider car',          detail:'Starting capacity +2' },
     m_cool:  { name:'Superconducting motor', detail:'Heat capacity +4, cooling +40% (at max, overheating is gone entirely)' },
     o_shaft: { name:'Pre-cut shaft',      detail:'Start with +1 shaft' },
-    o_algo:  { name:'Controller firmware',detail:'Algorithm efficiency +8% (throughput and modelled-floor income)' },
+    o_algo:  { name:'Controller firmware',detail:'Algorithm efficiency +8%' },
     o_fare:  { name:'Dynamic pricing',    detail:'All fares +6%' },
     o_warn:  { name:'Crowd forecasting',  detail:'Events are announced 8 seconds early (+8s per level), with a countdown' },
     o_surge: { name:'Surge pay',          detail:'Passengers from an event pay +18%' },
@@ -103,7 +103,7 @@ export const EN = {
     cat:     { name:'Cat person',        note:'Carry the cat.' },
     demo:    { name:'Tear it down',      note:'Demolish for the first time.' },
     sky:     { name:'Sky lobby',         note:'Build the transfer hall.' },
-    tall:    { name:'One hundred floors',note:'Reach 100 floors.' },
+    tall:    { name:'Seventy floors',    note:'Reach 70 floors.' },
     orbit:   { name:'Escape velocity',   note:'Take the elevator off the planet.' },
   },
 

@@ -106,7 +106,7 @@ export const AUTOMATION = [
     tech:'Double-decker：載客量 ×2，同時服務 f 與 f+1' },
   { id:'skylobby', name:'空中大廳', cur:'bp', cost:16,
     plain:'半空中蓋一個轉運大廳。真實摩天樓就是這樣才蓋得上去的。',
-    tech:'Sky Lobby：高樓層行程從大廳起算，超高樓吞吐量 ×3' },
+    tech:'Sky Lobby：半空中的轉運層——快速電梯在那待命，服務區間往下延伸' },
 ];
 
 // ---------------------------------------------------------------- 乘客類型
@@ -171,7 +171,7 @@ export const SKILLS = [
   { id:'m_cool',  branch:'機械', name:'超導馬達',     max:5,  cost:l=>3+l*2,    detail:'熱容量 +4、冷卻 +40%（滿級等於拿掉過熱機制）' },
   // 營運
   { id:'o_shaft', branch:'營運', name:'預留井道',     max:3,  cost:l=>6+l*6,    detail:'起始電梯井 +1' },
-  { id:'o_algo',  branch:'營運', name:'控制器韌體',   max:4,  cost:l=>3+l*2,    detail:'演算法效率 +8%（吞吐量與抽象樓層收益）' },
+  { id:'o_algo',  branch:'營運', name:'控制器韌體',   max:4,  cost:l=>3+l*2,    detail:'演算法效率 +8%' },
   { id:'o_fare',  branch:'營運', name:'動態票價',     max:8,  cost:l=>2+l,      detail:'所有票價 +6%' },
   // 5.6 的 B：應付突發事件的工具
   { id:'o_warn',  branch:'營運', name:'人流預警',     max:4,  cost:l=>2+l*2,
