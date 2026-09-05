@@ -72,11 +72,12 @@ export function layout(cv, ctx, st, sim){
     // 那比截斷還糟。載客量只在買升級時才變。
     const carH = Math.max(4, view.fh - 2);
     const rows = Math.max(1, Math.floor(carH / (GLYPH_H + 2)));      // ×1 的列高
-    const target = Math.min(derived(st).capacity, Math.max(1, st.floors - 1));
+    // 上限是載客量：一位乘客一個數字，重複的樓層也各佔一格，所以跟樓層數無關。
+    const target = Math.max(1, derived(st).capacity);
     const cw = numWidth('8'.repeat(String(st.floors).length), 1);
-    per = Math.max(60, Math.min(120, Math.ceil(target / rows) * (cw + 2) + 14));
+    per = Math.max(60, Math.min(160, Math.ceil(target / rows) * (cw + 2) + 14));
   }
-  view.shaftW = Math.min(inner * (wide ? 0.60 : 0.46), n * per + 10);
+  view.shaftW = Math.min(inner * (wide ? 0.60 : 0.46), n * per + 10);   // 上限保護樓層：井道再寬也不能把樓層擠掉
   view.shaftX = view.fx1 - view.shaftW;
   view.colW = view.shaftW / n;
   return true;
@@ -289,7 +290,9 @@ export function draw(ctx, st, sim){
         // 手動期：只顯示「要去哪」，由小排到大，不畫乘客。
         // 你要的是下一個該點哪一層，不是誰坐在裡面。一人一個數字排不下——
         // 原本的做法給每位乘客 6.1px，四個數字是疊在一起的。
-        const dests = [...new Set(s.riders.map(r => r.dest + 1))].sort((a, b) => a - b);
+        // 一位乘客一個數字，重複的樓層要重複出現——去重會把「兩個人都去 9 樓」
+        // 壓成一個 9，就看不出車上有幾個人、也看不出哪一層下得多。
+        const dests = s.riders.map(r => r.dest + 1).sort((a, b) => a - b);
         // 手動期一定要看到「全部」的目的地——那是你決定點哪層的依據，少一個就漏一趟。
         // 所以不是固定字級再用 +N 截斷，而是從大到小試，挑第一個裝得下全部的字級：
         // 車上人少就大大地寫，人多就縮小，但不省略。
