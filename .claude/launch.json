@@ -2,10 +2,14 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "elevator-proto",
+      "name": "elevator-inc",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8131"],
-      "port": 8131
+      "runtimeArgs": [
+        "tools/serve.py",
+        "8133",
+        "."
+      ],
+      "port": 8133
     }
   ]
 }
