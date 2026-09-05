@@ -205,11 +205,24 @@ check('#8 加權抽樣的零總和防護存在於原始碼中', () => {
     + 'r=0 時第一圈 r-=0 就 <=0，會安靜回傳範圍最低的那一項（#8）');
 });
 
-check('加權抽樣的空分布防護（同形狀共三處）', () => {
-  // pickType 與事件抽樣同樣只防 pool 為空、不防總權重為 0。今天打不到，
-  // 因為它們的權重都是正的常數；floorWeight 是唯一會合法回傳 0 的權重。
-  // 這一列是把「已知還沒掃到的那兩處」留在檯面上，不是斷言它們壞了。
-  return 'TODO';
+// 這條原本是 TODO：「同形狀共三處」——pickFloor / pickType / 事件抽樣各有一份
+// 加權抽樣的抄本，每一份都只防 pool 為空、不防總權重為 0。#9 把三份收成同一支
+// `pickIndex()`，所以那個 TODO 退休了，改成斷言那個收斂**維持住**。
+//
+// 為什麼要有這一條：上面那條白箱 guard 是比「抽樣處數」與「防護處數」，
+// 三處變一處之後它一樣綠。但綠的理由從「三處都防了」變成「只剩一處而它防了」
+// ——**同一個綠，兩種完全不同的世界**。有人新增一支繞過 pickIndex 的加權抽樣時，
+// 上面那條會紅（處數對不上），這一條說出它為什麼該紅。
+check('加權抽樣只有 pickIndex 一個入口', () => {
+  if (SIM_SRC == null) return 'TODO';
+  const picks = (SIM_SRC.match(/Math\.random\(\)\s*\*\s*total/g) || []).length;
+  const ne = nonEmpty(picks, 'sim.js 裡找不到任何加權抽樣，選擇器過時了');
+  if (ne !== true) return ne;
+  const exported = /export function pickIndex/.test(SIM_SRC);
+  const callers = (SIM_SRC.match(/pickIndex\(/g) || []).length - 1;   // 扣掉定義那一行
+  return ok(picks === 1 && exported && callers >= 3,
+    `加權抽樣 ${picks} 處（應為 1）、pickIndex ${exported ? '有' : '沒有'}匯出、`
+    + `呼叫點 ${callers} 個（原本三處抄本應該全部收進來）`);
 });
 
 // ---------------------------------------------------------------- 4 評價階梯
