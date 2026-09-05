@@ -35,6 +35,14 @@ const SPEC = {
 
 // ---------------------------------------------------------------- 0 對照
 // 先拿產品的設定去對抄本。改產品裡的數字來讓行為測試通過，會在這裡就爆。
+// check() 是同步的，所以原始碼在模組頂層先抓好（ES module 支援 top-level await）。
+// 抓不到就讓那條 guard 回報 TODO——它不能假裝自己驗過。
+const SIM_SRC = await fetch(new URL('../js/sim.js', import.meta.url) + '?probe=' + Math.random())
+  .then(r => r.ok ? r.text() : null).catch(() => null);
+
+// 招商在不在？第 3 組和第 7 組都要靠它決定「這條規則現在還存不存在」。
+const leasingGone = typeof S.buyLease !== 'function';
+
 section('0 常數對照');
 check('FLOORS_START',   () => eq(C.FLOORS_START, SPEC.floorsStart, 'FLOORS_START'));
 check('CASH_START',     () => eq(C.CASH_START, SPEC.cashStart, 'CASH_START'));
@@ -45,8 +53,15 @@ check('ORBIT_BP',       () => eq(C.ORBIT_BP, SPEC.orbitBp, 'ORBIT_BP'));
 check('DAY_SECONDS',    () => eq(C.DAY_SECONDS, SPEC.daySeconds, 'DAY_SECONDS'));
 check('PRESTIGE_DIV',   () => eq(C.PRESTIGE_DIV, SPEC.prestigeDiv, 'PRESTIGE_DIV'));
 check('RATING_MIN',     () => eq(C.RATING_MIN, SPEC.ratingMin, 'RATING_MIN'));
-check('CHURN_RATING',   () => eq(C.CHURN_RATING, SPEC.churnRating, 'CHURN_RATING'));
-check('LEASE_BLOCK',    () => eq(C.LEASE_BLOCK, SPEC.leaseBlock, 'LEASE_BLOCK'));
+// 這兩個常數是「離散懲罰」的門檻，owner 2026-09-05 裁決『沒有懲罰』之後要整個消失。
+// 招商還在的時候比對數值；拿掉之後改成斷言它們不存在——留著一個沒有人讀的常數，
+// 下一個人會照它去找不存在的機制。
+check('CHURN_RATING', () => leasingGone
+  ? ok(C.CHURN_RATING === undefined, `裁決是「沒有懲罰」，CHURN_RATING 卻還在：${C.CHURN_RATING}`)
+  : eq(C.CHURN_RATING, SPEC.churnRating, 'CHURN_RATING'));
+check('LEASE_BLOCK', () => leasingGone
+  ? ok(C.LEASE_BLOCK === undefined, `招商已移除，LEASE_BLOCK 卻還在：${C.LEASE_BLOCK}`)
+  : eq(C.LEASE_BLOCK, SPEC.leaseBlock, 'LEASE_BLOCK'));
 check('RATING_DRIFT_TO',() => eq(C.RATING_DRIFT_TO, SPEC.ratingDriftTo, 'RATING_DRIFT_TO'));
 check('BOOST_MULT',     () => eq(C.BOOST_MULT, SPEC.boostMult, 'BOOST_MULT'));
 check('OVERHEAT_LOCK',  () => eq(C.OVERHEAT_LOCK, SPEC.overheatLock, 'OVERHEAT_LOCK'));
@@ -124,53 +139,71 @@ check('拆樓歸零的欄位', () => {
 // 這一組是招商移除的分界線。現在的規則是「未招商的樓層不產生乘客」；
 // 移除招商之後規則會變成「蓋好就有人」。兩種規則各有一條，永遠只有一條該綠。
 section('3 人流與樓層');
-function freshTower(floors, leaseAll){
-  const st = S.newGame(); st.floors = floors; st.cash = 1e9;
-  if (leaseAll){
-    let g = 0;
-    while (g++ < 500){ const b = BANDS.find(b => S.canLease(st, b)); if (!b) break;
-      if (!S.buyLease(st, b.key)) break; }
-  } else {
-    st.leased = {}; for (const b of BANDS) st.leased[b.key] = {};
+// --- 招商時代的兩條規則 ------------------------------------------------
+// 招商拿掉之後兩條都失去意義：「招商滿的樓每層都有人流」被第 7 組那條更嚴格的
+// 取代（它還額外要求乘客散布在 >=5 層），「沒有租戶的樓層不該產生乘客」則是在
+// 描述一條不存在的規則。所以在移除後把它們關掉，而不是讓它們紅——一條在描述
+// 已刪規則的紅，會被讀成「產品壞了」。
+if (!leasingGone){
+  function freshTower(floors, leaseAll){
+    const st = S.newGame(); st.floors = floors; st.cash = 1e9;
+    if (leaseAll){
+      let g = 0;
+      while (g++ < 500){ const b = BANDS.find(b => S.canLease(st, b)); if (!b) break;
+        if (!S.buyLease(st, b.key)) break; }
+    } else {
+      st.leased = {}; for (const b of BANDS) st.leased[b.key] = {};
+    }
+    return st;
   }
-  return st;
+  check('招商滿的樓：每一層都算得到人流', () => {
+    const st = freshTower(30, true);
+    const sim = M.createSim(st); M.syncShafts(st, sim);
+    for (let i = 0; i < 4000; i++) M.step(st, sim, 1 / 20);
+    const spawned = sim.waiting.length + st.stats.served + st.stats.abandoned;
+    return ok(spawned > 0, '跑了 200 秒都沒有任何乘客出現');
+  });
+  check('沒有租戶的樓層不該產生乘客（大廳除外）', () => {
+    const st = freshTower(30, false);
+    const built = BANDS.reduce((a, b) => a + S.builtInBand(st, b), 0);
+    const ne = nonEmpty(built, '這棟樓一層都沒蓋，這條 guard 沒有試到任何東西');
+    if (ne !== true) return ne;
+    const NEED = 40;
+    const seen = [];
+    for (let t = 0; t < 24 && seen.length < NEED; t++){
+      const s2 = freshTower(30, false);
+      const sim = M.createSim(s2); M.syncShafts(s2, sim);
+      for (let i = 0; i < 12000; i++) M.step(s2, sim, 1 / 20);
+      for (const p of sim.waiting) seen.push(p.origin);
+    }
+    if (seen.length < NEED) return 'TODO';
+    const above = seen.filter(o => o > 0);
+    return ok(above.length === 0,
+      `${seen.length} 個樣本中，有 ${above.length} 個出現在沒有租戶的樓層。`
+      + '成因：pickFloor() 防了「範圍是空的」卻沒防「範圍非空但權重全為 0」');
+  });
 }
-check('招商滿的樓：每一層都算得到人流', () => {
-  const st = freshTower(30, true);
-  const sim = M.createSim(st); M.syncShafts(st, sim);
-  let spawned = 0;
-  for (let i = 0; i < 4000; i++) M.step(st, sim, 1 / 20);
-  spawned = sim.waiting.length + st.stats.served + st.stats.abandoned;
-  return ok(spawned > 0, '跑了 200 秒都沒有任何乘客出現');
-});
-// 大廳（樓層 0）依設計「永遠算有租戶」——isLeased() 第一行就是這樣寫的，
-// 所以這條只看大廳「以上」的樓層。第一版把大廳也算進去，於是對著一段正確的
-// 程式碼紅了；那是儀器的錯，不是產品的錯。
-check('沒有租戶的樓層不該產生乘客（大廳除外）', () => {
-  const st = freshTower(30, false);
-  const built = BANDS.reduce((a, b) => a + S.builtInBand(st, b), 0);
-  const ne = nonEmpty(built, '這棟樓一層都沒蓋，這條 guard 沒有試到任何東西');
+
+// --- #8 的覆蓋在招商移除之後會消失，所以改成白箱 -----------------------
+// 端對端那條之所以抓得到 #8，是因為空樓層讓 floorWeight 合法地回傳 0。招商拿掉
+// 之後每層都有人，floorWeight 再也沒有合法的 0（BE 實測 33,600 個樣本最小 0.099）
+// ——**缺陷是被遮住，不是被修好**。程式碼裡那三處「防了 pool 為空、沒防總權重
+// 為 0」原封不動還在。
+//
+// 行為測不到的東西，就從原始碼測。這條比端對端弱，而且它自己知道自己弱：
+// 它只證明那個防護在不在，不證明它對。§5.4——同一段話要同時寫下還證明得了什麼。
+check('#8 加權抽樣的零總和防護存在於原始碼中', () => {
+  if (SIM_SRC == null) return 'TODO';      // 讀不到就不假裝驗過
+  const picks = (SIM_SRC.match(/Math\.random\(\)\s*\*\s*total/g) || []).length;
+  const ne = nonEmpty(picks, 'sim.js 裡找不到任何「r = Math.random() * total」的加權抽樣，'
+                           + '這條 guard 正在觀察一個空的宇宙——選擇器過時了');
   if (ne !== true) return ne;
-  // 「大廳以上」那條路徑只佔生成量的 ~20%（LOBBY_SHARE 0.4 × 起訖對調 0.5），
-  // 而權重歸零時到達率也趨近 0，所以單一次短跑抽不到，會間歇性地放行缺陷。
-  // 跨多棟樓累積樣本；**樣本不足時回報「尚未實作」而不是綠**——把「沒測到」
-  // 當成「測過了」，正是這份 harness 要擋的東西。
-  const NEED = 40;
-  const seen = [];
-  for (let t = 0; t < 24 && seen.length < NEED; t++){
-    const s2 = freshTower(30, false);
-    const sim = M.createSim(s2); M.syncShafts(s2, sim);
-    for (let i = 0; i < 12000; i++) M.step(s2, sim, 1 / 20);
-    for (const p of sim.waiting) seen.push(p.origin);
-  }
-  if (seen.length < NEED) return 'TODO';   // 沒抽到足夠樣本，這一輪不算數
-  const above = seen.filter(o => o > 0);
-  return ok(above.length === 0,
-    `${seen.length} 個樣本中，有 ${above.length} 個出現在沒有租戶的樓層。出發樓層：`
-    + [...new Set(above.map(o => o + 1))].sort((a, b) => a - b).join(',')
-    + '｜成因：pickFloor() 防了「範圍是空的」（n<=0）卻沒防「範圍非空但權重全為 0」，'
-    + '此時 r=0，第一圈 r-=0 就 <=0，直接回傳範圍最低的那一層');
+  const guards = (SIM_SRC.match(/total\s*<=\s*0/g) || []).length;
+  return ok(guards >= picks,
+    `${picks} 處加權抽樣，只有 ${guards} 處防了「總權重為 0」。`
+    + 'r=0 時第一圈 r-=0 就 <=0，會安靜回傳範圍最低的那一項（#8）');
 });
+
 check('加權抽樣的空分布防護（同形狀共三處）', () => {
   // pickType 與事件抽樣同樣只防 pool 為空、不防總權重為 0。今天打不到，
   // 因為它們的權重都是正的常數；floorWeight 是唯一會合法回傳 0 的權重。
@@ -231,8 +264,6 @@ check('加蓋 + 升級的總額（招商移除後應接手 81.7% 的缺口）', 
 // owner 裁決（2026-09-05，逐字）：問「取消招商之後，評價低於 1.0 的懲罰是什麼？」
 // 答「**沒有懲罰**」。所以評價只保留乘數的角色（票價、人流），沒有離散的懲罰事件。
 section('7 招商移除');
-const leasingGone = typeof S.buyLease !== 'function';
-
 check('招商 API 已移除', () => leasingGone ? true : 'TODO');
 check('蓋好的樓層就會有人（不需要招商）', () => {
   if (!leasingGone) return 'TODO';
@@ -248,16 +279,47 @@ check('蓋好的樓層就會有人（不需要招商）', () => {
     `${sim.waiting.length} 個乘客只出現在 ${floors.size} 個樓層：`
     + [...floors].map(f => f + 1).sort((a, b) => a - b).join(','));
 });
+// 這條的第一版是瞎的，而且綠得毫不費力。它「開頭把 rating 設成 0.85、跑 150 秒、
+// 斷言狀態沒變」——但 RATING_DRIFT 每秒把 rating 拉向 2.0，**20 秒內就爬過 1.0**
+// （實測軌跡 0.851 → 1.059 @20s → 1.350 @60s），而懲罰每 60 秒才檢查一次。
+// 所以第一次檢查時門檻早就過了，儀器整段時間在觀察一個空的宇宙。
+//
+// A/B 實測（BE peer 回報，我獨立複驗）：把原本 CHURN_RATING 1.0 的懲罰逐字放回
+// 產品裡，harness 輸出 **33/4/2，和乾淨實作一個字都不差，第 7 組全綠**——
+// 而懲罰是真的（每步釘住 0.85 跑 600 秒，30 層被拆到 21 層）。
+//
+// 修法有兩半，缺一不可：
+//   1. **每一步都釘住** rating，否則 drift 會把儀器帶離目標。
+//   2. **把存活證明放進 guard 自己裡面**。「這條 guard 有能力紅」是程式碼的性質；
+//      「它這一次瞄準了正確的東西」是那一次執行的性質。只有後者能讓一個「沒變」
+//      算數。所以先斷言：rating 真的低、真的跑滿了幾個檢查窗、樓裡真的有人。
 check('低評價沒有離散的懲罰（owner 裁決：沒有懲罰）', () => {
   if (!leasingGone) return 'TODO';
+  const LOW = 0.85, WINDOW = 60, WINDOWS = 4;   // 舊 CHURN_EVERY 是 60 秒
   const st = S.newGame(); st.floors = 30;
   const sim = M.createSim(st); M.syncShafts(st, sim);
-  const snap = () => JSON.stringify({ floors: st.floors, up: st.up, auto: st.auto });
-  st.rating = 0.85;                       // 壓在地板附近
+  const snap = () => JSON.stringify({ floors: st.floors, up: st.up, auto: st.auto,
+                                      shafts: st.up.shaft, cash: st.cash > 0 });
   const before = snap();
-  for (let i = 0; i < 3000; i++) M.step(st, sim, 1 / 20);
+  let ratingMax = 0;
+  const steps = WINDOW * WINDOWS * 20;
+  for (let i = 0; i < steps; i++){
+    st.rating = LOW;                 // 每一步都釘住，不給 drift 機會
+    M.step(st, sim, 1 / 20);
+    if (st.rating > ratingMax) ratingMax = st.rating;
+  }
+  // --- 存活證明：這三條任何一條不成立，下面那個「沒變」就沒有意義 ---
+  if (ratingMax >= 1.0)
+    return `儀器沒瞄準：rating 在跑的過程中爬到 ${ratingMax.toFixed(3)}，`
+         + '已經高過歷史門檻 1.0，所以這一輪根本沒有測到懲罰路徑';
+  const touched = sim.waiting.length + st.stats.served + st.stats.abandoned;
+  const ne = nonEmpty(touched, `跑了 ${WINDOW * WINDOWS} 秒都沒有任何乘客，`
+                             + '一棟沒有人的樓不會觸發任何跟評價有關的東西');
+  if (ne !== true) return ne;
+  // --- 主張本身 ---
   return ok(snap() === before,
-    '評價壓在 0.85 跑了 150 秒，狀態被動到了：' + before + ' → ' + snap());
+    `評價每步釘在 ${LOW} 跑了 ${WINDOW * WINDOWS} 秒（${WINDOWS} 個檢查窗），`
+    + `狀態被動到了：${before} → ${snap()}`);
 });
 check('評價仍然是乘數（低評價 = 賺比較少，不是被罰）', () => {
   const lo = S.newGame(); lo.rating = 0.8;
