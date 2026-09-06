@@ -2861,32 +2861,15 @@ export const EVENTS = [
   // 內容的去處寫在上面 TENANTS 的註解裡；expo／seating 交給 #5（觀景台）。
 ];
 
-// 事件查詢。**id 目前是唯一鍵，但這支不假設它永遠是。**
-//
-// 歷史（#30）：'party' 曾經有兩列（隨機池的「尾牙散場」與 byTenant 的「宴會散場」，
-// panic 0.75），裸的 .find() 只拿得到第一列，所以租戶路徑安靜地拿到錯的那一列——
-// 而且**英文玩家兩個事件會看到同一句話**，因為 i18n-content.js 的對照表以 id 為鍵。
-// byTenant 那一列已經改成 id:'banquet'（連同宴會廳租戶的 event: 與英文對照一起改），
-// 所以今天 `EVENTS` 裡沒有重複的 id。
-//
-// 為什麼消歧義的參數留著、沒有順手拆掉：
-//   1. sim.js 的租戶路徑（tenantEvents）仍然用 { byTenant:true } 呼叫它，而那個呼叫
-//      **是有意義的**——它說出「我要的是租戶那一列」，不是「隨便給我一列」。
-//   2. #1–#7 每一帶都會再長出自己的事件，同名的「隨機池版」與「租戶版」很可能再出現。
-//      拆掉之後下一次重複會是同一個安靜的錯，而且沒有人會記得為什麼。
-//   3. 拆掉是零收益的改動：這支目前 8 行。
-// 唯一性由測試守（tests/ 是 orchestrator 的；BE 側在 _probe/ 有一條）。
-//   opts.byTenant = true  → 只要租戶事件那一列
-//   opts.byTenant = false → 只要隨機池那一列
-//   沒帶 opts             → 第一列，給不在乎的呼叫端用
-export const eventById = (id, opts) => {
-  if (opts && opts.byTenant != null){
-    const want = !!opts.byTenant;
-    const hit = EVENTS.find(e => e.id === id && !!e.byTenant === want);
-    if (hit) return hit;
-  }
-  return EVENTS.find(e => e.id === id);
-};
+// 這裡曾經有 eventById(id, opts)：一支帶 { byTenant } 消歧義參數的事件查詢。
+// 它存在的理由是「同一個 id 可能有隨機池版與租戶版兩列」（#30 的 'party' 就是），
+// 而它唯一的呼叫點是 sim.js 的 tenantEvents()。#86 把租戶那條路整個移除之後：
+//   · 沒有任何呼叫端了
+//   · 它要消的那個歧義**在結構上不可能再出現**——EVENTS 裡不會再有 byTenant 的列
+// 它自己的註解裡那條「留著是因為 tenantEvents 還在用」也因此不再成立。
+// 留一支沒有人呼叫、而且為一個消失的區別而存在的匯出函式，正是這一整張 issue
+// 在講的那種東西，所以一起移除。
+// **id 的唯一性仍然需要有人守**：那由 tests/ 的可達性 guard 負責，不是由這支。
 
 export const passengerById = id => PASSENGERS.find(p => p.id === id);
 
