@@ -1,0 +1,605 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>觀景台帶的 4 張新圖（#135）</title>
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+  <style>
+    body { margin: 0; }
+    x-dc { display: block; }
+    a { color: #7dd8f7; } a:hover { color: #ffd23f; }
+    canvas { image-rendering: pixelated; display: block; }
+    .pxs { font-family: "Pixelify Sans", "Courier New", monospace; }
+    .k { color: #e8eaf0; font-weight: 700; }
+    code { font-family: ui-monospace, monospace; color: #7dd8f7; font-size: .94em; }
+    th, td { text-align: left; padding: 5px 13px 5px 0; font-size: 12.5px; vertical-align: top; }
+    th { color: #6b6f9e; font-weight: 500; border-bottom: 1px solid #2a2d55; }
+    td { border-bottom: 1px solid #20233c; color: #b9bfd8; line-height: 1.5;
+         font-family: ui-monospace, monospace; }
+    h2.pxs { margin: 30px 0 6px; font-size: 17px; color: #ffd23f; }
+    p.lead { margin: 0 0 14px; font-size: 12.5px; line-height: 1.8; color: #8f95d6; max-width: 82em; }
+    .panel { background: #0a0c12; border: 1px solid #20233c; padding: 14px 16px 16px; }
+    .ok { color: #5ddc9a; } .no { color: #ff8a8a; } .warn { color: #f0a04a; }
+    .warnbox { border-left: 3px solid #f0a04a; padding: 8px 0 8px 12px; margin: 12px 0;
+               font-size: 12px; line-height: 1.75; color: #d8c0a0; max-width: 80em; }
+    button { font: 12px 'Noto Sans TC',sans-serif; padding: 5px 13px; cursor: pointer;
+             background: #191c3e; color: #e8eaf0; border: 1px solid #3f4478; margin: 0 6px 6px 0; }
+    button.danger { border-color: #7a2f3a; color: #ffb0b0; }
+    button.on { background: #7a2f3a; color: #fff; }
+    #verdict { font-size: 14px; line-height: 1.9; padding: 13px 16px; border: 2px solid;
+               font-family: 'Noto Sans TC', sans-serif; max-width: 82em; }
+    .row { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+  </style>
+</helmet>
+
+<div style="max-width: 1500px; background: #0f1116; padding: 22px 24px 44px;
+     font-family: 'Noto Sans TC','PingFang TC',sans-serif; color: #e8eaf0;">
+
+  <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:6px">
+    <h1 class="pxs" style="margin:0;font-size:26px;font-weight:700;color:#ffd23f">觀景台帶的 4 張新圖</h1>
+    <span style="font-size:12.5px;color:#8f95d6">#135 · 併成一組看（64 張）· 互斥門檻 9（#105）</span>
+  </div>
+  <p class="lead">
+    <span class="k">這一頁所有數字都當場算，包含最底下那句結論。</span>
+    第 7 節有五顆鍵可以種缺陷進去，看結論句會不會真的翻——
+    <span class="k">一次只種一個</span>：一次下多個，紅的數量會對但理由不一定對。
+    背景用<span class="k">遊戲真正的樓層底色</span>（<code>shadeHex(band.color, pal.floorA/floorB)</code>）
+    加上<span class="k">轎廂內裝</span>，日夜各一次，normal 與 urgent 兩種姿勢。
+  </p>
+
+  <div class="warnbox">
+    <b>這一頁跟 <code>tests/acceptance.js</code> 的關係</b>：第 15／16／17／19 組 harness 自己會算，
+    這裡重算一次是為了<b>兩個獨立實作對得上才算數</b>。
+    <b>判準 2/3（配件對三種身體色 ≥ 25）harness 完全沒有 guard</b>（#105 記著），
+    所以這一頁是它唯一的儀器。<br>
+    ⚠ <b>#105 記著一個陷阱</b>：一個 artist 的量測頁抓到 <code>pal.money</code> 而不是 <code>pal.bad</code>
+    （兩個在 <code>theme.js</code> 同一行），每個身體色數字都錯而且看起來完全真實。
+    所以這一頁的身體色是<b>用大括號配對把 NIGHT / DAY 兩個物件切出來、逐鍵取</b>的，
+    不是正則抓「同一行的第二個鍵」；第 1 節會把 <code>pal.money</code> 印出來，它<b>不可以</b>出現在身體色那一行。
+  </div>
+
+  <h2 class="pxs">1 · 儀器活著嗎</h2>
+  <div class="panel" id="instr">量之中…</div>
+
+  <h2 class="pxs">2 · 五條判準（這一趟的四張）</h2>
+  <div class="panel" id="mine"></div>
+
+  <h2 class="pxs">3 · 形狀與剪影</h2>
+  <div class="panel" id="shapes"></div>
+
+  <h2 class="pxs">4 · 可行域：紅與橘是真的沒有，藍不是</h2>
+  <div class="panel" id="space"></div>
+
+  <h2 class="pxs">5 · 全表 64 張</h2>
+  <div class="panel" id="all"></div>
+
+  <h2 class="pxs">6 · 接觸表（日 / 夜）</h2>
+  <div class="panel">
+    <div style="margin-bottom:8px;font-size:12px;color:#8f95d6">
+      每一格：<span class="k">normal @樓層</span> | <span class="k">urgent @樓層</span> | <span class="k">normal @轎廂</span>。
+      金框 = 這一趟的四張，青框 = 它們旁邊那幾張舊的。
+      ⚠ <span class="k">日夜差異用程式比不用眼睛</span>——下面那一行是逐像素比對。
+    </div>
+    <div class="row">
+      <div><div style="font-size:11px;color:#6b6f9e;margin-bottom:4px">DAY floorA=0.78（第 16 組量到最糟一律落在這一格）</div>
+        <canvas id="cday"></canvas></div>
+      <div><div style="font-size:11px;color:#6b6f9e;margin-bottom:4px">NIGHT floorA=0.62</div>
+        <canvas id="cnight"></canvas></div>
+    </div>
+    <div id="pxdiff" style="margin-top:10px;font-size:12.5px;color:#b9bfd8"></div>
+  </div>
+
+  <h2 class="pxs">7 · 證偽：把缺陷種進去，看結論句會不會翻</h2>
+  <div class="panel">
+    <div style="margin-bottom:9px;font-size:12px;color:#8f95d6">
+      <span class="k">一次只種一個。</span>再按一次同一顆鍵可以取消。
+      ⚠ 有兩顆鍵會讓<span class="k">兩條</span>判準同時變紅，而那是量出來的結構事實，不是我沒挑好——
+      理由印在按鍵下面。
+    </div>
+    <div id="btns"></div>
+    <div id="injnote" style="margin-top:8px;font-size:12px;line-height:1.7;color:#d8c0a0"></div>
+  </div>
+
+  <h2 class="pxs">8 · 結論</h2>
+  <div id="verdict"></div>
+
+</div>
+
+<script type="module">
+import { PEOPLE, SPRITE_W, SPRITE_H } from '../js/sprites.js';
+import { PASSENGERS, BANDS } from '../js/content.js';
+
+const MINE = ['proposer', 'photocrew', 'acrophobe', 'deckguide'];
+const NEIGHBOUR = ['observer', 'newlywed', 'dogwalker', 'tourist'];
+const BG_MIN = 25, BODY_MIN = 25, ACC_MIN = 9, SHAPE_MIN = 12;
+const F = x => x.toFixed(4);          // **只有印出來這一步才格式化**
+
+const txt = u => fetch(new URL(u, import.meta.url) + '?p=' + Math.random())
+  .then(r => r.ok ? r.text() : null).catch(() => null);
+
+// ---------------------------------------------------------------- CIEDE2000（我自己寫的）
+function hexToLab(hex){
+  const n = parseInt(hex.slice(1), 16);
+  const lin = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(v => {
+    v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  const [r, g, b] = lin;
+  const X = (r * 0.4124564 + g * 0.3575761 + b * 0.1804375) / 0.95047;
+  const Y = (r * 0.2126729 + g * 0.7151522 + b * 0.0721750);
+  const Z = (r * 0.0193339 + g * 0.1191920 + b * 0.9503041) / 1.08883;
+  const f = t => t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116;
+  const fx = f(X), fy = f(Y), fz = f(Z);
+  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+}
+function dE(h1, h2){
+  const [L1, a1, b1] = hexToLab(h1), [L2, a2, b2] = hexToLab(h2);
+  const D = Math.PI / 180, P7 = x => Math.pow(x, 7);
+  const C1 = Math.hypot(a1, b1), C2 = Math.hypot(a2, b2), Cb = (C1 + C2) / 2;
+  const G = 0.5 * (1 - Math.sqrt(P7(Cb) / (P7(Cb) + P7(25))));
+  const A1 = (1 + G) * a1, A2 = (1 + G) * a2;
+  const p1 = Math.hypot(A1, b1), p2 = Math.hypot(A2, b2);
+  const hue = (x, y) => (x === 0 && y === 0) ? 0
+    : ((Math.atan2(y, x) / D) + 360) % 360;
+  const h1p = hue(A1, b1), h2p = hue(A2, b2);
+  const dL = L2 - L1, dC = p2 - p1;
+  let dh = 0;
+  if (p1 * p2 !== 0){ dh = h2p - h1p; if (dh > 180) dh -= 360; else if (dh < -180) dh += 360; }
+  const dH = 2 * Math.sqrt(p1 * p2) * Math.sin(dh / 2 * D);
+  const Lb = (L1 + L2) / 2, Cp = (p1 + p2) / 2;
+  let hb;
+  if (p1 * p2 === 0) hb = h1p + h2p;
+  else if (Math.abs(h1p - h2p) <= 180) hb = (h1p + h2p) / 2;
+  else hb = (h1p + h2p + (h1p + h2p < 360 ? 360 : -360)) / 2;
+  const T = 1 - 0.17 * Math.cos((hb - 30) * D) + 0.24 * Math.cos(2 * hb * D)
+          + 0.32 * Math.cos((3 * hb + 6) * D) - 0.20 * Math.cos((4 * hb - 63) * D);
+  const dTh = 30 * Math.exp(-Math.pow((hb - 275) / 25, 2));
+  const Rc = 2 * Math.sqrt(P7(Cp) / (P7(Cp) + P7(25)));
+  const Sl = 1 + (0.015 * Math.pow(Lb - 50, 2)) / Math.sqrt(20 + Math.pow(Lb - 50, 2));
+  const Sc = 1 + 0.045 * Cp, Sh = 1 + 0.015 * Cp * T;
+  const Rt = -Math.sin(2 * dTh * D) * Rc;
+  return Math.sqrt(Math.pow(dL / Sl, 2) + Math.pow(dC / Sc, 2) + Math.pow(dH / Sh, 2)
+                 + Rt * (dC / Sc) * (dH / Sh));
+}
+
+// shadeHex —— 從 render.js 逐字抄。抄本會漂移，所以下面比對原始碼。
+const SHADE_SIG = 'out |= Math.min(255, Math.round(((n >> sh) & 255) * k)) << sh';
+const shadeHex = (hex, k) => {
+  const n = parseInt(hex.slice(1), 16);
+  let out = 0;
+  for (const sh of [16, 8, 0]) out |= Math.min(255, Math.round(((n >> sh) & 255) * k)) << sh;
+  return '#' + out.toString(16).padStart(6, '0');
+};
+
+// ---------------------------------------------------------------- 形狀
+const cell3 = c => c === '.' ? 0 : c === '#' ? 1 : 2;
+const ham3 = (a, b) => { let d = 0;
+  for (let r = 0; r < 9; r++) for (let c = 0; c < 7; c++) if (cell3(a[r][c]) !== cell3(b[r][c])) d++;
+  return d; };
+const sil2 = (a, b) => { let d = 0;
+  for (let r = 0; r < 9; r++) for (let c = 0; c < 7; c++)
+    if ((a[r][c] !== '.') !== (b[r][c] !== '.')) d++;
+  return d; };
+const shapeD = (x, y) => Math.min(ham3(x.normal, y.normal), ham3(x.urgent, y.urgent));
+const silD = (x, y) => Math.min(sil2(x.normal, y.normal), sil2(x.urgent, y.urgent));
+
+// 背債表，逐字抄自 tests/acceptance.js（下面有一條檢查比對原始碼）
+const SHAPE_DEBT = new Set(('guest|office ceo|coffeegoer ceo|interviewee office|scientist courier|diner '
++ 'courier|movie attendee|ceo attendee|coffeegoer ceo|remote ceo|tourist closing|sampler '
++ 'interviewee|office interviewee|tourist office|waxer ceo|office coffeegoer|interviewee '
++ 'coffeegoer|remote guard|tourist observer|office observer|tourist office|stroller '
++ 'office|tourist scientist|tourist attendee|nightowl child|guard courier|office dolly|office '
++ 'guard|interviewee stroller|waxer attendee|scientist blackouter|waxer ceo|diner ceo|observer '
++ 'ceo|scientist child|observer coffeegoer|guest coffeegoer|scientist diner|newhire '
++ 'dolly|guest guest|scientist guest|stroller guest|waxer homecomer|loaded '
++ 'interviewee|observer interviewee|scientist laidoff|sampler laidoff|waxer loaded|repairman '
++ 'movie|outager nightowl|scientist observer|remote observer|scientist remote|scientist '
++ 'remote|waxer').split(/\s+/));
+const FLOOR_DEBT = new Set(['tourist','office','queuer','ceo','child','ghost','stroller','lateguest','scientist']);
+// 判準 2/3 沒有 guard，背債只寫在 #105：
+//   influencer 對 pal.bad 24.1689（有身體格，構得到）
+//   ghost 對 pal.ink 11.8594（0 個身體格，那條路徑走不到）
+const BODY_DEBT = new Set(['influencer', 'ghost']);
+const SIL_DEBT = new Set(['closing|sampler']);
+
+// ---------------------------------------------------------------- 從產品讀顏色母體
+// **用大括號配對把 const NAME = { ... } 切出來，逐鍵取。**（見上面 #105 的陷阱）
+function objects(src){
+  const out = {};
+  const re = /^const\s+(\w+)\s*=\s*\{/gm;
+  let m;
+  while ((m = re.exec(src))){
+    let depth = 0, i = m.index + m[0].length - 1, j = i;
+    for (; j < src.length; j++){
+      if (src[j] === '{') depth++;
+      else if (src[j] === '}'){ depth--; if (!depth) break; }
+    }
+    const body = src.slice(i + 1, j).replace(/\/\/[^\n]*/g, '');
+    const kv = {};
+    const re2 = /(\w+)\s*:\s*('[^']*'|-?[0-9.]+)/g;
+    let m2;
+    while ((m2 = re2.exec(body))) kv[m2[1]] = m2[2].replace(/'/g, '');
+    out[m[1]] = kv;
+  }
+  return out;
+}
+
+const BAND_OF = Object.fromEntries(PASSENGERS.map(p => [p.id, p.band]));
+const NAME_OF = Object.fromEntries(PASSENGERS.map(p => [p.id, p.name]));
+
+let THEME, RENDER, ACCEPT, OBJ, BODY, CAR, FLOOR_K, SHADES, BGS, PEER;
+
+// ---------------------------------------------------------------- 缺陷注入（一次一個）
+const INJECT = {
+  color: {
+    label: '種一個違反「對身體色 ≥ 25」的顏色',
+    note: 'acrophobe 的配件色換成 <code>pal.bad</code> 本身（ΔE = 0）。'
+        + '這是 #31 那個 <code>tourist</code> 相機的失效形狀：一急起來配件就溶進身體。',
+    apply: P => { P.acrophobe = { ...P.acrophobe, acc: BODY['bad'] }; },
+  },
+  acc: {
+    label: '種一個違反「配件互斥 ≥ 9」的顏色',
+    note: 'deckguide 的配件色換成 <code>reporter</code> 的（ΔE = 0）。第 19 組要擋的就是這個。',
+    apply: P => { P.deckguide = { ...P.deckguide, acc: PEOPLE.reporter.acc }; },
+  },
+  bg: {
+    label: '種一個撞樓層底色的顏色（會弄紅兩條）',
+    note: '<b>這一條種不出「只紅一條」的缺陷，而那是量出來的結構事實</b>：'
+        + '29 種背景色沒有一種同時離三個身體色都 ≥ 25——28 種樓層底色全是深色，'
+        + '離 <code>pal.inkCar</code> 只有 5.33（retail@0.52）到 19.58（office@0.78）；'
+        + '第 29 種（轎廂內裝）離 <code>pal.ink</code> 只有 <b>0.84</b>。'
+        + '這裡取 collateral 最小的 office@0.78。',
+    apply: P => { P.photocrew = { ...P.photocrew, acc: shadeHex(BANDS.find(b => b.key === 'office').color, 0.78) }; },
+  },
+  shape: {
+    label: '種一個跟既有圖幾乎相同的形狀（只差一格）',
+    note: 'deckguide 兩個姿勢都抄 <code>observer</code>，各只改 r8 的一格。'
+        + '<b>兩個姿勢都要動</b>：只抄 normal 的話 urgent 會逐格相同，第 17 組（剪影）也會跟著紅，'
+        + '那就變成一次種了兩個缺陷。',
+    apply: P => {
+      const n = observerRows('normal'); n[8] = '..#.#.o';
+      const u = observerRows('urgent'); u[8] = '.#...#o';
+      P.deckguide = { ...P.deckguide, normal: n, urgent: u };
+    },
+  },
+  silhouette: {
+    label: '種一個剪影逐格相同的形狀（會弄紅兩條）',
+    note: 'acrophobe 抄 <code>observer</code> 但把配件格全部換成身體格——'
+        + '<b>剪影一模一樣、三態距離不是 0</b>。第 17 組要擋的就是這個；'
+        + '第 15 組也會紅，因為三態距離只有 5，那是同一個缺陷的兩個影子。',
+    apply: P => {
+      P.acrophobe = { ...P.acrophobe,
+        normal: observerRows('normal').map(r => r.replace(/o/g, '#')),
+        urgent: observerRows('urgent').map(r => r.replace(/o/g, '#')) };
+    },
+  },
+};
+const observerRows = pose => PEOPLE.observer[pose].slice();
+let injected = null;
+
+function build(){
+  const P = {};
+  for (const k of Object.keys(PEOPLE)) P[k] = PEOPLE[k];
+  if (injected) INJECT[injected].apply(P);
+  return P;
+}
+
+// ---------------------------------------------------------------- 量
+function measure(P){
+  const rows = [];
+  for (const id of Object.keys(P)){
+    const sp = P[id];
+    if (!sp.acc) continue;
+    let bg = [Infinity, ''], bd = [Infinity, ''], ac = [Infinity, ''], sh = [Infinity, ''], si = [Infinity, ''];
+    for (const [nm, c] of BGS){ const d = dE(sp.acc, c); if (d < bg[0]) bg = [d, nm]; }
+    for (const [nm, c] of Object.entries(BODY)){ const d = dE(sp.acc, c); if (d < bd[0]) bd = [d, 'pal.' + nm]; }
+    for (const o of Object.keys(P)){
+      if (o === id || !P[o].acc) continue;
+      const d = dE(sp.acc, P[o].acc); if (d < ac[0]) ac = [d, o];
+    }
+    for (const o of Object.keys(P)){
+      if (o === id || !BAND_OF[o] || !BAND_OF[id]) continue;
+      const key = id < o ? id + '|' + o : o + '|' + id;
+      if (!SHAPE_DEBT.has(key)){ const d = shapeD(sp, P[o]); if (d < sh[0]) sh = [d, o]; }
+      const d2 = silD(sp, P[o]); if (d2 < si[0]) si = [d2, o];
+    }
+    rows.push({ id, acc: sp.acc, bg, bd, ac, sh, si });
+  }
+  return rows;
+}
+
+// **一對只算一次。** 兩個方向各報一次的話，「一個缺陷」會印成兩項，
+// 於是「紅幾項」這個數字就不能拿來對「我種了幾個缺陷」。
+const pairKey = (a, b) => a < b ? a + '|' + b : b + '|' + a;
+function verdictOf(rows){
+  const bad = { bg: [], bd: [], ac: [], sh: [], sil: [] };
+  const seen = { ac: new Set(), sh: new Set(), sil: new Set() };
+  for (const r of rows){
+    if (r.bg[0] < BG_MIN && !FLOOR_DEBT.has(r.id)) bad.bg.push(`${r.id} ${F(r.bg[0])} @${r.bg[1]}`);
+    if (r.bd[0] < BODY_MIN && !BODY_DEBT.has(r.id)) bad.bd.push(`${r.id} ${F(r.bd[0])}（${r.bd[1]}）`);
+    if (r.ac[0] < ACC_MIN){
+      const k = pairKey(r.id, r.ac[1]);
+      if (!seen.ac.has(k)){ seen.ac.add(k); bad.ac.push(`${k} ${F(r.ac[0])}`); }
+    }
+    if (r.sh[0] < SHAPE_MIN){
+      const k = pairKey(r.id, r.sh[1]);
+      if (!seen.sh.has(k)){ seen.sh.add(k); bad.sh.push(`${k} d=${r.sh[0]}`); }
+    }
+    if (r.si[0] === 0){
+      const k = pairKey(r.id, r.si[1]);
+      if (!SIL_DEBT.has(k) && !seen.sil.has(k)){ seen.sil.add(k); bad.sil.push(k); }
+    }
+  }
+  return bad;
+}
+
+// ---------------------------------------------------------------- 接觸表
+const BORDER = ['retail','office','hotel','resid','obs','exp','roof','any','floor13'];
+const BANDC = Object.fromEntries(BANDS.map(b => [b.key, b.color]));
+function drawSheet(cv, P, night){
+  const Z = 4, PAD = 4, COLS = 4;
+  const PW = SPRITE_W * Z, PH = SPRITE_H * Z;
+  const TW = PW * 3 + PAD * 4, TH = PH + PAD * 2 + 11;
+  const ids = Object.keys(P).sort((a, b) =>
+    (BORDER.indexOf(BAND_OF[a] || 'any') - BORDER.indexOf(BAND_OF[b] || 'any')) || (a < b ? -1 : 1));
+  const rows = Math.ceil(ids.length / COLS);
+  cv.width = COLS * TW + 12; cv.height = 16 + rows * TH + 6;
+  const x = cv.getContext('2d');
+  x.fillStyle = '#0f1116'; x.fillRect(0, 0, cv.width, cv.height);
+  x.font = '9px ui-monospace,monospace';
+  const fa = night ? 0.62 : 0.78;
+  ids.forEach((k, i) => {
+    const cx = 6 + (i % COLS) * TW, cy = 14 + ((i / COLS) | 0) * TH;
+    const band = BAND_OF[k] || 'any';
+    const floor = shadeHex(BANDC[band] || BANDC.office, fa);
+    const sp = P[k];
+    const panes = [[cx + PAD, floor, sp.normal, BODY.ink],
+                   [cx + PAD * 2 + PW, floor, sp.urgent, BODY.bad],
+                   [cx + PAD * 3 + PW * 2, CAR, sp.normal, BODY.inkCar]];
+    for (const [px, bgc, rowsArr, ink] of panes){
+      x.fillStyle = bgc; x.fillRect(px, cy + PAD, PW, PH);
+      for (let r = 0; r < 9; r++) for (let c = 0; c < 7; c++){
+        const ch = rowsArr[r][c];
+        if (ch === '.') continue;
+        x.fillStyle = ch === '#' ? ink : sp.acc;
+        x.fillRect(px + c * Z, cy + PAD + r * Z, Z, Z);
+      }
+    }
+    if (MINE.includes(k)){ x.strokeStyle = '#ffd23f'; x.strokeRect(cx + 0.5, cy + 0.5, TW - 2, TH - 2); }
+    else if (NEIGHBOUR.includes(k)){ x.strokeStyle = '#2dbebe'; x.strokeRect(cx + 0.5, cy + 0.5, TW - 2, TH - 2); }
+    x.fillStyle = MINE.includes(k) ? '#e9eaf0' : '#8990b0';
+    x.fillText(k, cx + PAD, cy + PAD + PH + 9);
+  });
+}
+
+function pixelDiff(a, b){
+  const ca = a.getContext('2d').getImageData(0, 0, a.width, a.height).data;
+  const cb = b.getContext('2d').getImageData(0, 0, b.width, b.height).data;
+  let n = 0;
+  for (let i = 0; i < ca.length; i += 4)
+    if (ca[i] !== cb[i] || ca[i+1] !== cb[i+1] || ca[i+2] !== cb[i+2]) n++;
+  return [n, ca.length / 4];
+}
+
+// ---------------------------------------------------------------- 跑
+async function main(){
+  [THEME, RENDER, ACCEPT] = await Promise.all([
+    txt('../js/theme.js'), txt('../js/render.js'), txt('../tests/acceptance.js')]);
+  const notes = [];
+  if (THEME == null || RENDER == null){
+    document.getElementById('instr').innerHTML = '<span class="no">讀不到 theme.js / render.js，這一頁沒有母體，不假裝驗過。</span>';
+    return;
+  }
+  OBJ = objects(THEME);
+  BODY = { ink: OBJ.NIGHT.ink, inkCar: OBJ.NIGHT.inkCar, bad: OBJ.NIGHT.bad };
+  CAR = OBJ.NIGHT.car;
+  for (const key of ['ink', 'inkCar', 'bad', 'car'])
+    if (OBJ.NIGHT[key] !== OBJ.DAY[key]) notes.push(`<span class="no">pal.${key} 在 NIGHT/DAY 不同色，這一頁的前提要改</span>`);
+  FLOOR_K = [...new Set(['NIGHT', 'DAY'].flatMap(t => [+OBJ[t].floorA, +OBJ[t].floorB]))].sort((a, b) => a - b);
+  SHADES = [];
+  for (const b of BANDS) for (const k of FLOOR_K) SHADES.push([b.key + '@' + k, shadeHex(b.color, k)]);
+  BGS = SHADES.concat([['轎廂內裝 ' + CAR, CAR]]);
+
+  // ---- 第二個實作：把 acceptance.js 的 ciede2000 抓出來當對照 ----
+  let peerMax = null, peerWho = '';
+  if (ACCEPT){
+    const i0 = ACCEPT.indexOf('function hexToLab(');
+    const i1 = ACCEPT.indexOf('const FLOOR_MIN');
+    if (i0 >= 0 && i1 > i0){
+      try {
+        PEER = new Function(ACCEPT.slice(i0, i1) + '\nreturn ciede2000;')();
+      } catch (e){ PEER = null; }
+    }
+  }
+
+  const P0 = build();
+  const cols = [...new Set(Object.values(PEOPLE).map(p => p.acc))]
+    .concat(BGS.map(x => x[1])).concat(Object.values(BODY));
+  if (PEER){
+    peerMax = 0;
+    for (let i = 0; i < cols.length; i++) for (let j = i + 1; j < cols.length; j++){
+      const d = Math.abs(dE(cols[i], cols[j]) - PEER(cols[i], cols[j]));
+      if (d > peerMax){ peerMax = d; peerWho = cols[i] + ' / ' + cols[j]; }
+    }
+  }
+
+  // ---- 抄本沒有漂移嗎 ----
+  const shadeOk = RENDER.indexOf(SHADE_SIG) >= 0;
+  let debtOk = null;
+  if (ACCEPT){
+    const seg = ACCEPT.slice(ACCEPT.indexOf('const SHAPE_DEBT'), ACCEPT.indexOf('const shapeCell'));
+    const live = new Set((seg.match(/'[a-z]+\|[a-z]+'/g) || []).map(s => s.slice(1, -1)));
+    debtOk = live.size === SHAPE_DEBT.size && [...live].every(k => SHAPE_DEBT.has(k));
+  }
+
+  // 自距離為零 + 對稱（分支 bug 的必要條件）
+  let self = 0, asym = 0;
+  for (let i = 0; i < cols.length; i++){
+    self = Math.max(self, Math.abs(dE(cols[i], cols[i])));
+    for (let j = i + 1; j < cols.length; j++)
+      asym = Math.max(asym, Math.abs(dE(cols[i], cols[j]) - dE(cols[j], cols[i])));
+  }
+
+  document.getElementById('instr').innerHTML =
+    `<table>
+      <tr><th>檢查</th><th>值</th><th>必須</th></tr>
+      <tr><td>同色 ΔE</td><td>${F(dE('#4a3f5c', '#4a3f5c'))}</td><td>0</td></tr>
+      <tr><td>黑對白 ΔE</td><td class="${dE('#000000','#ffffff') > 90 ? 'ok' : 'no'}">${F(dE('#000000', '#ffffff'))}</td><td>&gt; 90</td></tr>
+      <tr><td>自距離最大 / 不對稱最大</td><td class="${self < 1e-9 && asym < 1e-9 ? 'ok' : 'no'}">${self.toExponential(1)} / ${asym.toExponential(1)}</td><td>都是 0（分支只翻一半的症狀）</td></tr>
+      <tr><td>office 對自己 / 對 resident（形狀）</td><td>${shapeD(PEOPLE.office, PEOPLE.office)} / ${shapeD(PEOPLE.office, PEOPLE.resident)}</td><td>0 / &gt; 0</td></tr>
+      <tr><td>母體</td><td>${Object.keys(PEOPLE).length} 張圖 · ${BGS.length} 種背景色 · ${Object.keys(BODY).length} 種身體色 · ${PASSENGERS.length} 種乘客</td><td>都不是 0</td></tr>
+      <tr><td><b>三種身體色（逐鍵取）</b></td><td class="k">pal.ink ${BODY.ink} · pal.inkCar ${BODY.inkCar} · pal.bad ${BODY.bad}</td><td>不可以是 pal.money</td></tr>
+      <tr><td>對照：<code>pal.money</code></td><td class="warn">${OBJ.NIGHT.money}</td><td><b>不可以出現在上面那一行</b></td></tr>
+      <tr><td>樓層明暗係數（從 theme.js 讀）</td><td>${FLOOR_K.join(' / ')}</td><td>4 個</td></tr>
+      <tr><td><code>render.js</code> 的 shadeHex 抄本</td><td class="${shadeOk ? 'ok' : 'no'}">${shadeOk ? '逐字相同' : '對不上，地板色不可信'}</td><td>逐字相同</td></tr>
+      <tr><td><code>acceptance.js</code> 的 SHAPE_DEBT 抄本</td><td class="${debtOk ? 'ok' : 'no'}">${debtOk == null ? '讀不到' : debtOk ? `逐字相同（${SHAPE_DEBT.size} 筆）` : '對不上'}</td><td>逐字相同</td></tr>
+      <tr><td><b>對 <code>acceptance.js</code> 自己的 CIEDE2000</b></td><td class="${peerMax != null && peerMax < 0.01 ? 'ok' : 'no'}">${peerMax == null ? '抓不到那支函式' : F(peerMax) + '（' + peerWho + '）'}</td><td>兩個獨立實作要對得上</td></tr>
+    </table>` + (notes.length ? '<div style="margin-top:8px">' + notes.join('<br>') + '</div>' : '');
+
+  render();
+}
+
+function render(){
+  const P = build();
+  const rows = measure(P);
+  const byId = Object.fromEntries(rows.map(r => [r.id, r]));
+
+  // --- 2 這一趟的四張
+  const cellCls = (v, min, exempt) => (v >= min || exempt) ? 'ok' : 'no';
+  document.getElementById('mine').innerHTML =
+    '<table><tr><th>id</th><th>名稱</th><th>配件色</th><th>16 · 對 29 種背景 (≥25)</th>'
+    + '<th>2/3 · 對 3 種身體色 (≥25)</th><th>19 · 配件互斥 (≥9)</th>'
+    + '<th>15 · 形狀 (≥12)</th><th>17 · 剪影 (≠0)</th></tr>'
+    + MINE.map(id => { const r = byId[id]; return `<tr><td class="k">${id}</td><td>${NAME_OF[id] || ''}</td>`
+      + `<td><span style="display:inline-block;width:11px;height:11px;background:${r.acc};vertical-align:-1px"></span> ${r.acc}</td>`
+      + `<td class="${cellCls(r.bg[0], BG_MIN)}">${F(r.bg[0])} <span style="color:#6b6f9e">@${r.bg[1]}</span></td>`
+      + `<td class="${cellCls(r.bd[0], BODY_MIN)}">${F(r.bd[0])} <span style="color:#6b6f9e">${r.bd[1]}</span></td>`
+      + `<td class="${cellCls(r.ac[0], ACC_MIN)}">${F(r.ac[0])} <span style="color:#6b6f9e">${r.ac[1]}</span></td>`
+      + `<td class="${cellCls(r.sh[0], SHAPE_MIN)}">${r.sh[0]} <span style="color:#6b6f9e">${r.sh[1]}</span></td>`
+      + `<td class="${r.si[0] === 0 ? 'no' : 'ok'}">${r.si[0]} <span style="color:#6b6f9e">${r.si[1]}</span></td></tr>`;
+    }).join('') + '</table>'
+    + '<div style="margin-top:9px;font-size:12px;color:#8f95d6">'
+    + '⚠ <span class="k">25 不是一個可以瞄準的數字</span>：兩個 CIEDE2000 實作差到 0.0022，'
+    + `而 <code>townhaller</code> 的 ${F(dE(PEOPLE.townhaller.acc, shadeHex(BANDS.find(b=>b.key==='obs').color, 0.78)))} 只有那個差距的六倍。`
+    + '這一頁一律印四位小數，<span class="k">比較之前不做任何格式化</span>。</div>';
+
+  // --- 3 形狀
+  const pairs = [['deckguide','observer','#135 指定：34.5% 的觀景客是跟著導遊到的，兩張幾乎總是並排'],
+                 ['proposer','newlywed','全表另一張「一個框裡兩個人」'],
+                 ['proposer','dogwalker','全表另一張「一個框裡兩個」'],
+                 ['photocrew','tourist','另一台相機']];
+  document.getElementById('shapes').innerHTML =
+    '<table><tr><th>配對</th><th>形狀距離（三態，≥12）</th><th>剪影距離（二態，≠0）</th><th>配件色距</th><th>為什麼盯這一對</th></tr>'
+    + pairs.map(([a, b, why]) => `<tr><td class="k">${a} | ${b}</td>`
+      + `<td class="${shapeD(P[a], P[b]) >= SHAPE_MIN ? 'ok' : 'no'}">${shapeD(P[a], P[b])}</td>`
+      + `<td class="${silD(P[a], P[b]) ? 'ok' : 'no'}">${silD(P[a], P[b])}</td>`
+      + `<td>${F(dE(P[a].acc, P[b].acc))}</td><td style="font-family:'Noto Sans TC',sans-serif">${why}</td></tr>`).join('')
+    + '</table>'
+    + '<div style="margin-top:9px;font-size:12px;color:#8f95d6">'
+    + '換配件顏色對形狀距離的貢獻是 <span class="k">0</span>；把一塊三格的配件挪到別處大約值 6。'
+    + '要跨過 12 需要<span class="k">六格以上的結構改變</span>——一隻抬起的手、一條繩子、一支立在地上的腳架。</div>';
+
+  // --- 4 可行域
+  const probe = '#128ec0';
+  let pmin = Infinity, pwho = '';
+  for (const k of Object.keys(PEOPLE)){
+    if (k === 'deckguide' || !PEOPLE[k].acc) continue;
+    const d = dE(probe, PEOPLE[k].acc); if (d < pmin){ pmin = d; pwho = k; }
+  }
+  document.getElementById('space').innerHTML =
+    '<div style="font-size:12.5px;line-height:1.85;color:#b9bfd8;max-width:82em">'
+    + '全 sRGB <span class="k">step 1（16,777,216 點）</span>掃描（<code>tools/artobs_scan.py</code>），'
+    + '對現在的 <span class="k">60</span> 個既有配件色、29 種背景色、3 種身體色：<br>'
+    + '「背景 ≥ 25 且身體色 ≥ 25 且對既有 60 色 ≥ 9」的點有 <span class="k">111,110 個（0.66%）</span>，'
+    + 'L* 44.8–97.9。色相分佈：'
+    + '<span class="no">紅 0 · 橙 0</span> · 黃 2,605 · 綠 45,772 · 青 26,671 · '
+    + '<span class="ok">藍 6,382</span> · 紫 22,778 · 洋紅 6,902。<br>'
+    + '<b>#105 是用 step 4（262,144 點）對 51 色量的，結論是「紅、橙、藍整段缺席」。</b>'
+    + '紅與橙在 step 1 也還是 0——<span class="k">那是 <code>pal.bad</code> 造成的幾何事實</span>；'
+    + '<span class="k">但藍不是</span>：6,382 個藍點在粗網格上一個都沒落到。'
+    + '「藍整段缺席」是<b>取樣</b>的結論，不是<b>色域</b>的結論。導遊那面旗子就是從那一段挑的。<br>'
+    + `這一頁複驗那一點 <code>${probe}</code>：對其餘 63 色的最小 ΔE = <span class="k">${F(pmin)}</span>（最近的是 ${pwho}），`
+    + `對 29 種背景最小 ${F(Math.min(...BGS.map(x => dE(probe, x[1]))))}，`
+    + `對三種身體色最小 ${F(Math.min(...Object.values(BODY).map(c => dE(probe, c))))}。<br>`
+    + '<b>四個新色撐得到的互斥上限</b>（<code>python tools/artobs_opt.py ceiling</code>）：'
+    + '背景/身體瞄 25 → 10.5754；瞄 26.5 → <span class="k">10.1902</span>；瞄 28 → 10.1582；瞄 32 → 9.7676。'
+    + '<span class="k">我取的是 9.5146，不是上限</span>——買回來的是「相機是灰的、捧花是洋紅、臉是綠的、旗子是藍的」，'
+    + '理由與代價寫在 <code>js/sprites.js</code> 的區塊註解裡。<b>門檻沒有被動過。</b>'
+    + '</div>';
+
+  // --- 5 全表
+  const sorted = rows.slice().sort((a, b) => a.ac[0] - b.ac[0]);
+  const u12 = [], u10 = [];
+  const ids = rows.map(r => r.id);
+  for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++){
+    const d = dE(P[ids[i]].acc, P[ids[j]].acc);
+    if (d < 12) u12.push(d); if (d < 10) u10.push(d);
+  }
+  document.getElementById('all').innerHTML =
+    `<div style="font-size:12.5px;line-height:1.8;color:#b9bfd8;margin-bottom:9px">`
+    + `${rows.length} 個配件色、${ids.length * (ids.length - 1) / 2} 組配對。`
+    + `<span class="k">全表最小互斥 ${F(sorted[0].ac[0])}（${sorted[0].id}|${sorted[0].ac[1]}）</span>，`
+    + `12 以下 ${u12.length} 組、10 以下 ${u10.length} 組。`
+    + `<br>⚠ <b>侵蝕要看得見</b>：#105 記著落地前是「最小 10.9708、10 以下 0 組」。`
+    + `這四張把最小值往下推了，而那正是 #105 預測的那條曲線。</div>`
+    + '<table><tr><th>最靠近的十對（配件互斥）</th><th>ΔE</th></tr>'
+    + (() => { const all = [];
+        for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++)
+          all.push([ids[i] + '|' + ids[j], dE(P[ids[i]].acc, P[ids[j]].acc)]);
+        all.sort((a, b) => a[1] - b[1]);
+        return all.slice(0, 10).map(([k, d]) =>
+          `<tr><td class="${d >= ACC_MIN ? '' : 'no'}">${k}</td><td class="${d >= ACC_MIN ? 'ok' : 'no'}">${F(d)}</td></tr>`).join('');
+      })() + '</table>';
+
+  // --- 6 接觸表 + 逐像素比對
+  const cd = document.getElementById('cday'), cn = document.getElementById('cnight');
+  drawSheet(cd, P, false); drawSheet(cn, P, true);
+  const [n, tot] = pixelDiff(cd, cn);
+  document.getElementById('pxdiff').innerHTML =
+    `日夜逐像素比對：<span class="k">${n.toLocaleString()} / ${tot.toLocaleString()}</span> 不同`
+    + `（<span class="k">${(100 * n / tot).toFixed(2)}%</span>）。`
+    + `<span style="color:#8f95d6">用眼睛看這兩張會覺得一樣——#88 那一趟就這樣看錯過一次。</span>`;
+
+  // --- 7 按鍵
+  document.getElementById('btns').innerHTML = Object.entries(INJECT).map(([k, v]) =>
+    `<button class="danger ${injected === k ? 'on' : ''}" data-inj="${k}">${v.label}</button>`).join('');
+  for (const b of document.querySelectorAll('[data-inj]'))
+    b.onclick = () => { injected = injected === b.dataset.inj ? null : b.dataset.inj; render(); };
+  document.getElementById('injnote').innerHTML = injected
+    ? `<b>現在種著：</b>${INJECT[injected].note}`
+    : '<span style="color:#8f95d6">現在沒有種任何缺陷。</span>';
+
+  // --- 8 結論（**從上面的數字算出來，不是寫死的**）
+  const bad = verdictOf(rows);
+  const mineRows = MINE.map(id => byId[id]);
+  const mn = f => Math.min(...mineRows.map(f));
+  const parts = [];
+  const line = (title, list, extra) => parts.push(`<b>${title}</b>：${extra}，`
+    + (list.length ? `<span class="no">${list.length} 項不過（${list.join('、')}）</span>`
+                   : '<span class="ok">全表過</span>'));
+  line(`19 · 配件互斥（≥ ${ACC_MIN}）`, bad.ac, `這四張最小 ${F(mn(r => r.ac[0]))}`);
+  line(`2/3 · 對三種身體色（≥ ${BODY_MIN}，harness 沒有 guard）`, bad.bd, `這四張最小 ${F(mn(r => r.bd[0]))}`);
+  line(`16 · 對 29 種背景色（≥ ${BG_MIN}）`, bad.bg, `這四張最小 ${F(mn(r => r.bg[0]))}`);
+  line(`15 · 形狀距離（≥ ${SHAPE_MIN}）`, bad.sh, `這四張最小 ${mn(r => r.sh[0])}`);
+  line('17 · 剪影不可以完全相同', bad.sil, `這四張最近 ${mn(r => r.si[0])}`);
+  const total = Object.values(bad).reduce((a, x) => a + x.length, 0);
+  const v = document.getElementById('verdict');
+  v.style.borderColor = total ? '#e2645a' : '#5ddc9a';
+  v.style.color = total ? '#ffb0b0' : '#a8f0cc';
+  v.innerHTML = parts.map(p => '· ' + p).join('<br>')
+    + '<div style="margin-top:10px;font-size:15px" class="' + (total ? 'no' : 'ok') + '"><b>'
+    + (total ? `結論：${total} 項不過。` : '結論：五條判準全部過關（4 張新圖，全表 ' + rows.length + ' 張）。')
+    + '</b></div>'
+    + (injected ? `<div style="margin-top:6px;font-size:12px;color:#f0a04a">⚠ 現在種著一個缺陷：<code>${injected}</code>。沒有種缺陷的時候這一句必須是綠的；種下去必須翻。</div>` : '');
+  window.__obs = { rows, bad, total, injected };
+}
+
+main();
+</script>
+</x-dc>
+</body>
+</html>
