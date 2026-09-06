@@ -464,6 +464,57 @@ function runEvent(st, sim, ev, band, tenant, simTopAll, scale){
   if (made && !ev.inbound) sim.surgeFloor = { f: from, until: st.t + 25 };
 }
 
+// ------------------------------------------------------------ 等不到電梯就自己走樓梯（#22）
+// blockOn:'deliver' 把「封鎖什麼時候開始」交給玩家。沒有上限的話那不是「延後」
+// 而是「取消」：清潔工 patience:999，永遠不載他們就永遠不會被封鎖 —— 一個玩家
+// 察覺得到、可以刻意執行的支配策略，零成本解掉整個事件。
+// 而且就算玩家想載，FIFO 也載不到：實測清潔工從出現到被送達，FIFO 12 層中位
+// **250 秒**、最長 **766 秒**（遊戲一天只有 180 秒，所以是 1.4–4.3 個遊戲日），
+// SCAN／LOOK 只有 22–27 秒。FIFO 是玩家買的第一個演算法，所以「看到打蠟提示、
+// 然後四天什麼都沒發生」是新手最可能踩到的那條路。
+//
+// ev.blockAfter = N（秒，選填）：這一批人出現 N 秒之後還沒被送上去，他們就自己
+// 走樓梯上去，封鎖照樣開始。**沒寫這個欄位的事件一個位元組都沒變。**
+//
+// 為什麼是這個做法而不是「把 FIFO 改快」：慢就是 FIFO 的本體，它慢是對的
+// （那正是玩家該去買 SCAN 的理由）。要有界的是**這個事件**，不是那個演算法。
+function stairsUp(st, sim){
+  let fired = null;
+  // 等著的與**已經在車上**的都要看：只看 sim.waiting 的話，「兩個清潔工都上了車、
+  // 然後車被 FIFO 的佇列卡住」這個最糟的情況一輩子不會觸發上限。
+  const seen = p => {
+    if (fired) return;
+    const arm = p.blockArm;
+    if (!arm || arm.used) return;
+    const after = arm.ev && arm.ev.blockAfter;
+    if (!(after > 0) || st.t - p.born < after) return;
+    fired = arm;
+  };
+  for (const p of sim.waiting) seen(p);
+  for (const s of sim.shafts) for (const r of s.riders) seen(r);
+  if (!fired) return;
+  fired.used = true;
+  const ok = blockFloor(st, sim, fired.floor, fired.secs);
+  // arm 是同一次事件共用的同一個物件，所以逐個比對就抓得到同一批人：一起走樓梯。
+  //
+  // **車上的那個也要一起下車走。** 第一版寫的是「已經有人在車上就不觸發，讓那一趟
+  // 跑完」，實測打臉：FIFO 下清潔工上了車之後會被自己的乘客佇列餓死——一次量到
+  // 上車後又坐了 **1101 秒**（6 個遊戲日）才到，於是「提示 → 樓真的封起來」的最糟值
+  // 又變回無界，而那正是這條上限要解掉的東西。留他在車上也不對：那層封起來之後
+  // openDoors 不在封鎖層開門，他會下不了車、一路佔著位子到解封。
+  for (const s of sim.shafts)
+    for (let i = s.riders.length - 1; i >= 0; i--)
+      if (s.riders[i].blockArm === fired) s.riders.splice(i, 1);
+  for (let i = sim.waiting.length - 1; i >= 0; i--)
+    if (sim.waiting[i].blockArm === fired) sim.waiting.splice(i, 1);
+  // 他們不算「放棄」——沒有扣評價、也不進 stats.abandoned。走樓梯是他們的工作，
+  // 不是一個對玩家的懲罰；懲罰是接下來那層樓不能停。
+  const txt = L(fired.ev, 'blockLateText', 'events') || L(fired.ev, 'blockText', 'events');
+  if (ok && txt)
+    sim.toasts.push({ txt: txt.replace('{f}', fired.floor + 1)
+      .replace('{s}', Math.round(fired.secs)), life: 4 });
+}
+
 // ------------------------------------------------------------ 票價
 function fareOf(st, d, p){
   const dist = Math.abs(p.dest - p.origin);
@@ -734,6 +785,10 @@ export function step(st, sim, dt){
     sim.eventT = 0;
     if (Math.random() < C.EVENT_CHANCE) fireEvent(st, sim);
   }
+
+  // --- 等不到電梯的工班自己走樓梯上去（#22）。要在耐性之前：他們 patience:999，
+  // 順序其實無關緊要，但「先讓事件推進、再結算耐性」讀起來才是因果的順序。
+  stairsUp(st, sim);
 
   // --- 耐性
   for (let i = sim.waiting.length - 1; i >= 0; i--){
