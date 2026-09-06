@@ -103,6 +103,15 @@ export const EN = {
     waterhauler:{ name:'Water carrier',    note:'The water is off and the whole block is going down with buckets. The cheapest fare on these floors — this is an incident, not a service.' },
     neighbor:   { name:'Neighbour',        note:'A block party, with everyone converging on one floor. The only short trip in this band, so the fare has to make up for the distance.' },
     blackouter: { name:'Resident in the dark', note:'The power is out and everyone is pushing downstairs. Patience drops to a third during the event — they know there is no other way down, but they will not wait long.' },
+    // 觀景台帶的四個人物（#101 #102 #103 #104）。**#100 觀景客沒有在這裡**：
+    // 它就是上面既有的 `observer` / Sightseer，這一趟沒有開第二個觀景客。
+    // ⚠ 第 13 組會比對「文案說佔 N 格」與 `size`（中英各一次），成對的允許 2×size；
+    //   而「N 秒」會拿去對 `doorPenalty`，這四列都沒有 doorPenalty，**所以英文
+    //   一個「second」都不可以出現**（`sat:0.55` 那件事寫成「patience」不寫成秒）。
+    proposer:  { name:'Proposal couple',  note:'Observation deck only. The two of them must ride together — delivered apart does not count, so a couple needs four slots free. Get them up before the nerve goes (waiting under 45% of their patience) and the rating jumps.' },
+    photocrew: { name:'Photo crew',       note:'Observation deck only. Tripods and kit take three slots, but they are here to wait for the light — this one costs you space, not time.' },
+    acrophobe: { name:'Vertigo visitor',  note:'One look over the edge and they want straight back down. The least patient passenger in the building — but only one slot, and no hard feelings.' },
+    deckguide: { name:'Deck guide',       note:'Observation deck only. Turns up with four to six sightseers in tow, so a party needs a whole row of slots. He barely pays a thing himself — the money is in the group.' },
   },
 
   tenants: {
@@ -231,6 +240,14 @@ export const EN = {
     toolbelt:   { name:'Tools and all',    note:'Take 20 fitters up, each of them filling three slots.' },
     afterhours: { name:'Only you are running', note:'Get 18 people home between midnight and 3am.' },
     pitchdark:  { name:'Pitch dark',       note:'Take 45 people down during a blackout, on a third of their usual patience.' },
+    // 觀景台帶五個人物的成就（#100–#104）。**門檻的數字要跟中文那一邊一致**，
+    // harness 第 8 組會逐條比對中英兩邊。
+    // saidyes 的兩個數字都寫出來，理由跟中文那一列一樣：它數的是人次不是對數。
+    skyline:    { name:'Skyline',          note:'Deliver 82 sightseers — the parties a guide brings up all count.' },
+    saidyes:    { name:'She said yes',     note:'Deliver 24 proposal-couple rides — both of them count, so 12 couples who rode the whole way together.' },
+    shutterbug: { name:'Tripods upstairs', note:'Deliver 20 photo crews — three slots of kit every time.' },
+    groundlevel:{ name:'Ground is better', note:'Take 22 vertigo visitors back down — the shortest patience in the building.' },
+    flagfollower:{name:'Follow the flag',  note:'Deliver 6 deck guides — each one arrives with four to six sightseers in tow.' },
   },
 
   roofs: {
