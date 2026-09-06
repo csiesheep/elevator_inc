@@ -41,7 +41,7 @@ export const EN = {
     ceo:       { name:'CEO',           note:'Enormous fare, no patience at all. Keeping one waiting hurts the rating badly. Far more common at rush hour.' },
     cat:       { name:'Cat',           note:'Pays nothing. Purely raises the rating. Rare.' },
     ghost:     { name:'Ghost',         note:'Only ever on the 13th floor. Carrying it leaves you an unexpected sum.' },
-    mover:     { name:'Removals crew', note:'Fills most of the car on its own.' },
+    mover:     { name:'Removals crew', note:'The load takes four slots and fills most of the car. One of the best fares in the building, too — it earns those slots.' },
     guest:     { name:'Hotel guest',   note:'Luggage takes two slots. Hotel floors only.' },
     resident:  { name:'Resident',      note:'A regular, and patient with it. Residential floors only.' },
     observer:  { name:'Sightseer',     note:'Arrives in groups heading for the observation deck.' },
@@ -89,6 +89,20 @@ export const EN = {
     roomcart:  { name:'Room-service cart',note:'A trolley that fills most of the car, moving between floors. Never gives up — leave it and it just stands there.' },
     bellhop:   { name:'Bellhop',          note:'Carries the luggage. Pays nothing and never gives up, but a ride lifts the building rating. Two slots.' },
     nightguest:{ name:'Late-night guest', note:'Hotel floors only. Turns up between 11pm and 4am and nowhere else, for the best fare on the floor — nobody else wants the lift at that hour.' },
+    // 住宅帶的四個人物（#80 #81 #82 #83）。#79 搬家公司的英文在上面 mover 那一行。
+    // 數字要跟 content.js 的資料對得上：遛狗一組 4 格（size 2 × 2）、外送小費是
+    // 車資的一半（tip.mult 0.5）、深夜回家 0–4 點（peaks 的補集窗）、裝修 3 格。
+    dogwalker: { name:'Dog walker',       note:'Residential floors only. The dog rides with its owner or not at all — delivered apart does not count, so one pair needs four slots free. Far more common in the evening.' },
+    fooddeliv: { name:'Food courier',     note:'Residential floors only. The shortest patience on these floors — get one there fast (waiting under 40% of their patience) and they hand you half the fare again as a tip; too slow and they simply stop waiting. Far more common around dinner.' },
+    latehome:  { name:'Late homecomer',   note:'Residential floors only. Turns up between midnight and 4am and nowhere else, and is the most patient person in the building — nobody else wants the lift at that hour.' },
+    renovator: { name:'Renovation crew',  note:'Residential floors only. The tools take three slots, but he is in no hurry — this one costs you space, not time. Works while the residents are out.' },
+    // 住宅帶十個事件的五個人物（#69 #70 #73 #74 #78）。另外五個事件指到 #79–#83 的人物，
+    // 那五列的英文在那一支分支上，不在這裡。
+    commuter:   { name:'Morning commuter', note:'Residents heading down to work between seven and nine. An ordinary fare, over and over — that is what this band is.' },
+    homecomer:  { name:'Returning resident', note:'Residents coming home in the evening. Their hands are full, so they pay a little more; nobody is late for their own sofa, so they wait a little longer.' },
+    waterhauler:{ name:'Water carrier',    note:'The water is off and the whole block is going down with buckets. The cheapest fare on these floors — this is an incident, not a service.' },
+    neighbor:   { name:'Neighbour',        note:'A block party, with everyone converging on one floor. The only short trip in this band, so the fare has to make up for the distance.' },
+    blackouter: { name:'Resident in the dark', note:'The power is out and everyone is pushing downstairs. Patience drops to a third during the event — they know there is no other way down, but they will not wait long.' },
   },
 
   tenants: {
@@ -195,6 +209,28 @@ export const EN = {
     trolley:    { name:'Trolley service',  note:'Deliver 10 room-service carts, four slots each.' },
     porter:     { name:'Bags upstairs',    note:'Deliver 36 bellhops — they pay nothing and only lift the rating.' },
     lastcheckin:{ name:'Home at last',     note:'Deliver 29 late-night guests, who only ever turn up in the small hours.' },
+    // 住宅帶的五條（#79 #80 #81 #82 #83）。
+    // 數字要跟 content.js 的判定一致（驗收第 8 組逐條比對中英兩邊）。
+    // walkies 的兩個數字都寫出來，理由跟中文那一列一樣：它數的是人次不是組數。
+    bigmove:   { name:'Moving day',        note:'Deliver 10 removals crews — their load takes four slots, so it is nearly a whole empty car.' },
+    walkies:   { name:'Walkies',           note:'Deliver 48 dog-walker rides — the owner and the dog each count, so 24 pairs in all.' },
+    hotfood:   { name:'Still hot',         note:'Deliver 26 food couriers — the shortest patience on these floors.' },
+    lastlight: { name:'Last light',        note:'Deliver 28 late homecomers, who only ever turn up between midnight and 4am.' },
+    renovated: { name:'Refurbished',       note:'Deliver 12 renovation crews — three slots of tools every time.' },
+    // 住宅帶十個事件的成就（#69–#78）。**門檻的數字要跟中文那一邊一致**，
+    // harness 第 8 組會逐條比對。五條跟 #79–#83 共用計數器，見 content.js 的註解。
+    // ⚠ 這一區原本還有 `hotfood`（Take 60…）與 `walkies`（Take 40…）兩行，**merge 時
+    //   刪掉了**：它們跟上面人物那一支的同名鍵是同一條成就，而且在同一個物件字面量裡
+    //   重複的鍵會**蓋掉**上面那兩行（後寫的贏），讓英文的門檻對不上留下來的中文。
+    //   留下的是上面 48／26 的那兩行，見 content.js ACHIEVEMENTS 裡的裁決註解。
+    earlyshift: { name:'Early shift',      note:'Deliver 90 morning commuters.' },
+    welcomehome:{ name:'Welcome home',     note:'Get 80 residents home from work.' },
+    boxedup:    { name:'Load by load',     note:'Move 24 loads of furniture, each one filling four slots.' },
+    waterrun:   { name:'Bucket brigade',   note:'Take 30 water carriers down.' },
+    potluck:    { name:'Everyone eats',    note:'Bring 70 residents to the block party.' },
+    toolbelt:   { name:'Tools and all',    note:'Take 20 fitters up, each of them filling three slots.' },
+    afterhours: { name:'Only you are running', note:'Get 18 people home between midnight and 3am.' },
+    pitchdark:  { name:'Pitch dark',       note:'Take 45 people down during a blackout, on a third of their usual patience.' },
   },
 
   roofs: {
@@ -257,5 +293,22 @@ export const EN = {
     cartjam:    { name:'Jammed trolley',  text:'🛎 A bellhop is waiting in the lobby for floor {f} — that trolley will jam a lift door open' },
     // 飯店帶：客房服務（#58）
     roomservice:{ name:'Room service',   text:'🛎 Room service: {n} trolleys wheel out of floor {f}, each one filling most of a car' },
+    // 住宅帶的十個事件（#69–#78）。
+    // ⚠ movingday 刻意不叫 moving：byTenant 那一列已經占了 `moving` 這個鍵，
+    //   同名的話**英文玩家兩個事件會看到同一句話**（#30 party 踩過的坑）。
+    // ⚠ 而**分開 id 還不夠**：第一版兩列的 name 都是 'Moving day'，harness 第 13 組
+    //   當場紅（「events(en)「Moving day」= movingday 與 moving」）。id 只有我們
+    //   看得到，玩家看到的是 name 跟 text。照 cinema／screening 的前例，
+    //   byTenant 那一列留著，我這一列改成 'Moving crew'，text 也重寫。
+    morningrush: { name:'Morning commute', text:'🌅 Morning commute: {n} residents leave floor {f} for work together' },
+    eveninghome: { name:'Evening return',  text:'🌇 Evening return: {n} residents in the lobby, all of them going home' },
+    movingday:   { name:'Moving crew',     text:'📦 Moving crew: {n} movers turn up on floor {f}, each one filling most of a car' },
+    fooddelivery:{ name:'Delivery rush',   text:'🛵 Delivery rush: {n} riders waiting in the lobby — cold food earns no tip' },
+    watercut:    { name:'Water shut off',  text:'🚰 The water is off: {n} residents leave floor {f} carrying buckets' },
+    blockparty:  { name:'Block party',     text:'🍲 Block party: {n} residents converging on floor {f}' },
+    dogwalk:     { name:'Walking the dog', text:'🐕 Walking the dog: residents on floor {f} are heading down — the dog rides with them, or neither of them boards' },
+    renovation:  { name:'Fitting-out crew',text:'🔨 Fitting-out crew: {n} fitters in the lobby with their tools, bound for floor {f}, three slots each' },
+    latenight:   { name:'Home in the small hours', text:'🌃 Home in the small hours: {n} people in the lobby — yours is the only lift still running' },
+    blackout:    { name:'Blackout',        text:'🔌 The power is out: {n} people push down from floor {f} in the dark, and none of them will wait' },
   },
 };
