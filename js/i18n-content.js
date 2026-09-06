@@ -224,7 +224,11 @@ export const EN = {
     launch:   { name:'Launch day',     text:'🛍 Launch day: the queue is let in — {n} people, all of them going to floor {f}' },
     restock:  { name:'Dawn restock',   text:'📦 Dawn restock: {n} trolleys in the lobby, headed for the shops' },
     foodcourt:{ name:'Food court',     text:'🍜 Lunch: {n} people come down from floor {f} together' },
-    screening:{ name:'Last screening', text:'🎬 A screening ends: a full house of {n} leaves floor {f} at once' },
+    // 'Moviegoer crowd' 不是 'Last screening' —— 舊名字跟下面 byTenant 那一列的
+    // 'Screening ends' 幾乎同一句，而中文那兩列本來是一字不差的「電影散場」。
+    // 見 content.js 的 screening 那一列：兩列是兩條不同的路，名字要分得開。
+    // 另外舊名字 'Last screening' 對 hours[13,1] 的下午場也不成立。
+    screening:{ name:'Moviegoer crowd', text:'🎬 Moviegoer crowd: a showing on floor {f} has just ended and {n} people surge toward the lobby' },
     lostkid:  { name:'Lost child',     text:'🧒 Lost child: a kid on floor {f} is looking for a parent' },
     raffle:   { name:'Prize draw',     text:'🎁 The draw is announced: {n} winners on floor {f} want to get down there fast' },
     lunch:    { name:'Lunch hour',     text:'🍜 Lunch hour: {n} people come down from the food court on floor {f}' },
