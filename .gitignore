@@ -2,3 +2,6 @@
 tools/_cand_*.npy
 tools/_picked.json
 __pycache__/
+# art/obs（#135）的掃描中間檔（tools/artobs_scan.py 產生，約 5MB，重跑約 4 分鐘就有）
+tools/_obs_cand.npz
+tools/_obs_picked.json
