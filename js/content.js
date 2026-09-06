@@ -2761,6 +2761,12 @@ export const EVENTS = [
   //       修法是 sim.js 三行，**動 sim.js 要 orchestrator 授權，我沒有自己動。**
   //   w:24 —— [6,8) 兩小時窗。**那個窗現在幾乎是空的**（早餐時段 w:18 的 [6,10]
   //          是唯一蓋到的一列），所以 24 讓遛狗成為清晨的主線。
+  // ⚠⚠ **`n:[2,4]` 是對的，不要「修正」成 owner 菜單上的 4–8。**（上面 (1) 已由
+  //   orchestrator 裁決，這裡寫死，因為下一個讀 owner 菜單的人一定會想改它。）
+  //   `dogwalker` 有 `pair:true`，`makeMate()` 會**每生一個就再配一個**，
+  //   所以 `n:[2,4]` 在場上剛好是 owner 要的 **4–8 人**。
+  //   填 `n:[4,8]` 會變成 **8–16 人**（size 2 → 16–32 格），那是全遊戲最重的一列。
+  //   要驗這件事看 `js/sim.js` 的 `makeMate()`，不要只看這一行的字面值。
   { id:'dogwalk', name:'遛狗時間', w:24, n:[2,4], at:'resid', to:'lobby',
     hours:[6,8], type:'dogwalker',
     text:'🐕 遛狗時間：{f} 樓的住戶帶著狗要下樓——人跟狗要同一台，不然兩個都不上' },
@@ -3247,22 +3253,22 @@ export const ACHIEVEMENTS = [
   //   「你有沒有為他清出位子」，不是「你玩了多久」。
   { id:'boxedup',    name:'一車一車搬', test:s=>s.codex.mover>=24,
     note:'送走 24 車搬家的家當，每一車都佔掉四格。' },
-  // ⚠ 共用計數器：codex.fooddeliv 也是 #81 外送員那一張會讀的鍵。
-  //   ⚠ 這個 id 是暫定值，要跟事件那一列一起換成 #81 真正的 id。
-  { id:'hotfood',    name:'還是熱的',   test:s=>s.codex.fooddeliv>=60,
-    note:'送 60 個外送員上樓。' },
+  // 這裡原本有事件那一支的 `hotfood`（`fooddeliv>=60`、「還是熱的」）。**merge 時刪掉了**：
+  //   它跟上面人物那一支的 `hotfood`（`fooddeliv>=26`、「趁熱送到」）是**同一條成就**
+  //   ——同一個 codex 鍵、同一個意思，只有門檻不同。orchestrator 裁決留 26 那一版，
+  //   因為 `fooddeliv` 是人物那一支的型別，26 是它實測出來的（168 格：三塔 × 七調度
+  //   × 8 種子 × 20 遊戲日，落在 3.0–3.1 場），60 沒有對應的量測。
   { id:'waterrun',   name:'提水人龍',   test:s=>s.codex.waterhauler>=30,
     note:'送 30 個提水的住戶下樓。' },
   { id:'potluck',    name:'一起吃飯',   test:s=>s.codex.neighbor>=70,
     note:'送 70 個住戶去參加社區聚會。' },
-  // ⚠ 共用計數器：codex.dogwalker 也是 #80 遛狗的住戶那一張會讀的鍵。
-  //   ⚠ 這個 id 是暫定值，要跟事件那一列一起換成 #80 真正的 id。
-  //   ⚠ **這一條數的是人次不是對數。** 「整對才算一筆」需要一個像
-  //     `codex.newlywedPairs` 那樣的具名計數器，而那要在 sim.js 多寫一行
-  //     （sim.js:796 自己寫著「下一個寫 pair:true 的人物要在這裡多一行」）。
-  //     **動 sim.js 要 orchestrator 授權，我沒有自己動。** 回報在交付留言。
-  { id:'walkies',    name:'遛狗時間',   test:s=>s.codex.dogwalker>=40,
-    note:'送 40 人次的遛狗住戶下樓——人跟狗要同一台，所以這是 20 趟。' },
+  // 這裡原本有事件那一支的 `walkies`（`dogwalker>=40`）。**merge 時刪掉了**：
+  //   它跟上面人物那一支的 `walkies`（`dogwalker>=48`）是**同一條成就**——同一個
+  //   codex 鍵、同一個名字（「遛狗時間」）、同一個意思，只有門檻不同。orchestrator
+  //   裁決留 48 那一版，因為 `dogwalker` 是人物那一支的型別，48 是它實測出來的
+  //   （168 格：三塔 × 七調度 × 8 種子 × 20 遊戲日），並且另外做過可達性驗證
+  //   （T70／T100 各 60 遊戲日，五條全為 true）；40 沒有對應的量測。
+  //   ⚠ 「數的是人次不是對數」這個已知的妥協，寫在留下來的那一列上（上面 walkies）。
   // ⚠ 共用計數器：codex.renovator 也是 #83 裝修工班那一張會讀的鍵。
   //   ⚠ 這個 id 是暫定值，要跟事件那一列一起換成 #83 真正的 id。
   { id:'toolbelt',   name:'工具都帶了', test:s=>s.codex.renovator>=20,

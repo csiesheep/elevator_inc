@@ -219,13 +219,15 @@ export const EN = {
     renovated: { name:'Refurbished',       note:'Deliver 12 renovation crews — three slots of tools every time.' },
     // 住宅帶十個事件的成就（#69–#78）。**門檻的數字要跟中文那一邊一致**，
     // harness 第 8 組會逐條比對。五條跟 #79–#83 共用計數器，見 content.js 的註解。
+    // ⚠ 這一區原本還有 `hotfood`（Take 60…）與 `walkies`（Take 40…）兩行，**merge 時
+    //   刪掉了**：它們跟上面人物那一支的同名鍵是同一條成就，而且在同一個物件字面量裡
+    //   重複的鍵會**蓋掉**上面那兩行（後寫的贏），讓英文的門檻對不上留下來的中文。
+    //   留下的是上面 48／26 的那兩行，見 content.js ACHIEVEMENTS 裡的裁決註解。
     earlyshift: { name:'Early shift',      note:'Deliver 90 morning commuters.' },
     welcomehome:{ name:'Welcome home',     note:'Get 80 residents home from work.' },
     boxedup:    { name:'Load by load',     note:'Move 24 loads of furniture, each one filling four slots.' },
-    hotfood:    { name:'Still hot',        note:'Take 60 delivery riders upstairs.' },
     waterrun:   { name:'Bucket brigade',   note:'Take 30 water carriers down.' },
     potluck:    { name:'Everyone eats',    note:'Bring 70 residents to the block party.' },
-    walkies:    { name:'Walkies',          note:'Take 40 dog walkers down — the dog rides with them, so that is 20 trips.' },
     toolbelt:   { name:'Tools and all',    note:'Take 20 fitters up, each of them filling three slots.' },
     afterhours: { name:'Only you are running', note:'Get 18 people home between midnight and 3am.' },
     pitchdark:  { name:'Pitch dark',       note:'Take 45 people down during a blackout, on a third of their usual patience.' },
