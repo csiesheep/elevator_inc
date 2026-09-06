@@ -1047,4 +1047,89 @@ check('乘客文案裡的「佔幾格 / 卡幾秒」要跟資料對得上', () =
 });
 
 
+// ---------------------------------------------------------------- 14 一次丟出幾十則提示
+// 測試 55 pass / 0 fail 全綠的時候，我打開遊戲用眼睛看，發現一次解鎖很多成就時
+// toast 疊到畫面外。**真實觸發不是人工狀態，是舊存檔第一次載入新版本**：這一輪加了
+// 約 20 條成就，一個玩到 45 樓的存檔載入之後那些門檻早就滿足，checkAchievements()
+// 會在同一幀全部判成剛達成。實測一次丟出 **28 則**，而後面還有四個樓層帶要加成就。
+//
+// A/B（同一支探針、兩個 build、375×812）：
+//   修正前 28 框、**12 則被切出視窗**、整疊 1286px（頂端 −530px）、蓋住畫布 47.5%
+//   修正後  5 框、**0 則被切出**、整疊 225px、蓋住畫布 17.7%
+//
+// **這條擋得住哪一半／擋不住哪一半**：它斷言的是「整疊裝得下」，用**幾何**算。
+// 它**不**判斷「玩家看不看得清楚」，也不保證那一行計數導向的成就頁真的有東西。
+//
+// ⚠ **不要用 `elementsFromPoint` 量這件事。** 我原本就是這樣交代 peer 的，而它做完
+// 之後回報那是錯的：`#toasts` 是 `pointer-events:none`，**elementsFromPoint 不會
+// 回傳它**，每一格都報 0% 覆蓋，而截圖上明明蓋滿。elementsFromPoint 量的是**命中
+// 測試**，不是**視覺**——**toast 不擋點擊（設計如此），它擋的是視線。**
+// 這是 §5.19「尺寸不是點擊目標」的鏡像：那一條說要用命中測試取代量尺寸，
+// 這一條說**視覺遮蔽不能用命中測試**。兩個都是真的，適用範圍不同。
+section('14 一次丟出幾十則提示');
+
+// 最矮的支援視窗（設計文件抄寫，不從執行環境讀——跑 harness 的視窗多高是偶然的，
+// 拿它當分母的話這條 guard 的鬆緊會隨機浮動）。
+
+// check() 是同步的，所以樣式與模組在**模組頂層**先備好（跟 SIM_SRC 同一個作法）。
+// 載不到就讓那條 guard 回 TODO——它不能假裝自己驗過。
+const TOAST_ENV = await (async () => {
+  try {
+    const href = new URL('../css/style.css', import.meta.url).href;
+    await new Promise(res => {
+      const l = document.createElement('link');
+      l.rel = 'stylesheet'; l.href = href;
+      l.onload = res; l.onerror = res;
+      document.head.appendChild(l);
+    });
+    const box = document.createElement('div');
+    box.id = 'toasts';
+    document.body.appendChild(box);
+    const UI = await import('../js/ui.js');
+    return { box, UI };
+  } catch (e){ return null; }
+})();
+
+const SHORT_VIEWPORT = 667;      // iPhone SE（設計文件抄寫，不從執行環境讀——
+                                 // 跑 harness 的視窗多高是偶然的，拿它當分母的話
+                                 // 這條 guard 的鬆緊會隨機浮動）
+const STACK_MAX_FRAC = 0.40;     // 整疊不得超過最矮視窗的四成
+
+check('一次丟出幾十則提示，整疊仍然裝得下', () => {
+  if (!TOAST_ENV) return 'TODO: 樣式或 ui.js 載不進來，量不了版面';
+  const { box, UI } = TOAST_ENV;
+
+  const burst = k => {
+    box.innerHTML = '';
+    for (let i = 0; i < k; i++)
+      UI.toast('🏆 一則夠長的成就名稱，讓它跟真的一樣會折行 ' + (i + 1), 60000);
+    return { n: box.querySelectorAll('.toast').length, h: box.getBoundingClientRect().height };
+  };
+
+  // 儀器活著嗎？沒有 CSS 的話每一則高度是 0，整疊永遠「裝得下」——一個永遠綠的儀器。
+  const one = burst(1);
+  const el = box.querySelector('.toast');
+  const bw = el ? (parseFloat(getComputedStyle(el).borderTopWidth) || 0) : 0;
+  if (!el || bw < 1 || one.h < 10){
+    box.innerHTML = '';
+    return `TODO: 產品的樣式沒有套上（框線 ${bw}px、單則整疊 ${one.h.toFixed(0)}px），量到的高度不可信`;
+  }
+
+  const bad = [], rows = [];
+  let lastN = 0;
+  for (const k of [1, 5, 28, 50]){
+    const r = burst(k);
+    lastN = r.n;
+    rows.push(`${k}→${r.n} 框 ${r.h.toFixed(0)}px`);
+    if (r.h > SHORT_VIEWPORT * STACK_MAX_FRAC)
+      bad.push(`丟 ${k} 則時整疊 ${r.h.toFixed(0)}px，超過最矮視窗 ${SHORT_VIEWPORT}px 的 `
+             + `${(STACK_MAX_FRAC * 100).toFixed(0)}%（= ${(SHORT_VIEWPORT * STACK_MAX_FRAC).toFixed(0)}px）`);
+  }
+  box.innerHTML = '';
+  const ne = nonEmpty(lastN, '丟 50 則之後一個框都沒有，這條 guard 在看一個空的宇宙');
+  if (ne !== true) return ne;
+  return ok(bad.length === 0, rows.join('｜') + (bad.length ? '｜' + bad.join('｜') : ''));
+});
+
+
 export { summary };
