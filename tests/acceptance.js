@@ -1143,4 +1143,117 @@ check('一次丟出幾十則提示，整疊仍然裝得下', () => {
 });
 
 
+// ---------------------------------------------------------------- 15 形狀分得開嗎
+// 顏色有四條判準（#37 三條 + #84 補的「配件色對 28 種樓層底色」），**形狀一條都沒有**。
+// 一個 peer 做了研究，我把它的每一個數字都複驗過（24 / 14 / 52 / 29、中位數 21、
+// 最大 52 逐字相同），判準是：
+//
+//   **d(A,B) = 兩個姿勢中較小的那個，7×9 格上的三態 Hamming 距離**
+//             （`.`=0、`#`=1、`o`=2），而且**只算「可能同框」的配對**。
+//
+// 四個設計選擇，每一個都有理由：
+//
+// · **三態不是二態剪影。** peer 的第一版用二態，把 `closing/sampler` 報成
+//   **d=0「輪廓完全相同」**——那個結論是錯的。三態是 **9**：輪廓確實一樣，
+//   但配件位置差 9 格，眼睛看得出來。**二態把「配件擺在哪裡」整個丟掉了，
+//   而那是真的形狀資訊。**（我複驗：二態 0、三態 9。）
+// · **取兩個姿勢中較小的。** 可辨識性是最弱環節。
+// · **不做平移／縮放不變。** 38 張都畫在同一個 7×9 框、同一個原點，
+//   多帶一層不變性只會把真實的位置差抹掉。
+// · **整數。** `.toFixed` 那一課的直接應用——**這個量沒有小數，
+//   門檻那一位不可能被磨掉。**（peer 的色距檢查就是被 `.toFixed(2)` 把
+//   11.9988 印成 12.00，於是它在物理上分不出「剛好 12」和「差一點不到 12」。）
+//
+// **同框過濾不是修飾，是這條判準能不能用的關鍵**：全表最像的一對是
+// `ceo/scientist` d=4，而**它是誤報**——CEO 在辦公帶、研究員在實驗帶，
+// 永遠不會同時出現。過濾把 d<10 的配對從 24 砍到 14。
+//
+// **這條擋得住哪一半／擋不住哪一半**：
+// 它**完全不涵蓋顏色**（重上色對 d 的貢獻依構造是 0），所以形狀與顏色兩條線
+// 彼此獨立、不會互相掩護；**單獨任一邊都可以在另一邊全綠的情況下讓玩家分不出來。**
+// 它也**不保證在遊戲的真實尺寸上分得出來**：`cs = clamp(floor(view.fh/11), 1, 3)`，
+// 我在 375×667 上實測 5/10 層是 cs=3（21×27 px），**17 層以上一律 cs=1**，
+// 也就是**一張圖 7×9 個實體像素**——那時「差 12 格」等於「差 12 個像素」。
+// **所以這條判準的效力集中在前期與桌機；後期真正在做事的是顏色。**
+// peer 的校準梯是在 14px/格上用眼睛看的（轉折在 8 與 12 之間），**不是真實尺寸**。
+section('15 形狀分得開嗎');
+
+const SHAPE_MIN = 12;
+// **既有的 29 對按名字放行，不是 29 個例外而是一條基準線。**
+// 一條開張就要幾十個例外的 guard 是壞 guard；這裡要擋的是「**新圖讓它變糟**」，
+// 所以用身分棘輪：不在這張表上的同框配對，一律要 >= SHAPE_MIN。
+// 低分幾乎都掛在 `office` 與 `ceo` 身上——它們是「普通人」的基本體，
+// 而任何「普通人的變體」都會擠在它們旁邊。
+const SHAPE_DEBT = new Set([
+  'guest|office','ceo|coffeegoer','ceo|interviewee','office|scientist','courier|diner',
+  'courier|movie','attendee|ceo','attendee|coffeegoer','ceo|remote','ceo|tourist',
+  'closing|sampler','interviewee|office','interviewee|tourist','office|waxer','ceo|office',
+  'coffeegoer|interviewee','coffeegoer|remote','guard|tourist','observer|office',
+  'observer|tourist','office|stroller','office|tourist','scientist|tourist',
+  'attendee|nightowl','child|guard','courier|office','dolly|office','guard|interviewee',
+  'stroller|waxer',
+]);
+
+const shapeCell = ch => ch === '.' ? 0 : ch === '#' ? 1 : 2;
+const shapeHam = (a, b) => {
+  let d = 0;
+  for (let r = 0; r < 9; r++)
+    for (let c = 0; c < 7; c++)
+      if (shapeCell(a[r][c]) !== shapeCell(b[r][c])) d++;
+  return d;
+};
+const shapeDist = (x, y) =>
+  Math.min(shapeHam(PEOPLE[x].normal, PEOPLE[y].normal),
+           shapeHam(PEOPLE[x].urgent, PEOPLE[y].urgent));
+
+check('新加的圖不可以跟同框的既有圖形狀太像', () => {
+  const bandOf = Object.fromEntries(PASSENGERS.map(p => [p.id, p.band]));
+  const ids = Object.keys(PEOPLE).filter(i => bandOf[i]).sort();
+  const ne = nonEmpty(ids.length >= 2 ? ids.length : 0,
+    'PEOPLE 少於兩張圖，沒有配對可以比');
+  if (ne !== true) return ne;
+
+  // 儀器活著嗎？一張圖跟它自己的距離必須是 0——證明這個度量真的會回小數字，
+  // 否則「沒有任何一對低於門檻」可能只是因為它永遠回大數字。
+  if (shapeDist(ids[0], ids[0]) !== 0)
+    return `儀器壞了：${ids[0]} 跟自己的形狀距離不是 0`;
+
+  const coFrame = (x, y) =>
+    bandOf[x] === 'any' || bandOf[y] === 'any' || bandOf[x] === bandOf[y];
+  const bad = [];
+  let pairs = 0, debtSeen = 0;
+  for (let i = 0; i < ids.length; i++)
+    for (let j = i + 1; j < ids.length; j++){
+      const x = ids[i], y = ids[j];
+      if (!coFrame(x, y)) continue;
+      pairs++;
+      const key = x < y ? x + '|' + y : y + '|' + x;
+      const d = shapeDist(x, y);
+      if (SHAPE_DEBT.has(key)){ debtSeen++; continue; }
+      if (d < SHAPE_MIN) bad.push(`${key} d=${d}`);
+    }
+  return ok(bad.length === 0,
+    `比對了 ${pairs} 組同框配對（其中 ${debtSeen} 組是既有的背債），`
+    + `${bad.length} 組新的低於 ${SHAPE_MIN}：` + bad.join('、')
+    + `｜要跨過 ${SHAPE_MIN} 需要**大約六格以上的結構改變**——一隻抬起的手、`
+    + `一條繩子、一個背在身上的東西。**換配件顏色對這個距離的貢獻是 0**，`
+    + `把一塊三格的配件挪到別處大約只值 6。`);
+});
+
+check('形狀背債表上的配對都還存在，而且都還在門檻以下', () => {
+  const bandOf = Object.fromEntries(PASSENGERS.map(p => [p.id, p.band]));
+  const ne = nonEmpty(SHAPE_DEBT.size, 'SHAPE_DEBT 是空的，沒有東西可以檢查');
+  if (ne !== true) return ne;
+  const stale = [];
+  for (const key of SHAPE_DEBT){
+    const [x, y] = key.split('|');
+    if (!PEOPLE[x] || !PEOPLE[y] || !bandOf[x] || !bandOf[y]){ stale.push(key + '（圖或型別不見了）'); continue; }
+    // 修好了就要從表上拿掉，否則這張表會腐爛成一個沒有人讀的清單
+    if (shapeDist(x, y) >= SHAPE_MIN) stale.push(key + `（已經修好，d=${shapeDist(x, y)}，該從表上移除）`);
+  }
+  return ok(stale.length === 0,
+    `背債表 ${SHAPE_DEBT.size} 筆，${stale.length} 筆過期：` + stale.join('、'));
+});
+
+
 export { summary };
