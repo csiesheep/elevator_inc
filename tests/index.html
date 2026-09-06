@@ -45,7 +45,8 @@ document.getElementById('out').innerHTML =
   (s.fail ? `<h2>失敗</h2><ul>${s.failures.map(f =>
      `<li><span class="lab">${esc(f.label)}</span><br><span class="msg">${esc(f.msg)}</span></li>`).join('')}</ul>` : '') +
   (s.todo ? `<h2>尚未實作</h2><ul>${s.todos.map(t =>
-     `<li class="todo">${esc(t.label)}</li>`).join('')}</ul>` : '') +
+     `<li class="todo">${esc(t.label)}${t.msg && t.msg !== '尚未實作'
+        ? `<br><small>${esc(t.msg)}</small>` : ''}</li>`).join('')}</ul>` : '') +
   `<h2>通過</h2><ul>${R.pass.map(p => `<li class="lab">${esc(p.label)}</li>`).join('')}</ul>`;
 </script>
 </body>
