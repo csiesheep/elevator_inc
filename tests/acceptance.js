@@ -1469,44 +1469,87 @@ check('配件色的背債表都還存在，理由都寫了，而且都還不及�
 // 後者不會誤報一片，因為它不是門檻——它是「一模一樣」。
 section('17 兩個度量自己的斷崖');
 
-const HUE_BRANCH_MARGIN = 5;   // 離 180° 這麼近就算「踩在斷崖上」
+const HUE_BRANCH_EPS = 1;      // 離 180° 這麼近，就把兩側都算一次
 
-check('沒有任何一張圖的配件色距踩在 CIEDE2000 的 180° 分支邊界上', () => {
-  if (FLOOR_K == null || RENDER_SRC == null) return 'TODO: 讀不到 theme.js 或 render.js';
-  const P = Math.pow, deg = 180 / Math.PI;
-  // 兩個顏色在 CIEDE2000 裡的（G 修正後）色相角差
-  const hueGap = (h1, h2) => {
-    const [, a1, b1] = hexToLab(h1), [, a2, b2] = hexToLab(h2);
-    const C1 = Math.hypot(a1, b1), C2 = Math.hypot(a2, b2), Cb = (C1 + C2) / 2;
-    const G = 0.5 * (1 - Math.sqrt(P(Cb, 7) / (P(Cb, 7) + P(25, 7))));
-    const A1 = (1 + G) * a1, A2 = (1 + G) * a2;
-    const hh = (x, y) => { if (x === 0 && y === 0) return 0; const t = Math.atan2(y, x) * deg; return t < 0 ? t + 360 : t; };
-    return Math.abs(hh(A1, b1) - hh(A2, b2));
-  };
-  const risky = [];
-  let checked = 0, nearAny = 0;
-  for (const [id, sp] of Object.entries(PEOPLE)){
-    if (!sp.acc) continue;
-    checked++;
-    let min = Infinity, gapAtMin = 0, at = '';
-    for (const b of BANDS) for (const k of FLOOR_K){
-      const f = shadeHex(b.color, k);
-      const d = ciede2000(sp.acc, f);
-      const g = hueGap(sp.acc, f);
-      if (Math.abs(g - 180) < 3) nearAny++;
-      if (d < min){ min = d; gapAtMin = g; at = b.key + '@' + k; }
-    }
-    if (Math.abs(gapAtMin - 180) < HUE_BRANCH_MARGIN)
-      risky.push(id + ' 最小 ΔE ' + min.toFixed(4) + ' @ ' + at + '，色相差 ' + gapAtMin.toFixed(2)
-               + '（離 180° 只有 ' + Math.abs(gapAtMin - 180).toFixed(2) + ' 度）');
+// 一致地取某一側的 ΔE。**`dh` 與 `hb` 必須一起翻**——`dh` 決定 `dH` 的正負號，
+// 而 `dH` 又進到 `Rt * (dC/Sc) * (dH/Sh)` 那個交叉項。
+// **我第一版只翻了 `hb`，得到 63.06，那是一個不存在於任何一側的混合值**（peer 抓到的）。
+// 一起翻之後兩側是 48.80 / 55.05，差 6.24——正是兩個實作原本各自報出來的兩個數。
+function de2000Side(hex1, hex2, side){
+  const P = Math.pow, rad = Math.PI / 180, deg = 180 / Math.PI;
+  const [L1, a1, b1] = hexToLab(hex1), [L2, a2, b2] = hexToLab(hex2);
+  const C1 = Math.hypot(a1, b1), C2 = Math.hypot(a2, b2), Cb = (C1 + C2) / 2;
+  const G = 0.5 * (1 - Math.sqrt(P(Cb, 7) / (P(Cb, 7) + P(25, 7))));
+  const A1 = (1 + G) * a1, A2 = (1 + G) * a2;
+  const Cp1 = Math.hypot(A1, b1), Cp2 = Math.hypot(A2, b2);
+  const hh = (x, y) => { if (x === 0 && y === 0) return 0; const t = Math.atan2(y, x) * deg; return t < 0 ? t + 360 : t; };
+  const hp1 = hh(A1, b1), hp2 = hh(A2, b2);
+  const dL = L2 - L1, dC = Cp2 - Cp1, Lb = (L1 + L2) / 2, Cpb = (Cp1 + Cp2) / 2;
+  const raw = hp2 - hp1;
+  let dh, hb;
+  if (Cp1 * Cp2 === 0){ dh = 0; hb = hp1 + hp2; }
+  else if (side === 'near'){                       // |dh| <= 180 那一側
+    dh = raw; if (dh > 180) dh -= 360; else if (dh < -180) dh += 360;
+    hb = Math.abs(hp1 - hp2) <= 180 ? (hp1 + hp2) / 2
+       : (hp1 + hp2 + (hp1 + hp2 < 360 ? 360 : -360)) / 2;
+  } else {                                          // 翻到另一側，dh 與 hb 一起翻
+    dh = raw + (raw < 0 ? 360 : -360);
+    const shift = raw < 0 ? 360 : -360;
+    hb = (hp1 + hp2 + shift) / 2;
   }
-  const ne = nonEmpty(checked, '沒有任何一張圖有 acc，這條 guard 沒有試過任何東西');
+  const dH = 2 * Math.sqrt(Cp1 * Cp2) * Math.sin(dh / 2 * rad);
+  const T = 1 - 0.17 * Math.cos((hb - 30) * rad) + 0.24 * Math.cos(2 * hb * rad)
+          + 0.32 * Math.cos((3 * hb + 6) * rad) - 0.20 * Math.cos((4 * hb - 63) * rad);
+  const dTh = 30 * Math.exp(-P((hb - 275) / 25, 2));
+  const Rc = 2 * Math.sqrt(P(Cpb, 7) / (P(Cpb, 7) + P(25, 7)));
+  const Sl = 1 + (0.015 * P(Lb - 50, 2)) / Math.sqrt(20 + P(Lb - 50, 2));
+  const Sc = 1 + 0.045 * Cpb, Sh = 1 + 0.015 * Cpb * T, Rt = -Math.sin(2 * dTh * rad) * Rc;
+  return { dE: Math.sqrt(P(dL / Sl, 2) + P(dC / Sc, 2) + P(dH / Sh, 2) + Rt * (dC / Sc) * (dH / Sh)),
+           gap: Math.abs(hp1 - hp2) };
+}
+
+check('沒有任何一條色距判定的真假取決於 CIEDE2000 走了哪一側', () => {
+  if (FLOOR_K == null || RENDER_SRC == null) return 'TODO: 讀不到 theme.js 或 render.js';
+  // 三個軸各自的門檻。**三條都要掃**——peer 補掃了我漏掉的兩軸，
+  // 而「地板那一軸沒事」不蘊含「另外兩軸沒事」。
+  const bodySrc = THEME_SRC || '';
+  const bodyCols = [...new Set((bodySrc.match(/(?:ink|inkCar|bad):\s*'(#[0-9a-fA-F]{6})'/g) || [])
+    .map(m => m.match(/#[0-9a-fA-F]{6}/)[0]))];
+  const floors = [];
+  for (const b of BANDS) for (const k of FLOOR_K) floors.push(shadeHex(b.color, k));
+  const accs = Object.entries(PEOPLE).filter(([, sp]) => sp.acc);
+
+  const axes = [
+    ['配件×地板', 25, accs.flatMap(([id, sp]) => floors.map(f => [id, sp.acc, f]))],
+    ['配件×配件', 12, accs.flatMap(([id, sp], i) => accs.slice(i + 1).map(([id2, sp2]) => [id + '/' + id2, sp.acc, sp2.acc]))],
+    ['配件×身體色', 25, accs.flatMap(([id, sp]) => bodyCols.map(c => [id, sp.acc, c]))],
+  ];
+  const ne = nonEmpty(bodyCols.length, 'theme.js 裡找不到 ink / inkCar / bad');
   if (ne !== true) return ne;
-  return ok(risky.length === 0,
-    checked + ' 張圖，' + risky.length + ' 張的最小色距踩在 180° 分支邊界上：' + risky.join('、')
-    + '｜**踩在那裡的數字換一個 CIEDE2000 實作就會跳**（實測同一對顏色 48.80 對 63.06），'
-    + '所以它的及格與否不是一個事實。改那張圖的配件色，讓最小值落在別的地方。'
-    + '｜（全部配對裡有 ' + nearAny + ' 對落在邊界 ±3 度，但只有「最小值」那一對會決定判定）');
+
+  const bad = [], rows = [];
+  for (const [name, thr, pairs] of axes){
+    let near = 0, flip = 0;
+    let closest = Infinity;
+    for (const [label, h1, h2] of pairs){
+      const A = de2000Side(h1, h2, 'near');
+      if (Math.abs(A.gap - 180) >= HUE_BRANCH_EPS) continue;
+      near++;
+      const B = de2000Side(h1, h2, 'far');
+      closest = Math.min(closest, Math.min(A.dE, B.dE));
+      // 判定翻面 = 一側過、另一側不過
+      if ((A.dE >= thr) !== (B.dE >= thr)){
+        flip++;
+        bad.push(`${name} ${label}：一側 ${A.dE.toFixed(4)}、另一側 ${B.dE.toFixed(4)}，`
+               + `門檻 ${thr}——**及格與否取決於實作**`);
+      }
+    }
+    rows.push(`${name} ${pairs.length} 對，${near} 對在邊界 ±${HUE_BRANCH_EPS}° 內`
+            + (near ? `，最近門檻的是 ${closest.toFixed(2)}（門檻 ${thr}）` : ''));
+  }
+  const ne2 = nonEmpty(axes.reduce((a, x) => a + x[2].length, 0), '沒有任何配對可以檢查');
+  if (ne2 !== true) return ne2;
+  return ok(bad.length === 0, rows.join('｜') + (bad.length ? '｜' + bad.join('｜') : ''));
 });
 
 // 唯一一筆背債。**一筆，不是一份清單**——這條是絕對條件不是門檻，所以它本來就
