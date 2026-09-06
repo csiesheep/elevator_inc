@@ -279,9 +279,13 @@ export const EN = {
     // 住宅帶的十個事件（#69–#78）。
     // ⚠ movingday 刻意不叫 moving：byTenant 那一列已經占了 `moving` 這個鍵，
     //   同名的話**英文玩家兩個事件會看到同一句話**（#30 party 踩過的坑）。
+    // ⚠ 而**分開 id 還不夠**：第一版兩列的 name 都是 'Moving day'，harness 第 13 組
+    //   當場紅（「events(en)「Moving day」= movingday 與 moving」）。id 只有我們
+    //   看得到，玩家看到的是 name 跟 text。照 cinema／screening 的前例，
+    //   byTenant 那一列留著，我這一列改成 'Moving crew'，text 也重寫。
     morningrush: { name:'Morning commute', text:'🌅 Morning commute: {n} residents leave floor {f} for work together' },
     eveninghome: { name:'Evening return',  text:'🌇 Evening return: {n} residents in the lobby, all of them going home' },
-    movingday:   { name:'Moving day',      text:'📦 Moving day: {n} loads coming down from floor {f}, each one filling most of a car' },
+    movingday:   { name:'Moving crew',     text:'📦 Moving crew: {n} movers turn up on floor {f}, each one filling most of a car' },
     fooddelivery:{ name:'Delivery rush',   text:'🛵 Delivery rush: {n} riders waiting in the lobby — cold food earns no tip' },
     watercut:    { name:'Water shut off',  text:'🚰 The water is off: {n} residents leave floor {f} carrying buckets' },
     blockparty:  { name:'Block party',     text:'🍲 Block party: {n} residents converging on floor {f}' },
