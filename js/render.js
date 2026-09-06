@@ -14,7 +14,7 @@
 
 import { CONFIG as C, bandOf } from './content.js';
 import { derived, isManual } from './state.js';
-import { hourOf, dayName, fmtShort } from './sim.js';
+import { hourOf, dayName, fmtShort, isFloorBlocked } from './sim.js';
 import { t } from './i18n.js';
 import { P, setHour, mix } from './theme.js';
 import { spriteFor, SPRITE_W, SPRITE_H } from './sprites.js';
@@ -131,6 +131,39 @@ function drawInterior(ctx, key, color, x0, x1, y, fh, pal){
   }
 }
 
+// ---------------------------------------------------------------- 封鎖中的樓層（#33）
+// 這兩張表**只有畫面在用**：不進存檔，也不回寫 sim。封鎖的機制歸 sim.js 所有，
+// 這裡一個位元組都不改。
+//
+// 為什麼需要 peak：`sim.blocked[f]` 只存「解封的那一刻」，沒有存這次封了多久。
+// 要把倒數畫成比例條就需要分母。寫死一個名目秒數（例如事件表的 18–30）會在
+// 事件長度改變的那天安靜地說謊，所以分母由畫面自己記：第一次看到這次封鎖時的
+// 剩餘秒數就是滿格。
+const blockView = new Map();    // f -> { until, peak }
+const blockFlash = new Map();   // f -> 拒絕閃爍的結束時間（遊戲時間）
+
+function blockInfo(st, sim, f){
+  const until = sim.blocked && sim.blocked[f];
+  if (!(until > st.t)){ blockView.delete(f); return null; }
+  const left = until - st.t;
+  let v = blockView.get(f);
+  if (!v || v.until !== until){ v = { until, peak: left }; blockView.set(f, v); }
+  else if (left > v.peak) v.peak = left;
+  return { left, frac: v.peak > 0 ? Math.max(0, Math.min(1, left / v.peak)) : 0 };
+}
+
+// 點了封鎖中的樓層：要有明確的拒絕，不能靜靜地什麼都不發生。
+// 回傳 true = 我處理掉了，呼叫端不必再送 requestFloor（送了也只會被靜靜丟掉）。
+export function rejectIfBlocked(st, sim, f){
+  if (!isFloorBlocked(st, sim, f)) return false;
+  if (!((blockFlash.get(f) || 0) > st.t)){        // 連點不要洗版
+    const until = sim.blocked[f];
+    sim.toasts.push({ txt: t('blockedTap', f + 1, Math.max(1, Math.ceil(until - st.t))), life: 2.5 });
+  }
+  blockFlash.set(f, st.t + 0.5);
+  return true;
+}
+
 export function draw(ctx, st, sim){
   const { W, H, pad, fh } = view;
   const d = derived(st);
@@ -239,6 +272,64 @@ export function draw(ctx, st, sim){
       const worst = Math.min(...list.map(p => p.left / p.patience));
       ctx.fillStyle = worst < 0.25 ? pal.bad : pal.crowdBar;
       ctx.fillRect(view.shaftX - 6 - w, y + Math.max(0, fh / 2 - 1.5), w, Math.max(1.5, fh - 2));
+    }
+  }
+
+  // ---- 封鎖中的樓層
+  // 畫在「等待的乘客」之後是刻意的：#22 的裁決之後，被封的樓層**照常有人在等**，
+  // 標記要蓋在人上面。畫在人下面會變成「看得到人、看不出接不到」——那正是這張
+  // issue 的症狀本身。
+  for (let f = 0; f < st.floors; f++){
+    const b = blockInfo(st, sim, f);
+    if (!b) continue;
+    const y = floorY(f);
+    const bh = Math.max(1, fh - (fh > 6 ? 1 : 0));
+    const x0 = view.fx0, x1 = view.shaftX, w = Math.max(0, x1 - x0);
+    const hot = (blockFlash.get(f) || 0) > st.t;      // 剛剛被點過
+
+    // 整列染色。100 層時每層只有 3.7px，斜紋和秒數都畫不下，這一層是那時候
+    // 唯一還看得見的東西，所以它沒有高度門檻。
+    ctx.save();
+    // 樓層很矮的時候（100 層，每層 3～5px）斜紋、倒數條、秒數全部低於門檻，
+    // 染色是**唯一**還在的訊號，所以那時候要更濃。這不會擠到樓層號：
+    // 樓層號自己在 fh < 13 就不畫了，那個高度沒有東西可以被擠掉。
+    const wash = fh < 8 ? 0.44 : 0.26;
+    ctx.fillStyle = shade(pal.warn, 1, hot ? Math.min(0.64, wash + 0.18) : wash);
+    ctx.fillRect(x0, y, w, bh);
+
+    // 斜紋 = 施工中。太矮會糊成雜訊，所以設門檻。
+    if (fh >= 8){
+      ctx.beginPath(); ctx.rect(x0, y, w, bh); ctx.clip();
+      ctx.strokeStyle = shade(pal.warn, 1, hot ? 0.9 : 0.55);
+      ctx.lineWidth = Math.max(2, Math.min(5, fh * 0.16));
+      const gap = ctx.lineWidth * 3;
+      for (let sx = x0 - bh; sx < x1 + bh; sx += gap){
+        ctx.beginPath(); ctx.moveTo(sx, y + bh); ctx.lineTo(sx + bh, y); ctx.stroke();
+      }
+    }
+    ctx.restore();
+
+    // 門口的擋條。電梯門就在這條線上，這是「這一層停不了」最直接的說法，
+    // 也是 3.7px 時唯一還能分辨的**形狀**線索（染色只是顏色）。
+    const barW = Math.max(3, Math.min(6, fh * 0.5));
+    ctx.fillStyle = shade(pal.warn, hot ? 1.3 : 1, 1);
+    ctx.fillRect(x1 - barW, y, barW, bh);
+
+    // 倒數條：還要多久。分母見 blockInfo 的註解。
+    if (fh >= 5){
+      const ch = Math.max(1.5, Math.min(3, fh * 0.16));
+      ctx.fillStyle = shade(pal.numPlate, 1, 0.6);
+      ctx.fillRect(x0, y + bh - ch, w, ch);
+      ctx.fillStyle = shade(pal.warn, 1.15, 1);
+      ctx.fillRect(x0, y + bh - ch, w * b.frac, ch);
+    }
+
+    // 秒數：只有畫得下才畫，而且緊跟著樓層號放在左邊——隊伍是從右邊（電梯門）
+    // 往左長的，放右邊會跟等待的人搶同一塊地方。
+    if (fh >= 13){
+      const txt = String(Math.max(0, Math.ceil(b.left)));
+      drawPlate(ctx, txt, numLeft(fh) + 5 + numWidth(txt, 1) / 2,
+                y + (fh - GLYPH_H) / 2, 1, pal.warn, pal.numPlate, 2);
     }
   }
 

@@ -5,7 +5,7 @@
 // 不是從 content.js 讀的。這是刻意的：見 harness.js 開頭第 1 點。
 
 import { section, check, eq, near, ok, nonEmpty, R, summary } from './harness.js';
-import { CONFIG as C, BANDS, UPGRADES, PASSENGERS, ACHIEVEMENTS } from '../js/content.js';
+import { CONFIG as C, BANDS, UPGRADES, PASSENGERS, ACHIEVEMENTS, SKILLS } from '../js/content.js';
 import { EN } from '../js/i18n-content.js';
 import * as S from '../js/state.js';
 import * as M from '../js/sim.js';
@@ -408,6 +408,182 @@ check('刻意不一致的例外都寫了理由', () => {
     ids.indexOf(id) < 0 || !COPY_OK[id] || COPY_OK[id].length < 15);
   return ok(bad.length === 0,
     '這些例外的 id 不存在、或理由太短（沒有理由的例外等於沒有這條 guard）：' + bad.join(', '));
+});
+
+// ---------------------------------------------------------------- 9 技能真的有作用嗎
+// 為什麼有這一組：這個專案已經抓到**兩個**買了等於沒買的技能——
+//   o_algo（控制器韌體，24 張藍圖）：d.algoEff 只餵統計頁一行顯示，不進 sim.js
+//   o_warn（人流預警，20 張藍圖）：warnLead 只有 schedule() 讀，而 schedule()
+//                                  唯一的呼叫點在已經不會觸發的租戶事件裡
+// 加起來 44 張藍圖買到空氣。藍圖是拆樓才拿得到的，是這個遊戲最稀缺的資源。
+//
+// **兩個都不是靠測試抓到的，是 peer 順手撞到的。** 因為每個技能都「有改到
+// derived() 裡的某個值」——壞的是沒有人消費那個值。所以斷言 derived() 有變
+// 完全抓不到它們：**值變了，行為沒變。**
+//
+// 這一條改成問行為：釘住亂數序列，同一個劇本跑兩次，一次技能 0 級、一次滿級。
+// 輸出逐字相同 = 這個技能對模擬沒有任何影響。
+section('9 技能真的有作用嗎');
+
+// 效果不在 step() 裡的技能。**每一條都要寫它的效果在哪、怎麼驗**，
+// 否則這份清單會變成「把紅的塞進來」的垃圾桶。
+const SKILL_OK = {
+  a_cost: '效果在 upgradeCost()（加蓋成本 -10%），不在 step()。由第 5 組的錢坑檢查涵蓋。',
+  o_evac: '需要玩家按下疏散鈕才會發生，自動模擬不會觸發。要驗須另外寫互動測試。',
+  o_shaft: '效果是起始電梯井 +1，我在劇本裡固定了 up.shaft，所以這裡看不到差異；'
+         + 'd.shafts 的算式由第 1 組涵蓋。',
+};
+
+// 可重現的亂數：同一個種子跑出同一條序列。不釘住的話兩次跑本來就會不同，
+// 這條 guard 會對每一個技能都回報「有差異」——一個永遠綠的儀器。
+function withSeed(seed, fn){
+  const orig = Math.random;
+  let x = seed >>> 0;
+  Math.random = () => { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; };
+  try { return fn(); } finally { Math.random = orig; }
+}
+
+function fingerprint(skillId, level){
+  return withSeed(0x9e3779b9, () => {
+    // 技能必須**在 newGame() 之前**交給它：起始樓層與起始評價是在 newGame()
+    // 裡面依技能算的（state.js:33-34）。第二版把 st.skills 設在 newGame() 之後，
+    // 那時樓層早就用空技能算完了，於是 a_floor 被儀器自己抹平——
+    // 這條 guard 對著一個正確的技能報「買了等於沒買」。
+    const st = S.newGame({ skills: skillId ? { [skillId]: level } : {} });
+    // 也不要用賦值蓋掉 st.floors（第一版的錯），加法才留得住技能的效果。
+    st.floors = st.floors + 35;
+    st.cash = 1e9;
+    st.up.speed = 4; st.up.accel = 3; st.up.cap = 4; st.up.door = 3; st.up.shaft = 2;
+    st.auto.fifo = st.auto.scan = st.auto.look = st.auto.dest = true;
+    const sim = M.createSim(st); M.syncShafts(st, sim);
+    const marks = [];
+    for (let i = 0; i < 24000; i++){
+      // 超速要真的按下去，否則 m_cool（熱容量／冷卻／滿級免過熱）整條路徑
+      // 不會被執行到，這條 guard 會對著一個正確的技能報「買了等於沒買」。
+      // 週期性開關，讓它有機會累積熱量、也有機會冷卻。
+      sim.boost = (i % 600) < 260;
+      M.step(st, sim, 1 / 20);
+      if (i % 2000 === 0)
+        marks.push([st.stats.served, st.stats.abandoned, Math.round(st.cash),
+                    sim.waiting.length, sim.toasts.length,
+                    st.stats.overheats, Math.round(st.stats.boostTime)].join(','));
+    }
+    return marks.join('|') + '#' + st.stats.served + ',' + st.stats.abandoned;
+  });
+}
+
+check('每個技能買滿之後，模擬行為要真的改變', () => {
+  const base = fingerprint(null, 0);
+  const dead = [], checked = [];
+  for (const sk of SKILLS){
+    if (SKILL_OK[sk.id]) continue;
+    checked.push(sk.id);
+    if (fingerprint(sk.id, sk.max) === base) dead.push(sk.id + '（滿級 ' + sk.max + '）');
+  }
+  const ne = nonEmpty(checked.length, '一個技能都沒檢查到——SKILLS 是空的，或例外清單吃掉了全部');
+  if (ne !== true) return ne;
+  return ok(dead.length === 0,
+    '檢查了 ' + checked.length + ' 個技能，' + dead.length + ' 個買滿之後模擬輸出逐字不變'
+    + '（= 買了等於沒買）：' + dead.join('、'));
+});
+
+check('儀器活著：亂數真的被釘住了', () => {
+  // 沒有這一條，上面那條可能是「兩次跑本來就不同，所以每個技能都看起來有效」。
+  // 那會讓它變成一個永遠綠、什麼都保護不了的檢查。
+  const a = fingerprint(null, 0), b = fingerprint(null, 0);
+  return ok(a === b, '同一個種子跑兩次結果不同，亂數沒釘住，上面那條的綠不算數');
+});
+
+check('例外清單裡的技能都存在，而且都寫了理由', () => {
+  const ids = SKILLS.map(s => s.id);
+  const ne = nonEmpty(Object.keys(SKILL_OK).length, 'SKILL_OK 是空的，沒有東西可以檢查');
+  if (ne !== true) return ne;
+  const bad = Object.keys(SKILL_OK).filter(id =>
+    ids.indexOf(id) < 0 || !SKILL_OK[id] || SKILL_OK[id].length < 20);
+  return ok(bad.length === 0,
+    '例外的 id 不存在、或理由太短（沒有理由的例外等於把紅的掃進地毯下）：' + bad.join(', '));
+});
+
+// ---------------------------------------------------------------- 10 權重真的有作用嗎
+// 這一組是一個 peer 朝地基開槍才發現要寫的。它做了兩次破壞：
+//   A  pickIndex 永遠回傳 0（#8 原本的形狀）  → 抓到了
+//   B  pickIndex 忽略權重，改成均勻抽樣        → **41/1/1，跟乾淨版逐字相同**
+// 我獨立複驗，B 成立。實測分布差異很大（100 層、6 棟）：辦公帶從 2.2% 變 9.6%
+// （4.4 倍）、觀景從 18.0% 變 11.7%——而 harness 一條都不紅。
+//
+// 也就是說整個人口權重模型當時沒有任何保護：樓層帶 pop、windowWeight 的尖峰窗、
+// 週末倍率、tenantMix、乘客型別的 w、事件的 w，全部丟掉都不會被發現。
+//
+// **這正是「逃過證偽的 guard」的形狀，而且三個條件都齊了**：它是地基（三個呼叫端
+// 都靠它）、它太便宜（一個小函式，看起來顯然是對的）、大家都在引用它（#8 的 issue、
+// commit message、上面第 3 組的兩條 guard 都指著它）。
+//
+// 而我自己寫的那兩條 pickIndex guard **都是原始碼比對**——我在 #9 的回覆裡才剛寫過
+// 「轉綠只代表防護存在，不代表防護是對的」，然後沒有動作。引用一條 guard 不會執行它。
+section('10 權重真的有作用嗎');
+
+check('pickIndex 真的照權重抽（單元）', () => {
+  const W = [1, 0, 9], N = 20000;
+  const hits = [0, 0, 0];
+  for (let i = 0; i < N; i++) hits[M.pickIndex(W)]++;
+  // 零權重那一格是判準：均勻抽樣會給它 ~1/3，照權重則必須是 0。
+  // **只斷言「第 2 格最多」抓不到均勻**——均勻時三格差不多，最多的那一格
+  // 有 1/3 機率剛好是第 2 格，這條 guard 會間歇性放行。
+  if (hits[1] !== 0)
+    return `權重 [1,0,9] 抽 ${N} 次，權重為 0 的那一格被選中 ${hits[1]} 次`
+         + `（均勻抽樣會給它約 ${Math.round(N/3)} 次）｜實際分布 ${hits.join('/')}`;
+  const p0 = hits[0] / N;
+  return ok(Math.abs(p0 - 0.10) < 0.02,
+    `權重 [1,0,9] 的第 0 格應占 10%，實際 ${(p0*100).toFixed(1)}%｜分布 ${hits.join('/')}`);
+});
+
+check('尖峰窗真的改變人流分布，兩個方向都要對（端對端）', () => {
+  // 上面那條是單元層。這條走完整條鏈：windowWeight → floorWeight → pickIndex。
+  //
+  // **第一版我取樣取錯方向了**：我在 9 點看辦公帶的「出發」占比，期待它衝高。
+  // 但 `windowWeight(h, role === 'dest' ? b.up : b.down)` —— 辦公帶的
+  // `up:[8,10]` 是**抵達**窗、`down:[17,19]` 才是**出發**窗。9 點的辦公是目的地
+  // 不是起點，所以那條 guard 在乾淨的產品上也是紅的。是儀器錯，不是產品錯。
+  //
+  // 而且**只測一個方向不夠**：一個把 up/down 對調的實作，會在其中一個方向上
+  // 看起來完全正常。兩個方向都要測，才分辨得出來。
+  const sample = hour => {
+    const st = S.newGame(); st.floors = 60; st.cash = 1e9;
+    st.up.speed = 4; st.up.cap = 4; st.up.shaft = 2;
+    st.auto.fifo = st.auto.scan = st.auto.look = true;
+    const sim = M.createSim(st); M.syncShafts(st, sim);
+    const bandOf = f => BANDS.find(x => f + 1 >= x.from && f + 1 <= x.to);
+    const from = {}, to = {};
+    let n = 0;
+    for (let i = 0; i < 60000; i++){
+      st.t = C.DAY_SECONDS * hour / 24;      // 每一步都釘住，否則跑一跑就跨出尖峰窗
+      const before = sim.waiting.length;
+      M.step(st, sim, 1 / 20);
+      for (let k = before; k < sim.waiting.length; k++){
+        const p = sim.waiting[k];
+        const bo = bandOf(p.origin), bd = bandOf(p.dest);
+        if (bo) from[bo.key] = (from[bo.key] || 0) + 1;
+        if (bd) to[bd.key] = (to[bd.key] || 0) + 1;
+        n++;
+      }
+    }
+    return { from, to, n };
+  };
+  const evening = sample(18), morning = sample(9), night = sample(3);
+  const ne = nonEmpty(Math.min(evening.n, morning.n, night.n),
+    `有時段一個乘客都沒生成（18點 ${evening.n}、9點 ${morning.n}、3點 ${night.n}）`);
+  if (ne !== true) return ne;
+
+  // 辦公帶：down:[17,19] 是出發窗、up:[8,10] 是抵達窗
+  const sf = r => (r.from.office || 0) / r.n;      // 出發占比
+  const sd = r => (r.to.office || 0) / r.n;        // 抵達占比
+  const bad = [];
+  if (!(sf(evening) > sf(night) * 1.3))
+    bad.push(`出發：18 點 ${(sf(evening)*100).toFixed(1)}% vs 3 點 ${(sf(night)*100).toFixed(1)}%（down 窗 [17,19] 沒生效？）`);
+  if (!(sd(morning) > sd(night) * 1.3))
+    bad.push(`抵達：9 點 ${(sd(morning)*100).toFixed(1)}% vs 3 點 ${(sd(night)*100).toFixed(1)}%（up 窗 [8,10] 沒生效？）`);
+  return ok(bad.length === 0,
+    `辦公帶的尖峰窗沒有拉開｜${bad.join('｜')}｜樣本 ${evening.n}/${morning.n}/${night.n}`);
 });
 
 export { summary };

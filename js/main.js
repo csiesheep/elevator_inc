@@ -3,7 +3,7 @@ import { CONFIG as C, ACHIEVEMENTS } from './content.js';
 import { newGame, load, save, wipe, applyOffline, derived, doPrestige, checkAchievements,
          buyUpgrade, buyAutomation, upgradeCost, prestigeGain } from './state.js';
 import { createSim, syncShafts, step, requestFloor, evacuate, fmtShort, hourOf } from './sim.js';
-import { layout, draw, floorAt, view } from './render.js';
+import { layout, draw, floorAt, view, rejectIfBlocked } from './render.js';
 import { buildUI, refreshUI, toast, overlay } from './ui.js';
 import { t, L, getLang, toggleLang } from './i18n.js';
 import { applyChrome } from './theme.js';
@@ -69,7 +69,11 @@ function pick(ev){
   const r = cv.getBoundingClientRect();
   const y = (ev.touches ? ev.touches[0].clientY : ev.clientY) - r.top;
   const f = floorAt(y);
-  if (f >= 0 && f < app.st.floors) requestFloor(app.st, app.sim, f);
+  if (f < 0 || f >= app.st.floors) return;
+  // 封鎖中的樓層：requestFloor 會靜靜地丟掉這一次點擊（sim.js），玩家看不出
+  // 為什麼沒反應。先讓畫面給出拒絕回饋（#33）。
+  if (rejectIfBlocked(app.st, app.sim, f)) return;
+  requestFloor(app.st, app.sim, f);
 }
 cv.addEventListener('pointerdown', e => { e.preventDefault(); pick(e); beep(520, .05, .05); });
 
@@ -80,8 +84,9 @@ addEventListener('pointerup', () => setBoost(false));
 addEventListener('pointercancel', () => setBoost(false));
 addEventListener('keydown', e => {
   if (e.code === 'Space'){ e.preventDefault(); setBoost(true); }
-  if (e.key >= '1' && e.key <= '9') requestFloor(app.st, app.sim, +e.key - 1);
-  if (e.key === '0') requestFloor(app.st, app.sim, 9);
+  const kf = (e.key >= '1' && e.key <= '9') ? +e.key - 1 : e.key === '0' ? 9 : -1;
+  if (kf >= 0 && kf < app.st.floors && !rejectIfBlocked(app.st, app.sim, kf))
+    requestFloor(app.st, app.sim, kf);
 });
 addEventListener('keyup', e => { if (e.code === 'Space') setBoost(false); });
 
