@@ -84,6 +84,11 @@ export const EN = {
     reporter:    { name:'Reporter',        note:'Press following the celebrity up. The gear takes two slots, and six to nine of them will not fit in one car.' },
     delegate:    { name:'Conference delegate', note:'A whole delegation arriving at once, all for the same floor. Plenty of them, but nothing in their hands except a lanyard.' },
     jamcart:     { name:'Luggage trolley', note:'A hotel porter with a luggage trolley. Three slots, and it jams the doors open for 8 seconds — that car is going nowhere.' },
+    // 飯店帶的四個人物（#63 #64 #65 #66）
+    newlywed:  { name:'Honeymoon couple', note:'Hotel floors only. The two of them must ride together — delivering them separately does not count, so a couple needs four slots free. Worth well over double a hotel guest.' },
+    roomcart:  { name:'Room-service cart',note:'A trolley that fills most of the car, moving between floors. Never gives up — leave it and it just stands there.' },
+    bellhop:   { name:'Bellhop',          note:'Carries the luggage. Pays nothing and never gives up, but a ride lifts the building rating. Two slots.' },
+    nightguest:{ name:'Late-night guest', note:'Hotel floors only. Turns up between 11pm and 4am and nowhere else, for the best fare on the floor — nobody else wants the lift at that hour.' },
   },
 
   tenants: {
@@ -184,6 +189,12 @@ export const EN = {
     flashbulb: { name:'Flashbulbs',         note:'Take 2 celebrities up, reporters in tow.' },
     conference:{ name:'Delegation seated',  note:'Take 13 conference delegates up to the session.' },
     jammed:    { name:'Trolley through the doors', note:'Take 10 luggage trolleys up — every one of them jams a lift door.' },
+    // 飯店帶的四條（#63 #64+#58 #65 #66）。
+    // 數字要跟 content.js 的判定一致（驗收第 8 組逐條比對中英兩邊）。
+    honeymoon:  { name:'Honeymoon suite',  note:'Get 29 honeymoon couples there together — delivered apart does not count.' },
+    trolley:    { name:'Trolley service',  note:'Deliver 10 room-service carts, four slots each.' },
+    porter:     { name:'Bags upstairs',    note:'Deliver 36 bellhops — they pay nothing and only lift the rating.' },
+    lastcheckin:{ name:'Home at last',     note:'Deliver 29 late-night guests, who only ever turn up in the small hours.' },
   },
 
   roofs: {
@@ -240,5 +251,7 @@ export const EN = {
     celebrity:  { name:'Celebrity check-in', text:'🎥 A celebrity is in the lobby — and so is the pack of reporters following them' },
     delegation: { name:'Delegation arrives', text:'🎫 A delegation arrives: {n} delegates in the lobby, all of them for floor {f}' },
     cartjam:    { name:'Jammed trolley',  text:'🛎 A bellhop is waiting in the lobby for floor {f} — that trolley will jam a lift door open' },
+    // 飯店帶：客房服務（#58）
+    roomservice:{ name:'Room service',   text:'🛎 Room service: {n} trolleys wheel out of floor {f}, each one filling most of a car' },
   },
 };
