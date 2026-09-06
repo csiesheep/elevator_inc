@@ -48,6 +48,13 @@ export const EN = {
     scientist: { name:'Researcher',    note:'Experimental floors only. In a hurry, and will not say why.' },
     influencer:{ name:'Queue influencer', note:'Retail floors only. Deliver one and two or three companions turn up in the lobby. The companions bring nobody.' },
     waxer:     { name:'Cleaning crew',    note:'The floor-waxing crew. Deliver them and the floor closes — leave them in the lobby and they will take the stairs anyway.' },
+    anniv:     { name:'Sale shopper',     note:'Here for the anniversary sale. Cheap fares, enormous numbers.' },
+    diner:     { name:'Food-court diner', note:'The whole floor goes down to eat at noon. The lowest fare in the building, and the most reliable.' },
+    movie:     { name:'Cinema crowd',     note:'A full house leaving at once, and all of them in a hurry. The shortest patience in retail.' },
+    dolly:     { name:'Restocking porter',note:'Dawn restock trolleys. Two slots each, and paid less than a courier — nobody competes for the lift at 6am.' },
+    queuer:    { name:'Launch queuer',    note:'Queued all night for one product. The biggest crowd, and the most patient one.' },
+    child:     { name:'Lost child',       note:'A child looking for a parent between floors. Pays nothing; delivering raises the rating. Ignore them and they wander off.' },
+    winner:    { name:'Prize winner',     note:'Rushing down to collect a raffle prize. The best fare in retail — on half the usual patience.' },
   },
 
   tenants: {
@@ -105,6 +112,15 @@ export const EN = {
     sky:     { name:'Sky lobby',         note:'Build the transfer hall.' },
     tall:    { name:'Seventy floors',    note:'Reach 70 floors.' },
     orbit:   { name:'Escape velocity',   note:'Take the elevator off the planet.' },
+    // 零售帶七個事件的成就（#14 #15 #16 #17 #18 #19 #21）。
+    // 數字要跟 content.js 的判定一致——驗收第 8 組會逐條比對中英文案裡的數字。
+    anniv:     { name:'Sale survivor',    note:'Deliver 50 anniversary shoppers.' },
+    lunchrush: { name:'Lunch rush',       note:'Deliver 100 food-court diners.' },
+    housefull: { name:'Full house',       note:'Deliver 200 people out of a cinema.' },
+    restocked: { name:'Restocked',        note:'Deliver 100 restocking trolleys.' },
+    launchday: { name:'Launch day',       note:'Deliver 30 launch queuers.' },
+    foundkid:  { name:'Found you',        note:'Carry a lost child.' },
+    jackpot:   { name:'Collect the prize',note:'Deliver 20 prize winners.' },
   },
 
   roofs: {
@@ -127,6 +143,14 @@ export const EN = {
     waxing:   { name:'Floor waxing',   text:'🧴 A cleaning crew of {n} is in the lobby, headed for floor {f}: it shuts for {s}s once they get up there — by lift or by stairs',
                 blockText:'🧴 Waxing has started: floor {f} is closed for {s}s — no stopping',
                 blockLateText:'🧴 The cleaners gave up on the lift and took the stairs up to floor {f}: closed for {s}s' },
+    // 零售帶的七個事件（#14 #15 #16 #17 #18 #19 #21）
+    anniversary:{ name:'Anniversary sale', text:'🎊 The sale opens: the shutters go up and {n} people surge out of the lobby' },
+    launch:   { name:'Launch day',     text:'🛍 Launch day: the queue is let in — {n} people, all of them going to floor {f}' },
+    restock:  { name:'Dawn restock',   text:'📦 Dawn restock: {n} trolleys in the lobby, headed for the shops' },
+    foodcourt:{ name:'Food court',     text:'🍜 Lunch: {n} people come down from floor {f} together' },
+    screening:{ name:'Last screening', text:'🎬 A screening ends: a full house of {n} leaves floor {f} at once' },
+    lostkid:  { name:'Lost child',     text:'🧒 Lost child: a kid on floor {f} is looking for a parent' },
+    raffle:   { name:'Prize draw',     text:'🎁 The draw is announced: {n} winners on floor {f} want to get down there fast' },
     lunch:    { name:'Lunch hour',     text:'🍜 Lunch hour: {n} people come down from the food court on floor {f}' },
     cinema:   { name:'Screening ends', text:'🎬 Screening ends: a full house of {n} leaves floor {f} at once' },
     shift:    { name:'Shift change',   text:'🎧 Shift change: {n} people clock off floor {f} together' },
