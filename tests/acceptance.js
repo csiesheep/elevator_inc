@@ -1093,6 +1093,12 @@ const TOAST_ENV = await (async () => {
   } catch (e){ return null; }
 })();
 
+// **兩個軸都要釘住。** 第一版我只釘了高度的分母，寬度還是從執行環境來的——
+// 於是同一段文字在窄一點的 pane 裡折成三倍高，單一則 toast 量到 403px，
+// guard 在一次無關的合併上自己紅了。**我剛在高度上防掉的錯，自己在寬度上
+// 犯了一次。** `#toasts` 是 `width:max-content; max-width:min(640px, 100vw-24px)`，
+// 所以最矮支援視窗（375 寬）上的欄寬是 351px；量測時把它釘死。
+const TOAST_COL_W = 351;         // 375 - 24
 const SHORT_VIEWPORT = 667;      // iPhone SE（設計文件抄寫，不從執行環境讀——
                                  // 跑 harness 的視窗多高是偶然的，拿它當分母的話
                                  // 這條 guard 的鬆緊會隨機浮動）
@@ -1102,6 +1108,8 @@ check('一次丟出幾十則提示，整疊仍然裝得下', () => {
   if (!TOAST_ENV) return 'TODO: 樣式或 ui.js 載不進來，量不了版面';
   const { box, UI } = TOAST_ENV;
 
+  box.style.width = TOAST_COL_W + 'px';
+  box.style.maxWidth = TOAST_COL_W + 'px';
   const burst = k => {
     box.innerHTML = '';
     for (let i = 0; i < k; i++)
