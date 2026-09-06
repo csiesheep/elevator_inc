@@ -746,4 +746,174 @@ check('懸崖的例外都寫了理由', () => {
     '例外的事件 id 不存在、或理由太短（沒有理由的例外等於沒有這條 guard）：' + bad.join(', '));
 });
 
+// ---------------------------------------------------------------- 12 招來同伴、以及事件檢查的落點
+// 第 11 組守住了「事件的 type 打錯字」，但**招來同伴走的是另一條路而且一樣安靜**。
+// 我親手證偽過：在 PASSENGERS 的 summon.type 上把 'reporter' 打成 'reporterr'，
+// 整份 harness **48 pass / 0 fail / 1 todo，全綠**。兩條路最後都進 forcedTypePool()，
+// 指不到就退回樓層帶抽樣——「名人帶著六隻貓出場」不會丟例外。
+//
+// 第三條是完全不同的一種安靜：**事件檢查只落在時鐘上的十二個點**，所以一個
+// 一小時寬的 hours 窗可以是一列從來不會被抽到的死資料。實測見下面那條的註解。
+section('12 招來同伴、以及事件檢查的落點');
+
+// 樓層帶的中位索引，跟第 11 組懸崖那條同一個算法（'any' 界不出來 → null）。
+const bandMid = k => {
+  if (k === 'lobby') return 0;
+  if (k === 'any' || !k) return null;
+  const b = BANDS.find(x => x.key === k);
+  return b ? ((b.from - 1) + (b.to - 1)) / 2 : null;
+};
+
+check('招來同伴的 type 也一定指得到一個乘客型別', () => {
+  const ids = new Set(PASSENGERS.map(p => p.id));
+  const bad = [];
+  let checked = 0;
+  for (const p of PASSENGERS){
+    if (!p.summon || !p.summon.type) continue;
+    checked++;
+    if (!ids.has(p.summon.type)) bad.push(p.id + ' → summon.type ' + p.summon.type);
+  }
+  const ne = nonEmpty(checked, '沒有任何人物寫 summon.type，這條 guard 沒有試過任何東西');
+  if (ne !== true) return ne;
+  return ok(bad.length === 0,
+    `比對了 ${checked} 個 summon.type，${bad.length} 個指不到乘客型別`
+    + `（跟事件的 type 走同一個 forcedTypePool()，一樣**安靜退回樓層帶抽樣**）：` + bad.join('、'));
+});
+
+check('招來同伴生出來的整批，場上耐性也不可以掉到懸崖以下', () => {
+  // 第 11 組的懸崖 guard 只讀 EVENTS 的 e.n，所以 summon 生出來的那一批它看不到
+  // ——#61「名人與媒體」的 6–9 個記者就是這樣繞過去的（交這一列的 peer 自己回報的）。
+  //
+  // **這條界證明得了什麼／不再證明什麼**：它用「招人的那個人所屬樓層帶」的中位
+  // 索引當 far，因為同伴的 from/to 是相對於招人者的（'origin' / 'dest' / 'lobby'）。
+  // 所以它抓的是典型值，不是最壞值；招人者的 band 是 'any' 或缺的話跳過。
+  // 它也**不**涵蓋事件透過 panic 改耐性的路徑——summon 生出來的人拿不到 ev.panic
+  // （runEvent 在 makePassenger 回傳之後才蓋 panic，而同伴是在裡面生的）。
+  const byId = Object.fromEntries(PASSENGERS.map(p => [p.id, p]));
+  const bad = [], checked = [];
+  for (const p of PASSENGERS){
+    const s = p.summon;
+    if (!s || !s.type || !s.n) continue;
+    const batch = s.n[1] || s.n[0] || 0;
+    if (batch < 6) continue;
+    const t = byId[s.type];
+    if (!t) continue;                        // 指不到是上面那條的事
+    const far = bandMid(p.band);
+    if (far == null) continue;
+    const onStage = t.patience * (1 + far / 45);
+    checked.push(p.id + '→' + s.type);
+    if (onStage >= CLIFF) continue;
+    bad.push(`${p.id} 招 ${batch} 個 ${s.type}（${t.patience} → 場上 ${onStage.toFixed(0)} 秒）`);
+  }
+  const ne = nonEmpty(checked.length,
+    '沒有任何人物成批招同伴（n ≥ 6），這條 guard 沒有試過任何東西');
+  if (ne !== true) return ne;
+  return ok(bad.length === 0,
+    `比對了 ${checked.length} 組成批的 summon，${bad.length} 組掉到 ${CLIFF} 秒的懸崖以下：`
+    + bad.join('、'));
+});
+
+// 事件檢查的落點（梳齒）。**這不是每秒都在抽**：sim.js 只在 sim.eventT >= EVENT_EVERY
+// 的那一步檢查一次然後歸零，而每一次都是從 0 累加同一串 STEP，所以間隔是常數。
+// 那個常數**不等於 EVENT_EVERY**——是「累加到跨過它的那一步」，浮點上會多一步。
+//
+// 今天的數字：75 秒 / 180 秒一天 → 每次前進 10.00222 個遊戲小時，gcd(10,24)=2，
+// 所以任何一個時刻，時鐘上**只有十二個偶數整點抽得到**，另一半完全不存在。
+// 那 0.00222 讓整把梳子以約 188 遊戲日／小時進動。
+//
+// 我實測過一個一小時窗 [7,8) 在 400 個遊戲日裡的命中：
+//   0–50d: 0 · 50–100d: 0 · 100–150d: 0 · 150–200d: 3 · 200–250d: 10 ·
+//   250–300d: 10 · 300–350d: 10 · 350–400d: 5
+// **不是「永遠死掉」，是前 150 個遊戲日完全不存在，然後活兩百天，然後再消失。**
+// 那比永遠死掉更難發現：它在測試裡是零，在某個玩家的存檔裡是正常頻率。
+//
+// **這條界證明得了什麼／不再證明什麼**：它只管 EVENTS 的 `hours`。
+// 乘客的 `peaks:[{hours}]` **不受這條限制**——那是每次生乘客時連續評估的，
+// 不走這把梳子。它也不保證頻率夠高，只保證「抽得到」。
+function eventStrideSeconds(){
+  let t = 0, n = 0;
+  while (t < C.EVENT_EVERY && n < 1e7){ t += C.STEP; n++; }
+  return t;
+}
+// **取樣區間是這條 guard 的全部**（skill §5.3：在能運作的區間驗證儀器，
+// 對壞掉的那一半什麼也沒說）。第一版我取 500 次檢查 ≈ 227 個遊戲日，而我自己
+// 量到的 [7,8) 是**第 150 個遊戲日才開始命中的**——那個界會放它過。
+// 改成 **60 個遊戲日**：一個遊戲日 180 秒，60 天約兩個半小時的實際遊玩，
+// 已經遠超過任何人「第一次覺得這個事件不存在」的時間點。
+const COMB_DAYS = 60;
+const COMB = (() => {
+  const strideS = eventStrideSeconds();
+  const strideH = strideS / C.DAY_SECONDS * 24;
+  const n = Math.ceil(COMB_DAYS * C.DAY_SECONDS / strideS);
+  const startH = (S.newGame().t % C.DAY_SECONDS) / C.DAY_SECONDS * 24;
+  const pts = [];
+  let h = startH;
+  for (let i = 0; i < n; i++){ h = (h + strideH) % 24; pts.push(h); }
+  return { strideH, pts };
+})();
+
+check('事件的 hours 窗一定落得到事件檢查的梳齒', () => {
+  const hit = win => COMB.pts.reduce((a, h) => a + (M.inHourWindow(h, win) ? 1 : 0), 0);
+
+  // 存活證明放在 guard 裡面（不是放在另一次證偽裡）：找出梳齒之間最大的空隙，
+  // 在它正中間放一個窄窗。這條檢查如果連那個窗都判成「可達」，它就是在看空氣。
+  const sorted = [...COMB.pts].sort((a, b) => a - b);
+  let gap = 0, gapAt = 0;
+  for (let i = 1; i < sorted.length; i++){
+    const g = sorted[i] - sorted[i - 1];
+    if (g > gap){ gap = g; gapAt = (sorted[i] + sorted[i - 1]) / 2; }
+  }
+  const w = Math.min(0.2, gap / 3);
+  const probe = [gapAt - w / 2, gapAt + w / 2];
+  if (hit(probe) !== 0)
+    return `儀器壞了：一個刻意放在梳齒空隙正中間的窄窗 [${probe[0].toFixed(2)},`
+         + `${probe[1].toFixed(2)}) 被判成可達（空隙 ${gap.toFixed(2)} 小時）`;
+
+  const bad = [];
+  let checked = 0;
+  for (const e of EVENTS){
+    if (!e.hours) continue;
+    checked++;
+    const n = hit(e.hours);
+    if (n === 0) bad.push(`${e.id} [${e.hours[0]},${e.hours[1]})`);
+  }
+  const ne = nonEmpty(checked, '沒有任何事件寫 hours，這條 guard 沒有試過任何東西');
+  if (ne !== true) return ne;
+  return ok(bad.length === 0,
+    `梳齒每次前進 ${COMB.strideH.toFixed(3)} 小時、最大空隙 ${gap.toFixed(2)} 小時；`
+    + `比對了 ${checked} 個 hours 窗，${bad.length} 個在前 ${COMB.pts.length} 次檢查（${COMB_DAYS} 個遊戲日）裡一次都抽不到`
+    + `（= 開局兩個半小時的遊玩裡它完全不存在，而且不會有任何錯誤）：` + bad.join('、'));
+});
+
+check('必須同車：一對永遠不會被拆到兩台車（端對端）', () => {
+  // 機制還沒進來 → **TODO，不是 fail**。把「還沒做」和「做了但錯」混成同一種紅，
+  // 一整張 issue 可以在功能不存在的情況下被標記成完成（見檔頭）。
+  if (!PASSENGERS.some(p => p.pair)) return 'TODO';
+  // 載客量門檻很銳利（交這個機制的 peer 量過：cap 4 → 0–5%、cap 8 起才成立），
+  // 所以劇本要給得起位子，否則量到的是「沒人上得了車」而不是「上車時沒被拆開」。
+  const r = withSeed(0x9a11ed, () => {
+    const st = S.newGame(); st.floors = 35; st.cash = 1e9;
+    st.up.shaft = 3; st.up.cap = 5; st.up.speed = 3; st.auto.fifo = true;
+    const sim = M.createSim(st); M.syncShafts(st, sim);
+    let seen = 0, split = 0;
+    for (let i = 0; i < 300000; i++){
+      M.step(st, sim, C.STEP);
+      if (i % 53) continue;
+      for (const sh of sim.shafts) for (const p of sh.riders){
+        if (!p.t || !p.t.pair) continue;
+        seen++;
+        if (!(p.mate && sh.riders.indexOf(p.mate) >= 0)) split++;
+      }
+    }
+    return { seen, split };
+  });
+  const ne = nonEmpty(r.seen,
+    '整場模擬沒有任何成對乘客上過車 —— 儀器在看一個空的宇宙，這個 0 不是證據');
+  if (ne !== true) return ne;
+  return ok(r.split === 0,
+    `${r.seen} 次取樣裡有 ${r.split} 次「一半在車上、另一半不在同一台」`
+    + `（把 openDoors 的 mate 釘成 null 會得到 246/2116；修好是 0/2050）`);
+});
+
+
 export { summary };
