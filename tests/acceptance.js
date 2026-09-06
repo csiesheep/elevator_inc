@@ -890,6 +890,72 @@ check('事件的 hours 窗一定落得到事件檢查的梳齒', () => {
     + `（= 開局兩個半小時的遊玩裡它完全不存在，而且不會有任何錯誤）：` + bad.join('、'));
 });
 
+
+// ⚠ **上面那條只查前 60 個遊戲日，而那不夠。**
+//
+// 一個 peer 交觀景台事件時報：菜單指定的 `[22,23)` 在前 60 天是**活的**
+// （命中 12 次，跟兩小時的窗一樣），所以上面那條會放它過——**但它在第 200 到
+// 350 個遊戲日之間連續三個五十天區塊都是 0**。
+//
+//     [22,23)   0d:10  50d:10  100d:10  150d:7  200d:0  250d:0  300d:0  350d:5
+//     [7,8)     0d:0   50d:0   100d:0   150d:3  200d:10 250d:10 300d:10 350d:5
+//     [22,24)   全部 10
+//
+// **`[7,8)` 是 `[22,23)` 的相位鏡像**：同樣是一小時窗，一個開局死、一個開局活，
+// 而兩個都會在某一段消失。梳子以約 188 遊戲日／小時進動，**一小時的窗剛好
+// 追著一根齒走，所以它有大約一半的時間是空的**；兩小時的窗永遠含著一根。
+//
+// **這一條還原了我先前撤回的規則，但理由換了。** 我原本在每一份 brief 裡寫
+// 「窗不可以窄於 2 小時」，peer 拿 `[22,23)` 在 60 天內是活的把它推翻，
+// 而它是對的——**對「前 60 天」這個問題**。它後來自己補上長期的分佈，
+// 於是兩句話都成立：**「≥2 小時」對「相位無關」是必要的，對「開局可見」不是。**
+// 兩條檢查各答一個問題，都留著。
+//
+// 門檻取 20 個遊戲日：現有 41 列的最長空窗是 **7.5 天**（兩小時窗的正常齒距），
+// 而 `[22,23)` 是 **150 天**。分離乾淨，零背債。
+const MAX_GAP_DAYS = 20;
+
+check('事件的 hours 窗不可以在某個相位整段消失', () => {
+  const strideS = eventStrideSeconds();
+  const strideH = strideS / C.DAY_SECONDS * 24;
+  const perDay = C.DAY_SECONDS / strideS;
+  const startH = (S.newGame().t % C.DAY_SECONDS) / C.DAY_SECONDS * 24;
+  // 掃一整個進動週期（約 376 遊戲日）再多一點
+  const ticks = Math.ceil(400 * perDay);
+  const worstGap = win => {
+    let h = startH, cur = 0, worst = 0;
+    for (let i = 0; i < ticks; i++){
+      h = (h + strideH) % 24;
+      if (M.inHourWindow(h, win)) cur = 0;
+      else { cur++; if (cur > worst) worst = cur; }
+    }
+    return worst / perDay;
+  };
+  // 存活證明：一個一小時的窗一定會在某個相位消失——這條檢查如果連它都放過，
+  // 它就是在看空氣。取一個「一定會出事」的寬度來試。
+  const probe = worstGap([3, 4]);
+  if (!(probe > MAX_GAP_DAYS))
+    return `儀器壞了：一個一小時的窗 [3,4) 量出最長空窗只有 ${probe.toFixed(1)} 天`;
+
+  const bad = [];
+  let checked = 0, worstSeen = 0, worstId = '';
+  for (const e of EVENTS){
+    if (!e.hours) continue;
+    checked++;
+    const g = worstGap(e.hours);
+    if (g > worstSeen){ worstSeen = g; worstId = e.id; }
+    if (g > MAX_GAP_DAYS)
+      bad.push(`${e.id} [${e.hours[0]},${e.hours[1]}) 最長空窗 ${g.toFixed(0)} 個遊戲日`);
+  }
+  const ne = nonEmpty(checked, '沒有任何事件寫 hours，這條 guard 沒有試過任何東西');
+  if (ne !== true) return ne;
+  return ok(bad.length === 0,
+    `${checked} 個 hours 窗，${bad.length} 個會在某個相位整段消失：` + bad.join('、')
+    + `｜目前最長空窗 ${worstSeen.toFixed(1)} 個遊戲日（${worstId}），門檻 ${MAX_GAP_DAYS}`
+    + `｜**一小時的窗剛好追著一根梳齒走，所以它有大約一半的時間是空的**`
+    + `——上面那條只查前 60 天，會放它過。`);
+});
+
 check('必須同車：一對永遠不會被拆到兩台車（端對端）', () => {
   // 機制還沒進來 → **TODO，不是 fail**。把「還沒做」和「做了但錯」混成同一種紅，
   // 一整張 issue 可以在功能不存在的情況下被標記成完成（見檔頭）。
