@@ -1862,4 +1862,111 @@ check('沒有兩個配件色靠得比門檻更近', () => {
     + `可行空間是量得出來的有限，而綁死它的是 \`pal.bad\`。`);
 });
 
+
+// ---------------------------------------------------------------- 20 配件色對得起它自己的身體嗎
+// 色距的四條判準裡，**這是最後一條沒有 guard 的**。前三條都有了
+// （第 19 組兩兩、第 16 組對背景、第 15/17 組形狀與剪影），而「配件對身體色」
+// 從 #31 那一趟寫下來之後，**四帶都是靠每個 artist 自己的量測頁在守**。
+//
+// 它已經漏過一次：`influencer` 對 `pal.bad` 只有 **24.1689**（差 0.83，28 個身體格）
+// ——**跟 #31 那個 `tourist` 相機同一種失效形狀**，是住宅帶的 artist 回報的。
+//
+// **這條判準要分姿勢，而不是拿三個顏色一起比。** `drawPerson` 用
+// `spriteFor(type, urgent)` 取列，而身體色是：
+//
+//     normal 的 `#` 格 → `pal.ink`（在樓層上）或 `pal.inkCar`（在轎廂裡）
+//     urgent 的 `#` 格 → `pal.bad`
+//
+// 所以一張圖的 urgent 配件只跟 `pal.bad` 相鄰，跟 `ink` 從來不相鄰。
+// **不分姿勢地比會製造誤報**——`ghost` 對 `pal.ink` 是 11.86，看起來很嚴重，
+// **但 ghost 兩個姿勢都是 0 個身體格**（整身都是配件色），那條路走不到。
+//
+// **跳過的那些要列名，不能是一個隱形的過濾**：今天是 `cat` 與 `ghost`，
+// 而它們正是 #37 那一趟被**正確地**排除在身體色判準之外、**卻沒有補替代判準**
+// 的那兩個（第三個 `influencer` 有身體，所以它在這裡）。
+// 它們的替代判準是第 16 組（對 29 種背景色），那一條已經在守了。
+section('20 配件色對得起它自己的身體嗎');
+
+const BODY_MIN = 25;
+// 唯一一筆背債。
+const BODY_DEBT = {
+  influencer: '24.1689 對 pal.bad（urgent 的身體色），差 0.83，28 個身體格——'
+            + '**跟 #31 那個 tourist 相機同一種失效形狀**，比較輕但構得到。'
+            + '住宅帶的 artist 回報、沒有動它。排在 #67／#105：'
+            + '#105 量到配件色的可行空間只剩 1,639 個點（門檻 9），'
+            + '**而擋掉 84% 可行點的正是 pal.bad**——所以「把 influencer 移開 pal.bad」'
+            + '跟「要不要移動 pal.bad 本身」是同一個問題的兩面，一起裁。',
+};
+
+check('配件色對它自己那個姿勢的身體色要夠遠', () => {
+  if (CANVAS_SRC == null) return 'TODO: 讀不到 theme.js，取不到身體色';
+  const pick = k => {
+    const m = CANVAS_SRC.match(new RegExp('\\b' + k + ":\\s*'(#[0-9a-fA-F]{6})'"));
+    return m ? m[1] : null;
+  };
+  const ink = pick('ink'), inkCar = pick('inkCar'), bad = pick('bad');
+  if (!ink || !inkCar || !bad) return 'TODO: theme.js 的畫布調色盤裡找不到 ink / inkCar / bad';
+
+  // 儀器活著嗎？
+  if (ciede2000(ink, ink) !== 0) return '儀器壞了：同色的 ΔE 不是 0';
+  if (!(ciede2000('#000000', '#ffffff') > 90)) return '儀器壞了：黑對白的 ΔE 不到 90';
+
+  const count = (rows, ch) => rows.join('').split(ch).length - 1;
+  const bad_ = [], skipped = [], tight = [], debtRows = [];
+  let checked = 0;
+  for (const [id, sp] of Object.entries(PEOPLE)){
+    if (!sp.acc) continue;
+    const nBody = count(sp.normal, '#'), uBody = count(sp.urgent, '#');
+    const nAcc  = count(sp.normal, 'o'), uAcc  = count(sp.urgent, 'o');
+    // 兩個姿勢都沒有身體格 → 這條路走不到（配件直接坐在背景上，那是第 16 組的事）
+    if (nBody === 0 && uBody === 0){ skipped.push(id); continue; }
+    let min = Infinity, at = '';
+    if (nBody > 0 && nAcc > 0)
+      for (const [nm, c] of [['pal.ink', ink], ['pal.inkCar', inkCar]]){
+        const d = ciede2000(sp.acc, c);
+        if (d < min){ min = d; at = 'normal 對 ' + nm; }
+      }
+    if (uBody > 0 && uAcc > 0){
+      const d = ciede2000(sp.acc, bad);
+      if (d < min){ min = d; at = 'urgent 對 pal.bad'; }
+    }
+    if (min === Infinity){ skipped.push(id + '（沒有同時有身體與配件的姿勢）'); continue; }
+    checked++;
+    if (BODY_DEBT[id]){ debtRows.push(id + ' ' + min.toFixed(4) + '（背債）'); continue; }
+    if (min < BODY_MIN) bad_.push(`${id} ${sp.acc} 最小 ΔE ${min.toFixed(4)}（${at}）`);
+    else if (min < BODY_MIN + 1) tight.push([id, min]);
+  }
+  const ne = nonEmpty(checked, '沒有任何一張圖同時有身體格與配件格，這條 guard 沒有試過任何東西');
+  if (ne !== true) return ne;
+  tight.sort((a, b) => a[1] - b[1]);
+  return ok(bad_.length === 0,
+    `${checked} 張圖，${bad_.length} 張新的低於 ${BODY_MIN}：` + bad_.join('、')
+    + `｜既有背債：` + (debtRows.join('、') || '無')
+    + `｜**跳過（兩個姿勢都沒有身體格，這條路走不到）：${skipped.join('、') || '無'}**`
+    + `——它們的替代判準是第 16 組（對 29 種背景色）`
+    + `｜貼著門檻的（${tight.length} 張在 ${BODY_MIN}–${BODY_MIN + 1} 之間，換一個 ΔE 實作可能翻面）：`
+    + tight.slice(0, 3).map(x => x[0] + ' ' + x[1].toFixed(4)).join('、'));
+});
+
+check('身體色的背債表都還存在、寫了理由、而且都還不及格', () => {
+  if (CANVAS_SRC == null) return 'TODO: 讀不到 theme.js';
+  const ne = nonEmpty(Object.keys(BODY_DEBT).length, 'BODY_DEBT 是空的');
+  if (ne !== true) return ne;
+  const pick = k => {
+    const m = CANVAS_SRC.match(new RegExp('\\b' + k + ":\\s*'(#[0-9a-fA-F]{6})'"));
+    return m ? m[1] : null;
+  };
+  const cols = [pick('ink'), pick('inkCar'), pick('bad')].filter(Boolean);
+  const stale = [];
+  for (const [id, why] of Object.entries(BODY_DEBT)){
+    if (!PEOPLE[id] || !PEOPLE[id].acc){ stale.push(id + '（圖或 acc 不見了）'); continue; }
+    if (!why || why.length < 30){ stale.push(id + '（理由太短）'); continue; }
+    let min = Infinity;
+    for (const c of cols) min = Math.min(min, ciede2000(PEOPLE[id].acc, c));
+    if (min >= BODY_MIN) stale.push(`${id}（已經修好，${min.toFixed(4)}，該從表上移除）`);
+  }
+  return ok(stale.length === 0,
+    `背債表 ${Object.keys(BODY_DEBT).length} 筆，${stale.length} 筆過期：` + stale.join('、'));
+});
+
 export { summary };
