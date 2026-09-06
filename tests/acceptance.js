@@ -5,7 +5,7 @@
 // 不是從 content.js 讀的。這是刻意的：見 harness.js 開頭第 1 點。
 
 import { section, check, eq, near, ok, nonEmpty, R, summary } from './harness.js';
-import { CONFIG as C, BANDS, UPGRADES, PASSENGERS, ACHIEVEMENTS, SKILLS } from '../js/content.js';
+import { CONFIG as C, BANDS, UPGRADES, PASSENGERS, ACHIEVEMENTS, SKILLS, EVENTS } from '../js/content.js';
 import { EN } from '../js/i18n-content.js';
 import * as S from '../js/state.js';
 import * as M from '../js/sim.js';
@@ -618,6 +618,132 @@ check('尖峰窗真的改變人流分布，兩個方向都要對（端對端）'
     bad.push(`抵達：9 點 ${(sd(morning)*100).toFixed(1)}% vs 3 點 ${(sd(night)*100).toFixed(1)}%（up 窗 [8,10] 沒生效？）`);
   return ok(bad.length === 0,
     `辦公帶的尖峰窗沒有拉開｜${bad.join('｜')}｜樣本 ${evening.n}/${morning.n}/${night.n}`);
+});
+
+// ---------------------------------------------------------------- 11 內容資料的三種安靜錯誤
+// 這一組是一個 peer 交來的。它在自己的分支上同時製造三個缺陷，然後跑我的 harness：
+// **44 pass / 0 fail / 1 todo —— 一條都沒抓到。**
+//
+//   · 事件的 `type:` 打錯字 → `forcedTypePool()` 回 null，**安靜退回樓層帶抽樣**。
+//     症狀是「消防演習疏散了一隻貓」，而不是任何錯誤。
+//   · 成就的 `codex` 鍵打錯 → 那個計數器永遠沒有人寫，**成就永遠拿不到**。
+//   · 成批事件的場上耐性掉到 42–44 秒的結構懸崖以下 → **整批必死**。
+//
+// 三種都不會丟例外、不會讓畫面壞掉、不會讓任何既有的 guard 變紅。
+// 它把形狀交給我而沒有自己搬進 tests/（這是我的檔案），所以由我實作。
+section('11 內容資料的三種安靜錯誤');
+
+// 誰會寫 st.codex？sim.js:742 對每一種送達的乘客型別寫 st.codex[p.type]，
+// 另外有幾個具名的計數器。**具名的那些要從原始碼抓，不能寫死**——寫死的話
+// 下一個人加了新的計數器，這條 guard 會把正確的成就報成錯的。
+const CODEX_NAMED = SIM_SRC == null ? null
+  : [...new Set((SIM_SRC.match(/codex\.(\w+)/g) || []).map(m => m.slice(6)))];
+
+check('事件的 type / types 一定指得到一個乘客型別', () => {
+  const ids = new Set(PASSENGERS.map(p => p.id));
+  const bad = [];
+  let checked = 0;
+  for (const e of EVENTS){
+    const want = e.types ? Object.keys(e.types) : (e.type ? [e.type] : []);
+    for (const t of want){
+      checked++;
+      if (!ids.has(t)) bad.push(e.id + ' → ' + t);
+    }
+  }
+  const ne = nonEmpty(checked, '沒有任何事件指定 type/types，這條 guard 沒有試過任何東西');
+  if (ne !== true) return ne;
+  return ok(bad.length === 0,
+    `比對了 ${checked} 個指定，${bad.length} 個指不到乘客型別`
+    + `（forcedTypePool() 會回 null，然後**安靜退回樓層帶抽樣**）：` + bad.join('、'));
+});
+
+check('成就讀的 codex 鍵一定要有人寫得進去', () => {
+  if (CODEX_NAMED == null) return 'TODO';          // 讀不到 sim.js 就不假裝驗過
+  const writable = new Set([...PASSENGERS.map(p => p.id), ...CODEX_NAMED]);
+  const bad = [];
+  let checked = 0;
+  for (const a of ACHIEVEMENTS){
+    for (const m of String(a.test).match(/codex\.(\w+)/g) || []){
+      const k = m.slice(6);
+      checked++;
+      if (!writable.has(k)) bad.push(a.id + ' → codex.' + k);
+    }
+  }
+  const ne = nonEmpty(checked, '沒有任何成就讀 codex，這條 guard 沒有試過任何東西');
+  if (ne !== true) return ne;
+  return ok(bad.length === 0,
+    `比對了 ${checked} 個 codex 鍵，${bad.length} 個永遠寫不進去 = 永遠拿不到：` + bad.join('、'));
+});
+
+// 42–44 秒的結構懸崖：一個 peer 掃 36/40/44/48/52/64 得到存活率
+// 14/19/**58**/55/49/86%。那條線是「電梯從別層趕過來 + 清掉一整批人」的時間，
+// **低於它整批人必死**——不是比較難，是這個事件等於不存在。
+//
+// 場上耐性 = type.patience × (1 + far/45) × (event.panic || 1)，
+// far = max(出發樓層, 目的樓層) 的索引。
+//
+// **第一版我用 far=0 當下界，那太嚴了。** 它把「基礎耐性 < 44」的每一列都報出來，
+// 不管那個事件的人實際走多遠——`anniversary` 就是這樣被誤報的：基礎 42、沒有 panic，
+// far=0 算出 42.0（紅），但它是大廳→零售，目的地在 0–9 層之間，取中位是 46.2（過）。
+// 我實測過它的存活率：30 層 100%、12 層有幾顆種子是 48/48。**那不是缺陷，是我的界取錯。**
+//
+// 改用**目的地帶的中位索引**。這樣 `raffle` 仍然被抓（64 × 1.1 × 0.5 = 35.2），
+// 而 `anniversary` 放過。
+//
+// **這條界證明得了什麼／不再證明什麼**：它抓的是「典型的那一批人掉在懸崖下」，
+// 不抓「最壞的一個人掉在懸崖下」——後者在任何基礎耐性接近 44 的事件上都會發生，
+// 而那不是同一件事。`at` 或 `to` 是 `'any'` 的事件**跳過不檢查**（樓層範圍隨塔高變，
+// 界不出來），`drill` 就是這一類。
+const CLIFF = 44;
+// 刻意留在懸崖下的例外。**每一條都要寫理由與量測**，否則這張表會變成
+// 「把紅的掃進地毯下」的垃圾桶。
+const CLIFF_OK = {
+  raffle: '中獎顧客 64 × panic 0.5 = 場上 32 秒，刻意的：第一版 46 秒只救得回 10–19%，'
+        + '這個事件的設計就是「大部分人你救不回來」。實測 FIFO 3% / SCAN 14% / LOOK 6%，'
+        + '是全表最低的一列。要不要調是 owner 的決定（orchestrator 實測 59.1%，配置較寬鬆）。',
+};
+
+check('成批事件的場上耐性不可以掉到結構懸崖以下', () => {
+  const byId = Object.fromEntries(PASSENGERS.map(p => [p.id, p]));
+  const bad = [], checked = [];
+  for (const e of EVENTS){
+    if (!e.type || !e.n) continue;
+    const batch = e.n[1] || e.n[0] || 0;
+    if (batch < 6) continue;                        // 一兩個人不算「整批」
+    const t = byId[e.type];
+    if (!t) continue;                               // 指不到型別是上面那條的事
+    // far 的中位：'lobby' 是 0，樓層帶取它索引範圍的中點，'any' 界不出來所以跳過
+    const mid = k => {
+      if (k === 'lobby') return 0;
+      if (k === 'any') return null;
+      const b = BANDS.find(x => x.key === k);
+      return b ? ((b.from - 1) + (b.to - 1)) / 2 : null;
+    };
+    const a = mid(e.at), z = mid(e.to);
+    if (a == null || z == null) continue;           // 'any'：跳過，理由見上面註解
+    const far = Math.max(a, z);
+    const onStage = t.patience * (1 + far / 45) * (e.panic != null ? e.panic : 1);
+    checked.push(e.id);
+    if (onStage >= CLIFF) continue;
+    if (CLIFF_OK[e.id]) continue;
+    bad.push(`${e.id}（${e.type} ${t.patience}`
+      + (e.panic != null ? ` × panic ${e.panic}` : '') + ` = 場上 ${onStage.toFixed(0)} 秒）`);
+  }
+  const ne = nonEmpty(checked.length, '沒有任何成批事件指定 type，這條 guard 沒有試過任何東西');
+  if (ne !== true) return ne;
+  return ok(bad.length === 0,
+    `比對了 ${checked.length} 個成批事件，${bad.length} 個掉到 ${CLIFF} 秒的懸崖以下`
+    + `（不是比較難，是整批必死）：` + bad.join('、'));
+});
+
+check('懸崖的例外都寫了理由', () => {
+  const ids = new Set(EVENTS.map(e => e.id));
+  const ne = nonEmpty(Object.keys(CLIFF_OK).length, 'CLIFF_OK 是空的，沒有東西可以檢查');
+  if (ne !== true) return ne;
+  const bad = Object.keys(CLIFF_OK).filter(id =>
+    !ids.has(id) || !CLIFF_OK[id] || CLIFF_OK[id].length < 30);
+  return ok(bad.length === 0,
+    '例外的事件 id 不存在、或理由太短（沒有理由的例外等於沒有這條 guard）：' + bad.join(', '));
 });
 
 export { summary };
