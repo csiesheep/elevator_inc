@@ -47,7 +47,9 @@ document.getElementById('out').innerHTML =
   (s.todo ? `<h2>尚未實作</h2><ul>${s.todos.map(t =>
      `<li class="todo">${esc(t.label)}${t.msg && t.msg !== '尚未實作'
         ? `<br><small>${esc(t.msg)}</small>` : ''}</li>`).join('')}</ul>` : '') +
-  `<h2>通過</h2><ul>${R.pass.map(p => `<li class="lab">${esc(p.label)}</li>`).join('')}</ul>`;
+  `<h2>通過</h2><ul>${R.pass.map(p =>
+     `<li class="lab">${esc(p.label)}${p.msg
+        ? `<br><small>${esc(p.msg)}</small>` : ''}</li>`).join('')}</ul>`;
 </script>
 </body>
 </html>

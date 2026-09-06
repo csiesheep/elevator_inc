@@ -28,6 +28,8 @@ export function check(name, fn){
       return;
     }
     if (r === true || r === undefined){ R.pass.push({ label }); return; }
+    // ok() 通過時回 { pass:true, msg }——**綠的那一條也要說得出它量到什麼**，見下面。
+    if (r && r.pass === true){ R.pass.push({ label, msg: r.msg }); return; }
     R.fail.push({ label, msg: String(r) });
   } catch (e){
     R.fail.push({ label, msg: (e && e.message) || String(e) });
@@ -44,7 +46,20 @@ export function near(actual, expect, tol, what){
     return `${what}: 期望 ${expect}±${tol}，實際 ${actual}`;
   return true;
 }
-export function ok(cond, msg){ return cond ? true : msg; }
+// **通過的時候也要把訊息帶回去。**
+//
+// 這裡本來是 `return cond ? true : msg`——訊息在通過時**直接被丟掉**。
+// 而 acceptance.js 裡有 **48 條** check 以 `return ok(...)` 收尾，
+// 其中好幾條的訊息是**專門為了「綠的時候也看得見」而寫的**：
+// 第 19 組印「配件色目前最小 10.9708、12 以下 29 組」是為了讓**侵蝕看得見**
+// （那個數字正是一帶一帶從 11.9974 掉下來的）、第 12 組印「目前最長空窗 7.5 天」、
+// 第 20 組印「貼著門檻的有幾張」、第 16 組印背債表。
+//
+// **它們一次都沒有顯示過。** 我還在交付訊息裡寫過「第 19 組即使全綠也會印出
+// 目前最小值」——那是一句我從來沒有親眼確認過的話（skill 4.4：綠色的那一列
+// 我從來沒有真的看過）。侵蝕本來就是靠這些數字被發現的，而它們被丟在
+// 一個 `? true :` 裡面。
+export function ok(cond, msg){ return cond ? { pass: true, msg } : msg; }
 
 // 母體非空：任何「必須沒有 X」的檢查都要先過這一關（見 skill §5.6）
 export function nonEmpty(n, what){

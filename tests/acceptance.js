@@ -638,11 +638,80 @@ check('尖峰窗真的改變人流分布，兩個方向都要對（端對端）'
 // 它把形狀交給我而沒有自己搬進 tests/（這是我的檔案），所以由我實作。
 section('11 內容資料的三種安靜錯誤');
 
-// 誰會寫 st.codex？sim.js:742 對每一種送達的乘客型別寫 st.codex[p.type]，
+// 誰會寫 st.codex？sim.js 對每一種送達的乘客型別寫 st.codex[p.type]，
 // 另外有幾個具名的計數器。**具名的那些要從原始碼抓，不能寫死**——寫死的話
 // 下一個人加了新的計數器，這條 guard 會把正確的成就報成錯的。
-const CODEX_NAMED = SIM_SRC == null ? null
-  : [...new Set((SIM_SRC.match(/codex\.(\w+)/g) || []).map(m => m.slice(6)))];
+//
+// ⚠ **第一版是 `SIM_SRC.match(/codex\.(\w+)/g)`，而那把註解當成了資料。**
+// 這正是我寫進每一份 brief 的第 13 條教訓（「在原始碼文字上比對會把註解當資料」），
+// 而我自己的 harness 從頭到尾都是這個形狀——**把一個 bug 命名成一個類，
+// 不等於掃過那個類**（skill 5.17）。
+//
+// 實際的失效：`sim.js` 有一行註解寫著「共用一個 `codex.pairsDelivered` 會讓下一個
+// 寫 pair:true 的人物把成就文案變成假的」——**那是一句叫人不要用它的警告**，
+// 而舊版的 regex 把它讀成「有人寫得進去」。**擋住這條 guard 的，正是它所守護的
+// 那個危險的說明文字。** 我實際證偽過：在 ACHIEVEMENTS 插一條
+// `test: s => s.codex.pairsDelivered >= 3`（一條永遠拿不到的成就），
+// **整份 harness 69 pass / 0 fail。這條 guard 存在的唯一理由就是抓這個。**
+//
+// 三個陣口一起堵：去註解、字串內容抹掉、**而且只認「寫」不認「提到」**。
+//
+// **這支去註解器是「夠用」不是「通用」**：它逐行追蹤 ' " ` 三種引號，
+// 沒有處理 regex 字面。量過了：`sim.js` 只有一個 regex 字面（`/\.0$/`，裡面沒有
+// 引號也沒有 //）、**零個跨行樣板字面**（每行 backtick 都是偶數）、零個 `/* */`。
+// 哪天這三個假設壞了，**壞的方向是安全的**：抽不到鍵 → 成就被報成
+// 「寫不進去」 → **假紅，不是假綠**。下面那條自測會先叫。
+const stripNonCode = src => src.split('\n').map(line => {
+  let out = '', q = null;
+  for (let i = 0; i < line.length; i++){
+    const c = line[i];
+    if (q){                                   // 引號裡：內容抹成空白，但保留長度
+      if (c === '\\'){ out += '  '; i++; continue; }
+      if (c === q){ q = null; out += c; } else out += ' ';
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`'){ q = c; out += c; continue; }
+    if (c === '/' && line[i + 1] === '/') break;   // 行註解：從這裡敲掉
+    out += c;
+  }
+  return out;
+}).join('\n');
+
+// 只認寫入：`codex.NAME` 後面接 =（不是 ==）、++、--、+= 之類。
+// `if (st.codex.foo >= 3)` 是讀，不算。
+const codexWrites = src => [...new Set(
+  [...stripNonCode(src).matchAll(/codex\.(\w+)\s*(?:\+\+|--|[-+*\/|&^%]?=(?!=))/g)]
+    .map(m => m[1])
+)];
+
+const CODEX_NAMED = SIM_SRC == null ? null : codexWrites(SIM_SRC);
+
+// **儀器的自測，而且期望值是我手寫的、不是從 sim.js 推出來的**（5.2）。
+// 它在一支小小的合成原始碼上跑，那支原始碼把四種情況各放一份。
+check('抽 codex 鍵的那支儀器本身是對的嗎', () => {
+  const PROBE = [
+    "// codex.commentOnly 只出現在註解裡，不該算",
+    "st.codex.realWrite = (st.codex.realWrite || 0) + 1;   // codex.alsoComment 也不算",
+    "if (st.codex.readOnly >= 3) doThing();",
+    "const s = 'codex.inString = 1';",
+    "st.codex.bumped++;",
+  ].join('\n');
+  const got = codexWrites(PROBE).sort();
+  const want = ['bumped', 'realWrite'];
+  if (got.join(',') !== want.join(','))
+    return `儀器壞了：合成原始碼應該抽出 [${want}]，實際抽出 [${got}]`;
+  if (SIM_SRC == null) return 'TODO: 讀不到 sim.js，儀器自測只跑了合成那一半';
+  if (!(CODEX_NAMED.length >= 3))
+    return `儀器壞了：在真的 sim.js 上只抽到 ${CODEX_NAMED.length} 個具名計數器`;
+  const mentioned = [...new Set((SIM_SRC.match(/codex\.(\w+)/g) || []).map(m => m.slice(6)))];
+  const commentOnly = mentioned.filter(k => !CODEX_NAMED.includes(k)
+    && !PASSENGERS.some(p => p.id === k));
+  return ok(true,
+    `合成原始碼抽出 [${got}]（註解、字串、只讀的那三種都沒有混進來）`
+    + `｜真的 sim.js 抽出 ${CODEX_NAMED.length} 個具名計數器`
+    + `｜**只在註解裡被提到、沒有人寫得進去的鍵：`
+    + `${commentOnly.join('、') || '無'}**——舊版把這些全部當成合法的。`);
+});
 
 check('事件的 type / types 一定指得到一個乘客型別', () => {
   const ids = new Set(PASSENGERS.map(p => p.id));
@@ -911,7 +980,7 @@ check('事件的 hours 窗一定落得到事件檢查的梳齒', () => {
 // 於是兩句話都成立：**「≥2 小時」對「相位無關」是必要的，對「開局可見」不是。**
 // 兩條檢查各答一個問題，都留著。
 //
-// 門檻取 20 個遊戲日：現有 41 列的最長空窗是 **7.5 天**（兩小時窗的正常齒距），
+// 門檻取 20 個遊戲日：現有 50 個 hours 窗的最長空窗是 **7.5 天**（兩小時窗的正常齒距），
 // 而 `[22,23)` 是 **150 天**。分離乾淨，零背債。
 const MAX_GAP_DAYS = 20;
 
