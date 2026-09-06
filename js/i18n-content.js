@@ -41,7 +41,7 @@ export const EN = {
     ceo:       { name:'CEO',           note:'Enormous fare, no patience at all. Keeping one waiting hurts the rating badly. Far more common at rush hour.' },
     cat:       { name:'Cat',           note:'Pays nothing. Purely raises the rating. Rare.' },
     ghost:     { name:'Ghost',         note:'Only ever on the 13th floor. Carrying it leaves you an unexpected sum.' },
-    mover:     { name:'Removals crew', note:'Fills most of the car on its own.' },
+    mover:     { name:'Removals crew', note:'The load takes four slots and fills most of the car. One of the best fares in the building, too — it earns those slots.' },
     guest:     { name:'Hotel guest',   note:'Luggage takes two slots. Hotel floors only.' },
     resident:  { name:'Resident',      note:'A regular, and patient with it. Residential floors only.' },
     observer:  { name:'Sightseer',     note:'Arrives in groups heading for the observation deck.' },
@@ -89,6 +89,13 @@ export const EN = {
     roomcart:  { name:'Room-service cart',note:'A trolley that fills most of the car, moving between floors. Never gives up — leave it and it just stands there.' },
     bellhop:   { name:'Bellhop',          note:'Carries the luggage. Pays nothing and never gives up, but a ride lifts the building rating. Two slots.' },
     nightguest:{ name:'Late-night guest', note:'Hotel floors only. Turns up between 11pm and 4am and nowhere else, for the best fare on the floor — nobody else wants the lift at that hour.' },
+    // 住宅帶的四個人物（#80 #81 #82 #83）。#79 搬家公司的英文在上面 mover 那一行。
+    // 數字要跟 content.js 的資料對得上：遛狗一組 4 格（size 2 × 2）、外送小費是
+    // 車資的一半（tip.mult 0.5）、深夜回家 0–4 點（peaks 的補集窗）、裝修 3 格。
+    dogwalker: { name:'Dog walker',       note:'Residential floors only. The dog rides with its owner or not at all — delivered apart does not count, so one pair needs four slots free. Far more common in the evening.' },
+    fooddeliv: { name:'Food courier',     note:'Residential floors only. The shortest patience on these floors — get one there fast (waiting under 40% of their patience) and they hand you half the fare again as a tip; too slow and they simply stop waiting. Far more common around dinner.' },
+    latehome:  { name:'Late homecomer',   note:'Residential floors only. Turns up between midnight and 4am and nowhere else, and is the most patient person in the building — nobody else wants the lift at that hour.' },
+    renovator: { name:'Renovation crew',  note:'Residential floors only. The tools take three slots, but he is in no hurry — this one costs you space, not time. Works while the residents are out.' },
   },
 
   tenants: {
@@ -195,6 +202,14 @@ export const EN = {
     trolley:    { name:'Trolley service',  note:'Deliver 10 room-service carts, four slots each.' },
     porter:     { name:'Bags upstairs',    note:'Deliver 36 bellhops — they pay nothing and only lift the rating.' },
     lastcheckin:{ name:'Home at last',     note:'Deliver 29 late-night guests, who only ever turn up in the small hours.' },
+    // 住宅帶的五條（#79 #80 #81 #82 #83）。
+    // 數字要跟 content.js 的判定一致（驗收第 8 組逐條比對中英兩邊）。
+    // walkies 的兩個數字都寫出來，理由跟中文那一列一樣：它數的是人次不是組數。
+    bigmove:   { name:'Moving day',        note:'Deliver 10 removals crews — their load takes four slots, so it is nearly a whole empty car.' },
+    walkies:   { name:'Walkies',           note:'Deliver 48 dog-walker rides — the owner and the dog each count, so 24 pairs in all.' },
+    hotfood:   { name:'Still hot',         note:'Deliver 26 food couriers — the shortest patience on these floors.' },
+    lastlight: { name:'Last light',        note:'Deliver 28 late homecomers, who only ever turn up between midnight and 4am.' },
+    renovated: { name:'Refurbished',       note:'Deliver 12 renovation crews — three slots of tools every time.' },
   },
 
   roofs: {
