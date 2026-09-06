@@ -60,6 +60,16 @@ export const EN = {
     queuer:    { name:'Launch queuer',    note:'Queued all night for one product. The biggest crowd, and the most patient one.' },
     child:     { name:'Lost child',       note:'A child looking for a parent between floors. Pays nothing; delivering raises the rating. Ignore them and they wander off.' },
     winner:    { name:'Prize winner',     note:'Rushing down to collect a raffle prize. The best fare in retail — on half the usual patience.' },
+    // 辦公帶九個事件的人物（#39 #41 #42 #43 #44 #45 #46 #47 #40）
+    attendee:  { name:'Meeting attendee', note:'A whole meeting room emptying at once. A little more patient than an office worker — they walked out under their own steam.' },
+    townhaller:{ name:'All-hands attendee', note:'Summoned to the all-hands. They converge on one floor from every floor — attendance is mandatory, so they will not walk away.' },
+    evacuee:   { name:'Evacuee',          note:'Herded downstairs by the fire drill. The event halves their patience — it is the alarm going off that makes them impatient, not the drill.' },
+    client:    { name:'Visiting client',  note:'One important guest, lobby to the offices. The highest fare in the building, and barely more patience than the CEO.' },
+    newhire:   { name:'New starter',      note:'First day. Each one spends a second fumbling for a pass — and five to nine of them arrive together, so the doors never shut.' },
+    outager:   { name:'Outage refugee',   note:'The system is down, so the whole floor gives up and heads home. One of the largest crowds in the game.' },
+    nightowl:  { name:'Late worker',      note:'Still here at midnight. Few of them, well paid, and the most patient — nobody else wants the lift at this hour.' },
+    coffeegoer:{ name:'Coffee run',       note:'Office workers heading down for an afternoon coffee. The only crowd the offices send into the shops.' },
+    laidoff:   { name:'Laid-off worker',  note:'Their last trip down, carrying a box. The shortest patience of anyone who arrives in a crowd — and leaving them behind hurts the rating extra.' },
   },
 
   tenants: {
@@ -134,6 +144,16 @@ export const EN = {
     // #22 / #27。數字要跟 content.js 的判定一致（驗收第 8 組逐條比對）。
     waxdry:    { name:'Clean finish',     note:'Ride out 4 floor-waxing shutdowns with nobody giving up on the sealed floor.' },
     entourage: { name:'Nobody left behind',note:'Deliver 25 complete influencer entourages without losing a single companion.' },
+    // 辦公帶九個事件的成就。數字要跟 content.js 的判定一致（驗收第 8 組逐條比對）。
+    adjourned: { name:'Meeting adjourned', note:'Deliver 60 meeting attendees.' },
+    allhands:  { name:'All present',       note:'Deliver 12 people to an all-hands.' },
+    firedrill: { name:'Drill over',        note:'Evacuate 20 people to the lobby during fire drills.' },
+    bigdeal:   { name:'Good for business', note:'Deliver 3 visiting clients on time.' },
+    firstday:  { name:'First day',         note:'Take 12 new starters up to their first day.' },
+    rebooted:  { name:'Rebooted',          note:'Deliver 30 people escaping a system outage.' },
+    burningoil:{ name:'Overtime',          note:'Take 25 late workers home.' },
+    caffeine:  { name:'Caffeine',          note:'Deliver 6 people on a coffee run.' },
+    severance: { name:'Severance',         note:'Deliver 25 laid-off workers.' },
   },
 
   roofs: {
@@ -173,5 +193,14 @@ export const EN = {
     expo:     { name:'Exhibition rush',text:'🎪 Exhibition crowd: {n} people converging on floor {f}' },
     moving:   { name:'Moving day',     text:'📦 Moving day: {n} loads coming down from floor {f}' },
     seating:  { name:'Sitting change', text:'🍽 The sky restaurant turns over: {n} people leaving floor {f}' },
+    // 辦公帶的七個新事件（#41 #43 #44 #45 #46 #47 #40）。
+    // meeting / drill 那兩列的英文本來就在上面，這一趟只加了 type:，文案沒動。
+    townhall:   { name:'All-hands',      text:'📢 All-hands: {n} people converging on floor {f} from every floor' },
+    clientvisit:{ name:'Client visit',   text:'🤝 A client is waiting in the lobby for floor {f}, and they will not wait long' },
+    onboarding: { name:'New starters',   text:'🪪 First day: {n} new starters in the lobby, all of them hunting for a pass' },
+    outage:     { name:'System outage',  text:'💥 System outage: {n} people on floor {f} give up and head down' },
+    overtime:   { name:'Working late',   text:'🌙 Working late: {n} people are still on floor {f}' },
+    coffee:     { name:'Coffee run',     text:'☕ Coffee run: {n} people head down from floor {f}' },
+    layoff:     { name:'Layoff day',     text:'📄 Layoff day: {n} people leave floor {f} with a box, and none of them will wait' },
   },
 };
