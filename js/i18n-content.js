@@ -38,7 +38,7 @@ export const EN = {
     tourist:   { name:'Tourist',       note:'Keeps taking photos. Adds 1.2s to the door cycle.' },
     courier:   { name:'Courier',       note:'The trolley takes two slots.' },
     guard:     { name:'Security',      note:'Pays nothing, but patrolling lifts the building rating.' },
-    ceo:       { name:'CEO',           note:'Enormous fare, no patience at all. Keeping one waiting hurts the rating badly. Only rides at rush hour.' },
+    ceo:       { name:'CEO',           note:'Enormous fare, no patience at all. Keeping one waiting hurts the rating badly. Far more common at rush hour.' },
     cat:       { name:'Cat',           note:'Pays nothing. Purely raises the rating. Rare.' },
     ghost:     { name:'Ghost',         note:'Only ever on the 13th floor. Carrying it leaves you an unexpected sum.' },
     mover:     { name:'Removals crew', note:'Fills most of the car on its own.' },
