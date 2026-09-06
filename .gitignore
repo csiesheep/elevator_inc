@@ -1,0 +1,4 @@
+# artist 的量測工具跑出來的中間檔（tools/artfull.py 產生，約 12MB，重跑就有）
+tools/_cand_*.npy
+tools/_picked.json
+__pycache__/
