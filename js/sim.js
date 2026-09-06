@@ -279,12 +279,15 @@ function makePassenger(st, sim, origin, dest, h, ev, out){
 //      他們一定同一個 tick 一起放棄。不需要第二條「一個走了另一個怎麼辦」的路——
 //      多一條路就多一個以後會分岔的地方。上客那邊仍然防禦性地檢查 mate 還在不在。
 //
-// ⚠ **今天沒有任何事件用 pair 的型別，而如果有人要這樣寫，這裡要先改。**
-//    runEvent 在 makePassenger **回傳之後**才蓋上 `p.surge` / `p.fromEvent` /
-//    `p.blockArm`，也才乘 `ev.panic` —— 那些全部只蓋得到第一個人，另一半是在
-//    makePassenger **裡面**生出來的，拿不到。後果依序是：同伴少一份尖峰加給、
-//    不算事件乘客、以及**兩個人的耐性分岔**（規則 3 的前提就沒了）。
-//    上客那邊有一行防它變成殭屍，但那是止血不是修好。
+// 事件用 pair 型別這條路（#5-E4 求婚是第一個）：**已經接上了，在 runEvent 裡。**
+//    runEvent 在 makePassenger **回傳之後**才蓋 `p.surge` / `p.fromEvent` /
+//    `p.blockArm`、也才乘 `ev.panic`，而同伴是在 makePassenger **裡面**生的，
+//    所以那四項原本全部只蓋得到第一個人。後果依序是：同伴少一份尖峰加給、
+//    不算事件乘客、以及**兩個人的耐性分岔**——而規則 3（同一個 tick 一起放棄）
+//    正是靠「兩份 patience 逐字相同」成立的，分岔之後上客那邊就只剩一行止血。
+//    現在 runEvent 把四項逐字補到 `p.mate` 上，同伴也計入 made。
+//    ⚠ **以後在 runEvent 裡新增任何「事後蓋在 p 上」的欄位，都要同時蓋到 p.mate**，
+//    否則就會再長出一次同樣的分岔。
 let pairing = false;
 function makeMate(st, sim, p, out){
   if (pairing) return null;                                     // 規則 1
@@ -507,6 +510,18 @@ function runEvent(st, sim, ev, band, tenant, simTopAll, scale){
     p.fromEvent = true;
     if (arm) p.blockArm = arm;                   // 送達時才真的封鎖
     made++;
+    // pair:true 的型別在 makePassenger **裡面**就把同伴生好了，所以上面那四項只蓋得到
+    // 第一個人。四項逐字補到同伴身上——**`ev.panic` 尤其不能漏**：兩個人的耐性一旦
+    // 分岔，「同一個 tick 一起放棄」（makeMate 規則 3）的前提就沒了，而上客那邊只剩
+    // 一行防殭屍的止血。同伴也算一個「這次事件生出來的人」，所以 made 一起加。
+    const mate = p.mate;
+    if (mate){
+      if (ev.panic) mate.left = mate.patience = mate.patience * ev.panic;
+      mate.surge = p.surge;
+      mate.fromEvent = true;
+      if (arm) mate.blockArm = arm;
+      made++;
+    }
   }
   // 「一個人都沒生出來」原本就靜靜結束（免得跳出「0 個人」的提示）。**立刻封鎖**的
   // 事件是第一種不生人也真的發生了的事件，所以它要能走到下面；但**送達才封鎖**的
