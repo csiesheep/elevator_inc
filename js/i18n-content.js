@@ -267,13 +267,6 @@ export const EN = {
     screening:{ name:'Moviegoer crowd', text:'🎬 Moviegoer crowd: a showing on floor {f} has just ended and {n} people surge toward the lobby' },
     lostkid:  { name:'Lost child',     text:'🧒 Lost child: a kid on floor {f} is looking for a parent' },
     raffle:   { name:'Prize draw',     text:'🎁 The draw is announced: {n} winners on floor {f} want to get down there fast' },
-    lunch:    { name:'Lunch hour',     text:'🍜 Lunch hour: {n} people come down from the food court on floor {f}' },
-    cinema:   { name:'Screening ends', text:'🎬 Screening ends: a full house of {n} leaves floor {f} at once' },
-    shift:    { name:'Shift change',   text:'🎧 Shift change: {n} people clock off floor {f} together' },
-    banquet:  { name:'Banquet ends',   text:'🥂 The banquet is over: {n} people off floor {f}, and all of them are tired' },
-    expo:     { name:'Exhibition rush',text:'🎪 Exhibition crowd: {n} people converging on floor {f}' },
-    moving:   { name:'Moving day',     text:'📦 Moving day: {n} loads coming down from floor {f}' },
-    seating:  { name:'Sitting change', text:'🍽 The sky restaurant turns over: {n} people leaving floor {f}' },
     // 辦公帶的七個新事件（#41 #43 #44 #45 #46 #47 #40）。
     // meeting / drill 那兩列的英文本來就在上面，這一趟只加了 type:，文案沒動。
     townhall:   { name:'All-hands',      text:'📢 All-hands: {n} people converging on floor {f} from every floor' },

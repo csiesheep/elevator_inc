@@ -1,7 +1,7 @@
 // sim.js — 模擬。乘客、電梯井、調度演算法、過熱、評價、統計流量模型。
 // 這裡的東西都是暫時的：存檔只存 GameState，不存乘客陣列（設計 4.13）。
 import { CONFIG as C, PASSENGERS, BANDS, EVENTS, WEEKDAYS, bandOf, tierAt,
-         TENANTS, tenantById, defaultTenant, eventById, passengerById } from './content.js';
+         TENANTS, tenantById, defaultTenant, passengerById } from './content.js';
 import { t, L, getLang } from './i18n.js';
 import { derived, builtInBand, tenantMix } from './state.js';
 
@@ -419,32 +419,12 @@ function floorInBand(st, key, simTopAll){
   return lo + ((Math.random() * Math.min(built, hi - lo + 1)) | 0);
 }
 
-// A：每一帶的租戶會發生什麼事件。每一帶各自累積自己的計時器。
-// 招商取消之後資料來源換成「這一帶的 defaultTenant × 蓋了幾層」，機制本身不動——
-// 這是 #1–#7（每種樓層自己的事件與人物）要接的地方，到時候只換 tenant 的來源。
-// ⚠ 現況：七個 defaultTenant 全都是 plain 且沒有 event，所以這裡目前一次也不會觸發。
-function tenantEvents(st, sim, dt){
-  sim.tenantT = sim.tenantT || {};
-  for (const b of BANDS){
-    const count = builtInBand(st, b);
-    if (count <= 0) continue;
-    const id = defaultTenant(b.key);
-    const tn = tenantById(id);
-    if (!tn || !tn.event) continue;
-    const key = b.key + ':' + id;
-    if (sim.tenantT[key] == null) sim.tenantT[key] = rollGap(tn);
-    // 樓層越多，事件「稍微」更頻繁、而且規模更大。
-    // 一開始寫成線性（× 層數），20 層會議中心就變成每 9 秒一次散場，太吵。
-    sim.tenantT[key] -= dt * (1 + count / 8);
-    if (sim.tenantT[key] <= 0){
-      sim.tenantT[key] = rollGap(tn);
-      // 有兩列 id:'party'（尾牙散場在隨機池、宴會散場掛在宴會廳），裸 .find() 只拿得到
-      // 第一列，租戶路徑會安靜地拿到隨機池那一列（實測：耐性倍率 1，不是 0.75）。
-      const ev = eventById(tn.event, { byTenant: true });
-      if (ev) runEvent(st, sim, ev, b, tn, st.floors - 1, 1 + count / 25);
-    }
-  }
-}
+// 這裡曾經有 tenantEvents()：每一帶的 defaultTenant 週期性製造自己的事件。
+// 招商移除之後七個 defaultTenant 全是 plain、都沒有 event，所以它 **0 次觸發**
+// （實測 3 種子 × 60 遊戲日 × 12/30/60 層）。orchestrator 裁決（#86）連同那七列
+// byTenant 的 EVENTS 一起移除；理由與量到的頻率寫在 content.js 的 TENANTS 註解裡。
+// **runEvent() 的 band / tenant / scale 三個參數留著**——隨機事件用不到它們（都傳 null／
+// 預設），但拿掉會動到一支還在服役的函式的簽名，那不是這一趟的範圍。
 // 事件發生在哪一層。租戶事件在該租戶那一帶，隨機事件照它的 at。
 // **封鎖事件多兩個限制**：不能落在大廳（blockFloor 會拒絕），也不要疊在已經封住的
 // 那層（同一層封兩次玩家只看得到一次，但吃掉兩次事件機會）。抽不到就這次不發生——
@@ -466,17 +446,18 @@ function eventFloor(st, sim, ev, band, simTopAll){
 // （七個 defaultTenant 都是 plain、都沒有 event），隨機事件則從 fireEvent() 直接
 // 呼叫 runEvent()、根本不經過它。owner 裁決（#32）移除整個技能。
 // 這裡刻意不留一個只剩 pass-through 的空函式：那正是下一個人會照著找一個不存在的
-// 機制的東西。tenantEvents() 現在直接呼叫 runEvent()。
-function rollGap(t){
-  const [a, z] = t.every || [180, 260];
-  return a + Math.random() * (z - a);
-}
+// 機制的東西。
+// rollGap() 也在這裡：它讀 tenant.every，唯一的呼叫點是 tenantEvents()，
+// 兩者一起在 #86 移除。
 
 function fireEvent(st, sim){
   const h = hourOf(st);
   const simTopAll = st.floors - 1;
   const pool = EVENTS.filter(e => {
-    if (e.byTenant) return false;              // 租戶事件不進隨機池
+    // #86 之後 EVENTS 裡已經沒有 byTenant 的列，所以這一行今天恆為 false。
+    // 留著是因為它便宜且防呆：byTenant 的列沒有 hours，少了這道關 inHourWindow()
+    // 會拿到 undefined。真正該擋住「加了一列卻沒有路走得到它」的是可達性 guard。
+    if (e.byTenant) return false;
     if (!inHourWindow(h, e.hours)) return false;
     return floorInBand(st, e.at, simTopAll) >= 0 && floorInBand(st, e.to, simTopAll) >= 0;
   });
@@ -927,9 +908,6 @@ export function step(st, sim, dt){
   // 這裡原本有一段每 60 秒的 churn：低評價趕走租戶、高評價免費送一層。招商取消之後
   // 兩邊都沒有意義了——退租是 owner 裁決掉的「離散懲罰」，送租戶是招商的反向操作，
   // 而且已經沒有空樓層可以送。評價低的後果就是賺比較少，僅此而已。
-
-  // --- 8/A 租戶自己會製造的事件
-  tenantEvents(st, sim, dt);
 
   // --- 8 隨機突發事件（跟租戶無關的那些）
   sim.eventT += dt;
