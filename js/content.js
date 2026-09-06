@@ -809,7 +809,7 @@ export const PASSENGERS = [
   //    已經對零售帶說過同一句話，這裡是它的第二次）。
   //    這一批的 fare 階梯與理由：
   //      reporter 0.8 ＜ breakfaster 0.9 ＜ tourgroup 1.3 ＜ delegate 1.5 ＜
-  //      weddingguest 1.6 ＜ checkouter 1.8 ＜ bellhop 2.4 ＜ lateguest 2.6 ＜ celeb 6.0
+  //      weddingguest 1.6 ＜ checkouter 1.8 ＜ jamcart 2.4 ＜ lateguest 2.6 ＜ celeb 6.0
   //    既有的房客（guest）2.2 是這一帶的**日常錨**，成批出現的六列刻意全部低於它：
   //    **一次十幾個人的事件不該同時是單價尖峰**，不然「等事件」會變成最佳策略。
   //
@@ -1019,7 +1019,15 @@ export const PASSENGERS = [
   //          距離 20–44 ≈ $260–580），代價是那台車 8 秒不能動。玩家有得選，
   //          而且兩邊都有代價（不載 = 少賺一筆＋他放棄時扣 0.02 評價）。
   //   w:0 —— 只由事件產生（見 A）。
-  { id:'bellhop',  name:'行李員', fare:2.4, patience:56, size:3, w:0, band:'hotel',
+  //   **id 是 `jamcart` 不是 `bellhop`（orchestrator 裁決）。** `bellhop` 那個 id 歸 #65
+  //          菜單上指名的行李員——那是這一帶的**常態乘客**（w:12）。
+  //          **兩邊不能共用同一個型別**：`doorPenalty` 是掛在型別上的，共用的話
+  //          那一批常態行李員**每一趟都會卡門 8 秒**，而這一列要的是偶發的事件。
+  //          跟 #64 的 `roomcart` 成一對。數值一個都沒動，只換了 id。
+  //          ⚙ **顯示名稱仍然是「行李員」**（orchestrator 指定不動）。#65 落地之後
+  //          會有**兩列都叫行李員**，只是 id 不同——那是一個給 orchestrator 的決定，
+  //          不是我在這一趟自己改掉的東西。
+  { id:'jamcart',  name:'行李員', fare:2.4, patience:56, size:3, w:0, band:'hotel',
     doorPenalty:8.0,
     note:'推著行李推車的飯店服務員。推車佔 3 格，而且會把電梯門卡住 8 秒——那台車這段時間動不了。' },
 ];
@@ -1772,7 +1780,7 @@ export const EVENTS = [
 
   // 行李推車卡住（#55）。owner 指定：任意、「一台電梯的門暫時關不上」，成本標 `新`。
   //
-  // ⚠⚠ **這一列沒有新機制。** 完整的推導寫在 PASSENGERS 的 bellhop，一句話版本：
+  // ⚠⚠ **這一列沒有新機制。** 完整的推導寫在 PASSENGERS 的 jamcart，一句話版本：
   //   「門關不上」在 sim.js 裡已經有一個欄位叫 `doorPenalty`，而 `s.mode === 'doors'`
   //   那一段是純粹的等待（doorT 累加到 doorLen 為止，這期間那座井不動、不接人），
   //   所以 **doorLen 很大 ＝ 那台電梯這段時間完全不能動**，跟 overheat 的 s.lock
@@ -1837,7 +1845,7 @@ export const EVENTS = [
   //     · 我逐列檢查過今天表上**全部 32 列**：**沒有一列蓋到 0 格**，所以今天沒有
   //       因為這件事而死掉的資料。
   { id:'cartjam', name:'行李推車卡住', w:3, n:[1,1], at:'hotel', to:'lobby',
-    inbound:true, type:'bellhop',
+    inbound:true, type:'jamcart',
     text:'🛎 行李推車：一位行李員在大廳等著上 {f} 樓——那台推車會把電梯門卡住一下' },
 
   // --- 由租戶類型觸發的事件（5.6 的 A）。不進隨機池，只有租了對應租戶才會發生。
@@ -2085,7 +2093,7 @@ export const ACHIEVEMENTS = [
   //   lateguest     6.78 /  7.22 /  8.21 /  7.06           7.32     22      3.0
   //   weddingguest  1.45 /  6.95 /  7.67 /   —*            5.36     16      3.0
   //   delegate      2.67 /  3.90 /  8.08 /  3.28           4.48     13      2.9
-  //   bellhop       3.25 /  3.98 /  3.75 /  3.06           3.51     10      2.8
+  //   jamcart       3.25 /  3.98 /  3.75 /  3.06           3.51     10      2.8
   //   checkouter    0.82 /  3.85 /  3.17 /  2.44           2.57      8      3.1
   //   breakfaster   1.15 /  4.17 /  1.17 /  3.67           2.54      8      3.1
   //   celeb         0.40 /  0.53 /  0.38 /  0.44           0.44      2      4.5 ←最慢的一條
@@ -2117,6 +2125,9 @@ export const ACHIEVEMENTS = [
     note:'送 2 位名人上樓下榻，記者跟在後面。' },
   { id:'conference',name:'代表團到齊', test:s=>s.codex.delegate>=13,
     note:'送 13 位會議代表上樓開會。' },
-  { id:'trolley',   name:'推車過門',   test:s=>s.codex.bellhop>=10,
+  // `jammed` 不是 `trolley`：#64 的成就也叫 `trolley`（orchestrator 裁決）。
+  // ⚙ test 讀的是 `codex.jamcart`——**codex 的鍵就是型別 id**（sim.js 寫 st.codex[p.type]），
+  //   改了型別沒跟著改 test 的話，這條成就永遠拿不到而且完全安靜。
+  { id:'jammed',    name:'推車過門',   test:s=>s.codex.jamcart>=10,
     note:'送 10 台行李推車上樓，每一台都會把電梯門卡住。' },
 ];
