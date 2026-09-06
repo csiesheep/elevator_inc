@@ -132,12 +132,19 @@ canvas{width:100%; height:100%; display:block; touch-action:manipulation; cursor
 .tb td.r{text-align:right; color:var(--text)}
 
 /* ---------------- 提示 */
+/* left:50% 沒有配寬度時，shrink-to-fit 的上限是「從 50% 到右緣」= 50vw。
+   375px 的手機上那是 187px，所以任何超過它的訊息都會換行——實測最長的一則
+   （封鎖事件的 🧴 打蠟，604px）會被折成四行疊在大樓上。
+   640px 這個上限是刻意選的：桌機 1280px 的舊上限正好是 640px，所以寬視窗
+   逐像素不變（不能退步），窄視窗則從 187px 放大到「視窗寬 - 24」。 */
 #toasts{position:fixed; left:50%; bottom:16px; transform:translateX(-50%);
+  width:max-content; max-width:min(640px, calc(100vw - 24px));
   display:flex; flex-direction:column; gap:6px; align-items:center; pointer-events:none; z-index:50}
 .toast{
   background:var(--card); border:3px solid var(--edge); color:var(--text);
   padding:8px 14px; border-radius:0; font-size:12.5px; box-shadow:4px 4px 0 var(--drop);
   animation:pop .22s ease-out;
+  max-width:100%; text-align:center;   /* 容器放寬之後，每一則自己也要跟著放寬 */
 }
 .toast.out{opacity:0; transition:opacity .4s}
 @keyframes pop{from{transform:translateY(8px);opacity:0}}
