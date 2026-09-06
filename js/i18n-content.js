@@ -74,6 +74,16 @@ export const EN = {
     interviewee:{ name:'Interviewee',     note:'Office floors only. On the way to a job interview — get one there on time and the rating goes up; let one give up and it costs more than usual.' },
     repairman: { name:'Copier engineer',  note:'Office floors only. The toolbox takes three slots, but he is in no hurry — this one costs you space, not time.' },
     remote:    { name:'Remote worker',    note:'Office floors only. Turns up between 10pm and 5am and nowhere else, and waits patiently — the night shift owns those floors.' },
+    // 飯店帶八個事件的九個人物（#54 #56 #57 #59 #60 #61 #62 #55）
+    tourgroup:   { name:'Tour guest',      note:'Checking in with the group. The luggage takes two slots, but they are in no hurry.' },
+    checkouter:  { name:'Departing guest', note:'Leaving together in the morning. The luggage takes two slots, and they have a flight to catch.' },
+    weddingguest:{ name:'Wedding guest',   note:'Leaving the reception together. The biggest crowd in the hotel, and all of them tired — the event cuts their patience to three quarters.' },
+    lateguest:   { name:'Late arrival',    note:'Arrived in the middle of the night. Few of them, the highest fare, and the most patient — nobody else wants the lift at this hour.' },
+    breakfaster: { name:'Breakfast guest', note:'On the way down to the buffet. The only hotel crowd that heads for the retail floors.' },
+    celeb:       { name:'Celebrity',       note:'A celebrity checking in — a pack of reporters turns up with them. Second-highest fare in the game, and barely more patient than the CEO.' },
+    reporter:    { name:'Reporter',        note:'Press following the celebrity up. The gear takes two slots, and six to nine of them will not fit in one car.' },
+    delegate:    { name:'Conference delegate', note:'A whole delegation arriving at once, all for the same floor. Plenty of them, but nothing in their hands except a lanyard.' },
+    bellhop:     { name:'Bellhop',         note:'A hotel porter with a luggage trolley. Three slots, and it jams the doors open for 8 seconds — that car is going nowhere.' },
   },
 
   tenants: {
@@ -164,6 +174,16 @@ export const EN = {
     hired:     { name:'You got the job',   note:'Get 3 interviewees there on time.' },
     toner:     { name:'Toner rescue',      note:'Deliver 10 copier engineers, three slots each.' },
     nightshift:{ name:'The night office',  note:'Deliver 24 remote workers, who only ever turn up after dark.' },
+    // 飯店帶八個事件的成就（#54 #56 #57 #59 #60 #61 #62 #55）。
+    // 數字要跟 content.js 的判定一致——驗收第 8 組會逐條比對中英兩邊的數字。
+    groupbooking:{ name:'Whole tour checked in', note:'Take 40 tour guests up to their rooms.' },
+    vacated:   { name:'All rooms empty',    note:'Deliver 8 guests down in the checkout rush.' },
+    afterparty:{ name:'After the reception',note:'Deliver 16 wedding guests down.' },
+    nightdesk: { name:'Night desk',         note:'Take 22 late arrivals up in the small hours.' },
+    buffet:    { name:'Breakfast is served',note:'Take 8 guests down to breakfast.' },
+    flashbulb: { name:'Flashbulbs',         note:'Take 2 celebrities up, reporters in tow.' },
+    conference:{ name:'Delegation seated',  note:'Take 13 conference delegates up to the session.' },
+    trolley:   { name:'Trolley through the doors', note:'Take 10 luggage trolleys up — every one of them jams a lift door.' },
   },
 
   roofs: {
@@ -212,5 +232,13 @@ export const EN = {
     overtime:   { name:'Working late',   text:'🌙 Working late: {n} people are still on floor {f}' },
     coffee:     { name:'Coffee run',     text:'☕ Coffee run: {n} people head down from floor {f}' },
     layoff:     { name:'Layoff day',     text:'📄 Layoff day: {n} people leave floor {f} with a box, and none of them will wait' },
+    // 飯店帶的六個新事件（#57 #59 #60 #61 #62 #55）。
+    // checkin / checkout 那兩列的英文本來就在上面，這一趟只加了 type:，文案沒動。
+    wedding:    { name:'Reception ends',  text:'🥂 The reception is over: {n} people come down from floor {f}, and all of them are tired' },
+    latearrival:{ name:'Late arrivals',   text:'🌃 Late arrivals: {n} guests reach the lobby in the small hours, headed for their rooms' },
+    breakfast:  { name:'Breakfast',       text:'🍳 Breakfast: {n} guests come down from floor {f} to eat' },
+    celebrity:  { name:'Celebrity check-in', text:'🎥 A celebrity is in the lobby — and so is the pack of reporters following them' },
+    delegation: { name:'Delegation arrives', text:'🎫 A delegation arrives: {n} delegates in the lobby, all of them for floor {f}' },
+    cartjam:    { name:'Jammed trolley',  text:'🛎 A bellhop is waiting in the lobby for floor {f} — that trolley will jam a lift door open' },
   },
 };
