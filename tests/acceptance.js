@@ -1304,9 +1304,24 @@ const shadeHex = (hex, k) => {
 // **明暗係數從產品讀，不從設計文件抄。** 這跟第 0 組的原則不衝突：那些是
 // 設計**規定**的常數，而這裡問的是「產品實際畫得出來的每一種地板色」——
 // 主張的對象就是產品的渲染面，所以要跟著它走。有人加第三套主題也會被抓進來。
-const FLOOR_K = THEME_SRC == null ? null
-  : [...new Set((THEME_SRC.match(/floor[AB]:\s*([0-9.]+)/g) || [])
+// **只讀畫布調色盤。** theme.js 有四個物件：NIGHT / DAY 是畫布用的，
+// CSS_NIGHT / CSS_DAY 只被 `s.setProperty('--'+k, ...)` 寫進 CSS 自訂屬性，
+// **永遠不會出現在畫布上**。一個 peer 抓到我把 CSS 那兩個 `bad`
+// （#ff8a8a / #ff9d9d）也算進身體色軸——51 × 5 = 255 對裡有 **102 對測的是
+// 不可能發生的組合**。方向是安全的（只會多報警不會漏），**但我當時是把
+// 「255 而不是 153」當成比它更完整的理由寫出來的**，那是錯的。
+const CANVAS_SRC = THEME_SRC == null ? null : THEME_SRC.slice(0, THEME_SRC.indexOf('CSS_NIGHT'));
+const FLOOR_K = CANVAS_SRC == null ? null
+  : [...new Set((CANVAS_SRC.match(/floor[AB]:\s*([0-9.]+)/g) || [])
       .map(m => parseFloat(m.split(':')[1])))].sort((a, b) => a - b);
+
+// **第 29 個背景色：轎廂內裝。** `render.js:350` 畫 `pal.car`，`:408` 把乘客畫在
+// 它上面——所以它跟樓層底色一樣是「乘客身後的顏色」，而四條判準沒有一條測過它。
+// 是同一個 peer 在自己 #37 留下的洞上追出來的：它當時把 cat/ghost/influencer
+// **正確地**排除在身體色判準之外（它們沒有身體），**但排除之後沒有補替代判準**。
+// 第 4 條後來補了樓層底色，**沒有人補轎廂**。
+const CAR_COL = CANVAS_SRC == null ? null
+  : (CANVAS_SRC.match(/\bcar:\s*'(#[0-9a-fA-F]{6})'/) || [])[1] || null;
 
 // ---- CIEDE2000（獨立實作，不從產品讀）。**比較之前不做任何格式化**：
 // 一個 peer 的檢查最後是 `.toFixed(2)`，把 11.9988 印成 12.00，於是它在物理上
@@ -1373,6 +1388,28 @@ const FLOOR_DEBT = {
          + 'cs=3 時這條對它偏嚴；cs=1 時身體只有 1px 厚，隔離不了。',
   child:   '24.79 對 exp 白天，差 0.21。走失兒童在零售帶、不會站到實驗樓層。'
          + '七格配件有六格碰到背景，所以這條對它是適用的——只是最糟的那一格到不了。',
+  ghost:   '11.68 對**轎廂內裝** #e6ecf7，跟 tourist 撞地板的 11.04 同級。'
+         + 'ghost 有 0 個身體格、45 個配件格——**整身都是配件色**，所以進轎廂之後'
+         + '它就是一片 #bfe9f7 坐在 #e6ecf7 上。它對 28 種樓層底色是過的，'
+         + '**只有轎廂這一個背景咬它**，而轎廂是這一輪才被加進判準的第 29 個背景色。'
+         + '排在 #67 一起改。',
+  // 下面三張是**加進第 29 個背景（轎廂）那一刻才出現的背債**，三張都在 24.5–24.9，
+  // **差不到半個單位**。它們跟 ghost 不同：三張都有身體，配件貼著身體、對著
+  // pal.inkCar，不是直接坐在轎廂內裝上。
+  //
+  // **我仍然用同一條判準，不給它們豁免**——理由跟地板那一軸一樣：cs=1 時
+  // （手機 17 層以上）整張圖只有 63 個實體像素、身體只有 1px 厚，
+  // **1px 的邊框在知覺上隔離不了任何東西**。
+  //
+  // 記在這裡而不是放它們過，是因為：**一個背景色是這一輪才被加進判準的，
+  // 而那 51 張圖全部是在它不在範圍內的時候畫的。** 追溯性地產生背債是預期的，
+  // 那正是這張表存在的理由。
+  stroller: '24.54 對轎廂內裝，差 0.46。配件 11 格、身體 23 格，配件貼著身體。'
+          + '轎廂是第 29 個背景色，這一輪才加進判準——這張圖畫的時候它不在範圍內。#67。',
+  lateguest: '24.83 對轎廂內裝，差 0.17。飯店帶那一趟畫的，當時判準只有 28 種樓層底色。'
+          + '而「25 不是一個可以瞄準的數字」（兩個 CIEDE2000 實作差到 0.0022）——'
+          + '這一張離門檻的距離只有那個差距的 77 倍，比 townhaller 寬但仍然不寬。#67。',
+  scientist: '24.86 對轎廂內裝，差 0.14。實驗帶的既有圖，全表離門檻最近的一張。#67。',
 };
 
 check('新加的圖，配件色對每一種樓層底色都要夠遠', () => {
@@ -1385,6 +1422,7 @@ check('新加的圖，配件色對每一種樓層底色都要夠遠', () => {
 
   const shades = [];
   for (const b of BANDS) for (const k of FLOOR_K) shades.push(shadeHex(b.color, k));
+  if (CAR_COL) shades.push(CAR_COL);          // 第 29 個：轎廂內裝
   const ne1 = nonEmpty(shades.length, '算不出任何樓層底色');
   if (ne1 !== true) return ne1;
 
@@ -1401,6 +1439,10 @@ check('新加的圖，配件色對每一種樓層底色都要夠遠', () => {
     for (const b of BANDS) for (const k of FLOOR_K){
       const d = ciede2000(sp.acc, shadeHex(b.color, k));
       if (d < min){ min = d; at = b.key + '@' + k; }
+    }
+    if (CAR_COL){
+      const d = ciede2000(sp.acc, CAR_COL);
+      if (d < min){ min = d; at = '轎廂內裝 ' + CAR_COL; }
     }
     if (FLOOR_DEBT[id]){ rows.push(id + ' ' + min.toFixed(4) + '（背債）'); continue; }
     if (min < FLOOR_MIN) bad.push(id + ' ' + sp.acc + ' 最小 ΔE ' + min.toFixed(4) + ' @ ' + at);
@@ -1430,6 +1472,7 @@ check('配件色的背債表都還存在，理由都寫了，而且都還不及�
     if (!why || why.length < 30){ stale.push(id + '（理由太短：沒有理由的例外等於沒有這條 guard）'); continue; }
     let min = Infinity;
     for (const b of BANDS) for (const k of FLOOR_K) min = Math.min(min, ciede2000(PEOPLE[id].acc, shadeHex(b.color, k)));
+    if (CAR_COL) min = Math.min(min, ciede2000(PEOPLE[id].acc, CAR_COL));
     if (min >= FLOOR_MIN) stale.push(id + '（已經修好，' + min.toFixed(4) + '，該從表上移除）');
   }
   return ok(stale.length === 0,
@@ -1563,15 +1606,17 @@ check('沒有任何一條色距判定的真假取決於 CIEDE2000 走了哪一�
   if (FLOOR_K == null || RENDER_SRC == null) return 'TODO: 讀不到 theme.js 或 render.js';
   // 三個軸各自的門檻。**三條都要掃**——peer 補掃了我漏掉的兩軸，
   // 而「地板那一軸沒事」不蘊含「另外兩軸沒事」。
-  const bodySrc = THEME_SRC || '';
-  const bodyCols = [...new Set((bodySrc.match(/(?:ink|inkCar|bad):\s*'(#[0-9a-fA-F]{6})'/g) || [])
+  // **只取畫布調色盤**（見 CANVAS_SRC 的註解）。NIGHT 與 DAY 的 ink/inkCar/bad
+  // 逐字相同，所以這裡其實只有三個唯一值。
+  const bodyCols = [...new Set(((CANVAS_SRC || '').match(/(?:ink|inkCar|bad):\s*'(#[0-9a-fA-F]{6})'/g) || [])
     .map(m => m.match(/#[0-9a-fA-F]{6}/)[0]))];
   const floors = [];
   for (const b of BANDS) for (const k of FLOOR_K) floors.push(shadeHex(b.color, k));
+  if (CAR_COL) floors.push(CAR_COL);
   const accs = Object.entries(PEOPLE).filter(([, sp]) => sp.acc);
 
   const axes = [
-    ['配件×地板', 25, accs.flatMap(([id, sp]) => floors.map(f => [id, sp.acc, f]))],
+    ['配件×背景', 25, accs.flatMap(([id, sp]) => floors.map(f => [id, sp.acc, f]))],
     ['配件×配件', 12, accs.flatMap(([id, sp], i) => accs.slice(i + 1).map(([id2, sp2]) => [id + '/' + id2, sp.acc, sp2.acc]))],
     ['配件×身體色', 25, accs.flatMap(([id, sp]) => bodyCols.map(c => [id, sp.acc, c]))],
   ];
