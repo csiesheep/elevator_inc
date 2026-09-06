@@ -565,15 +565,22 @@ function startMove(st, sim, s, f){
 }
 
 // ------------------------------------------------------------ 自動調度
+// `since` = 這位乘客「開始等」的時刻，**兩種來源必須是同一個時鐘**。
+// 這裡曾經是 `t`，而且車上的人填 `r.board`（上車時刻）、等待的人填 `p.born`
+// （出生時刻）——同一個欄位名承載兩種意思。一個人的 board 必然晚於他自己的 born，
+// 所以只要還有任何一個更早出生、還在等的人，車上的人就永遠排在 FIFO 的最後面：
+// 車廂載滿了人在樓裡繞，一邊繼續開去接它已經接不下的人（#38）。
+// 上車時 s.riders.push(p) 推的是同一個物件，born 還在，所以兩邊都用 born。
+// 改這裡之前先問：新填進去的值，跟旁邊那一行是同一個時鐘嗎？
 function candidates(st, sim, s){
   const out = [], spare = [];
   // 封鎖中的樓層不是候選：車上要去那層的人先留在車上，等解封再送。
-  for (const r of s.riders) if (!isFloorBlocked(st, sim, r.dest)) out.push({ f: r.dest, t: r.board });
+  for (const r of s.riders) if (!isFloorBlocked(st, sim, r.dest)) out.push({ f: r.dest, since: r.born });
   for (const p of sim.waiting){
     if (p.origin < s.from || p.origin > s.to) continue;
     if (isFloorBlocked(st, sim, p.origin)) continue;
-    if (st.auto.group && p.assigned != null && p.assigned !== s.id){ spare.push({ f: p.origin, t: p.born }); continue; }
-    out.push({ f: p.origin, t: p.born });
+    if (st.auto.group && p.assigned != null && p.assigned !== s.id){ spare.push({ f: p.origin, since: p.born }); continue; }
+    out.push({ f: p.origin, since: p.born });
   }
   // 自己沒被指派到任何人的時候，不要空等 —— 去接別台顧不到的
   return out.length ? out : spare;
@@ -658,8 +665,8 @@ function chooseTarget(st, sim, s){
     s.dir = -dir;
     return null;
   }
-  // FIFO：誰先按誰先服務
-  cand.sort((a, b) => a.t - b.t);
+  // FIFO：誰先開始等誰先服務（since 是同一個時鐘，見 candidates()）
+  cand.sort((a, b) => a.since - b.since);
   return cand[0].f;
 }
 
