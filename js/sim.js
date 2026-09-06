@@ -126,9 +126,14 @@ function pickFloor(st, h, role, lo, hi){
 // ------------------------------------------------------------ 封鎖樓層（獨立的狀態機制）
 // 「某一層暫時不能停靠」是**樓的狀態**，不是某一個事件的內部細節。任何一列 EVENTS
 // 寫 block:[a,b] 就會封鎖它發生的那一層，沒寫的完全不受影響（預設關閉）。
-// 封鎖期間：
+// 封鎖期間（owner 裁決 #22，2026-09-05 改過一次，改的是第二條）：
 //   · 電梯不以它為目標，也不在那裡開門（雙層轎廂的 f+1 一起擋）
-//   · 新乘客不從那裡出發、也不去那裡——不製造「注定接不到」的乘客
+//   · **那層樓照常產生乘客**——封鎖只影響「停靠」，不影響「需求」。
+//     這一條原本是反的：舊版在生成端就擋掉起點與終點，於是整層安靜下來，
+//     人流重新分配到其它樓層，實測**送達反而上升、放棄下降**——一件小小的好事。
+//     現在起點照常生：你看著他們的耐性條掉、什麼都做不了，那才是「被封鎖」。
+//     **終點仍然不生**（owner 明確裁示先只做這半邊）：讓「要去那層的人」上車，
+//     他會卡在車上佔位到解封，那是另一種痛，而且有 bug 風險。
 //   · **已經在等的人照常消耗耐性**。這就是這個事件真正的成本，而且它的大小取決於
 //     玩家封鎖前把那層清得多乾淨，不是一個固定的罰款
 //   · 車上要去那層的人留在車上佔位，等解封再送。封鎖一定會到期，所以不會鎖死
@@ -159,6 +164,13 @@ export function blockedFloors(st, sim){
   const out = [];
   for (const k in (sim.blocked || {})) if (sim.blocked[k] > st.t) out.push(+k);
   return out;
+}
+// 還剩幾秒。blockedFloors() 只回樓層索引，畫倒數不夠用——畫面那半（render.js）
+// 不是我的檔案，但它需要這個數字，而讓它自己去讀 sim.blocked 的內部形狀就是
+// 把一個內部結構變成公開契約。沒被封鎖回 0 而不是 null，呼叫端可以直接 if (secs)。
+export function blockedSecs(st, sim, f){
+  const until = sim.blocked && sim.blocked[f];
+  return (until != null && until > st.t) ? until - st.t : 0;
 }
 
 // ------------------------------------------------------------ 生成乘客
@@ -256,7 +268,7 @@ function summonCompanions(st, sim, p, h, when, out){
   const o  = summonSlot(p, cfg.from || 'lobby');
   const to = summonSlot(p, cfg.to   || 'dest');
   if (o === to || o < 0 || to < 0 || o >= st.floors || to >= st.floors) return 0;
-  if (isFloorBlocked(st, sim, o) || isFloorBlocked(st, sim, to)) return 0;
+  if (isFloorBlocked(st, sim, to)) return 0;   // 跟 spawn() 同一條規則：終點不生，起點照常
   const [a, z] = cfg.n || [1, 1];
   const want = a + ((Math.random() * (z - a + 1)) | 0);
   let made = 0;
@@ -289,9 +301,10 @@ function spawn(st, sim){
   }
   if (o === d) d = o === 0 ? Math.min(1, top) : 0;
   if (o === d) return;
-  // 封鎖中的樓層不生需求：它的店是關的。改成「改送別層」等於憑空發明需求，
-  // 留著生則等於製造一批注定接不到的乘客——那是玩家無能為力的罰款，不是障礙。
-  if (isFloorBlocked(st, sim, o) || isFloorBlocked(st, sim, d)) return;
+  // **起點照常生**：封鎖不影響需求，只影響停靠。那層樓的人照常出現、照常掉耐性，
+  // 而電梯就是不能去接——這是這個事件唯一的成本，也是玩家真的看得到的那件事。
+  // **終點不生**：他上得了車、下不了車，會卡在車上佔位到解封（owner 裁決：先不做）。
+  if (isFloorBlocked(st, sim, d)) return;
   makePassenger(st, sim, o, d, h);
 }
 
@@ -405,35 +418,50 @@ function runEvent(st, sim, ev, band, tenant, simTopAll, scale){
   const from = eventFloor(st, sim, ev, band, simTopAll);
   if (from < 0) return;
   // 封鎖樓層：資料寫了 block:[a,b] 才會發生，沒寫的事件一個位元組都沒變。
-  let blockSecs = 0;
+  //
+  // blockOn:'deliver' —— 封鎖**不在事件發生的瞬間開始**，而是等這個事件生出來的
+  // 乘客真的被送到那一層才開始（#22：清潔工到了才開始打蠟）。arm 是這一次事件的
+  // 所有乘客**共用的同一個物件**，所以兩個清潔工只會封一次，而第二個人晚一點才
+  // 下車也不會在解封之後又封一次。
+  // 沒寫 blockOn 的事件走原本那一行：發生的瞬間就封。
+  let blockSecs = 0, arm = null;
   if (ev.block){
     const secs = ev.block[0] + Math.random() * (ev.block[1] - ev.block[0]);
-    if (blockFloor(st, sim, from, secs)) blockSecs = secs;
+    if (ev.blockOn === 'deliver'){ arm = { ev, secs, floor: from, used: false }; blockSecs = secs; }
+    else if (blockFloor(st, sim, from, secs)) blockSecs = secs;
   }
   const base = ev.n[0] + ((Math.random() * (ev.n[1] - ev.n[0] + 1)) | 0);
   const n = Math.min(40, Math.round(base * (scale || 1)));
   let made = 0;
   for (let i = 0; i < n; i++){
-    let to = floorInBand(st, ev.to, simTopAll);
-    const o = (!band && ev.at === 'any') ? floorInBand(st, 'any', simTopAll) : from;
+    // inbound:true —— 事件的樓層是**終點**（人往那裡去），ev.to 說的是他們從哪來。
+    // 打蠟需要它：要封的是 from，而清潔工必須「抵達」那裡這件事才算數。
+    const other = floorInBand(st, ev.to, simTopAll);
+    const here  = (!band && ev.at === 'any') ? floorInBand(st, 'any', simTopAll) : from;
+    const o  = ev.inbound ? other : here;
+    const to = ev.inbound ? here  : other;
     if (to === o || to < 0 || o < 0) continue;
-    if (isFloorBlocked(st, sim, o) || isFloorBlocked(st, sim, to)) continue;
+    if (isFloorBlocked(st, sim, to)) continue;   // 跟 spawn() 同一條規則：終點不生，起點照常
     const p = makePassenger(st, sim, o, to, h, ev);   // ev 決定人物型別（type / types）
     if (ev.panic) p.left = p.patience = p.patience * ev.panic;
     p.surge = d.surgeMult;                       // B 尖峰加給
     p.fromEvent = true;
+    if (arm) p.blockArm = arm;                   // 送達時才真的封鎖
     made++;
   }
-  // 「一個人都沒生出來」原本就靜靜結束（免得跳出「0 個人」的提示）。封鎖事件是
-  // 第一種**不生人也真的發生了**的事件，所以它要能走到下面。
-  if (!made && !blockSecs) return;
+  // 「一個人都沒生出來」原本就靜靜結束（免得跳出「0 個人」的提示）。**立刻封鎖**的
+  // 事件是第一種不生人也真的發生了的事件，所以它要能走到下面；但**送達才封鎖**的
+  // 事件在沒有人可送的時候什麼都不會發生，那就跟沒發生一樣，要靜靜結束。
+  if (!made && (arm || !blockSecs)) return;
   const label = tenant ? `${L(tenant,'name','tenants')}：` : '';
   sim.toasts.push({ txt: label + L(ev,'text','events')
     .replace('{n}', made).replace('{f}', from + 1).replace('{s}', Math.round(blockSecs)), life: 4 });
-  sim.lastEvent = { name: L(ev,'name','events'), t: st.t, floor: from, n: made, block: blockSecs };
+  sim.lastEvent = { name: L(ev,'name','events'), t: st.t, floor: from, n: made,
+                    block: blockSecs, armed: !!arm };
   // B 疏散模式的目標。封鎖那層沒有人可疏散（電梯根本不能停），指過去只會讓玩家
   // 白白按掉一次冷卻，所以只有真的湧出人的事件才設。
-  if (made) sim.surgeFloor = { f: from, until: st.t + 25 };
+  // inbound 事件同理：人潮在**起點**不在 from，而且 1–2 個清潔工也稱不上爆量。
+  if (made && !ev.inbound) sim.surgeFloor = { f: from, until: st.t + 25 };
 }
 
 // ------------------------------------------------------------ 票價
@@ -612,6 +640,15 @@ function openDoors(st, sim, s, f){
         st.cash += bonus; st.runRevenue += bonus; sim.rateAcc += bonus;
         sim.toasts.push({ txt:t('ghostBonus', Math.round(bonus)), life:4 });
       }
+      // 送達觸發的封鎖（#22 的清潔工）。掛在這裡而不是另造一套「送達事件」機制：
+      // 這一段本來就是「送到之後會發生什麼」的地方——幽靈的意外之財、乘客的評價、
+      // 招來同伴（#27）都在這裡。arm 是同一次事件的清潔工共用的，所以只會封一次。
+      if (p.blockArm && !p.blockArm.used && p.blockArm.floor === ff){
+        p.blockArm.used = true;
+        if (blockFloor(st, sim, ff, p.blockArm.secs))
+          sim.toasts.push({ txt: L(p.blockArm.ev, 'blockText', 'events')
+            .replace('{f}', ff + 1).replace('{s}', Math.round(p.blockArm.secs)), life:4 });
+      }
       // 滿意度 → 評價（設計 4.5：別讓乘客生氣有長期複利價值）
       const wait = st.t - p.born;
       const sat = 1 - Math.min(1, wait / Math.max(1, p.patience));
@@ -625,9 +662,13 @@ function openDoors(st, sim, s, f){
   }
 
   // 上客
+  // **要重算一次**：下客的過程中這一層可能剛剛被封起來（清潔工到了就開始打蠟）。
+  // 沿用上面那份 floorsServed 的話，「開始打蠟」的那一趟會順手把整層的人載走，
+  // 這個事件最痛的第一秒剛好被自己抵銷掉。門是開著的，但從這一刻起不能再上人。
+  const boardFloors = floorsServed.filter(x => !isFloorBlocked(st, sim, x));
   const cap = d.capacity;
   const used = () => s.riders.reduce((a, p) => a + p.t.size, 0);
-  for (const ff of floorsServed){
+  for (const ff of boardFloors){
     for (let i = 0; i < sim.waiting.length; i++){
       const p = sim.waiting[i];
       if (p.origin !== ff) continue;

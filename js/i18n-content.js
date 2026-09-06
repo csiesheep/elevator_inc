@@ -47,6 +47,7 @@ export const EN = {
     observer:  { name:'Sightseer',     note:'Arrives in groups heading for the observation deck.' },
     scientist: { name:'Researcher',    note:'Experimental floors only. In a hurry, and will not say why.' },
     influencer:{ name:'Queue influencer', note:'Retail floors only. Deliver one and two or three companions turn up in the lobby. The companions bring nobody.' },
+    waxer:     { name:'Cleaning crew',    note:'The floor-waxing crew. The floor only closes once you deliver them — leave them in the lobby and nothing happens.' },
   },
 
   tenants: {
@@ -124,7 +125,8 @@ export const EN = {
     delivery: { name:'Delivery wave',  text:'📦 Delivery wave: {n} couriers arrive together' },
     party:    { name:'Year-end party', text:'🎉 The office party is over: {n} people leaving floor {f} together' },
     newyear:  { name:'Countdown',      text:'🎆 Countdown: {n} people all want the roof' },
-    waxing:   { name:'Floor waxing',   text:'🧴 Floor waxing: floor {f} is closed for {s}s — no stopping' },
+    waxing:   { name:'Floor waxing',   text:'🧴 Floor {f} is due a wax: {n} cleaners waiting in the lobby. Deliver them and the floor shuts for {s}s',
+                blockText:'🧴 Waxing has started: floor {f} is closed for {s}s — no stopping' },
     lunch:    { name:'Lunch hour',     text:'🍜 Lunch hour: {n} people come down from the food court on floor {f}' },
     cinema:   { name:'Screening ends', text:'🎬 Screening ends: a full house of {n} leaves floor {f} at once' },
     shift:    { name:'Shift change',   text:'🎧 Shift change: {n} people clock off floor {f} together' },
