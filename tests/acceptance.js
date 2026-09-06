@@ -1492,10 +1492,23 @@ function de2000Side(hex1, hex2, side){
     dh = raw; if (dh > 180) dh -= 360; else if (dh < -180) dh += 360;
     hb = Math.abs(hp1 - hp2) <= 180 ? (hp1 + hp2) / 2
        : (hp1 + hp2 + (hp1 + hp2 < 360 ? 360 : -360)) / 2;
-  } else {                                          // 翻到另一側，dh 與 hb 一起翻
+  } else {
+    // 翻到另一側。**`dh` 與 `hb` 一定要一起翻**，而且**翻法必須是對稱的**。
+    //
+    // 第一版我兩個都用 `raw = hp2 - hp1` 的正負去決定位移——`dh` 那樣是對的
+    // （交換兩色時 dh 本來就該變號，而 dH 進到平方項與「dC×dH」交叉項，dC 也變號，
+    // 所以交叉項不變），**但 `hb` 那樣是錯的**：平均色相不該隨參數順序改變。
+    //
+    // 一個 peer 提出用**對稱性**當必要條件（不需要任何外部測資），我照做，
+    // 我的 far 側**最大不對稱 18.53**（near 側是 0）。`#a2003c` 對 `#314640`
+    // 一個方向 42.31、另一個方向 23.78。**它抓到了我二十分鐘前才 land 的 bug。**
+    //
+    // 正確的另一側就是 `hb_near + 180`（mod 360）——因為 hb_near 是對稱的，
+    // 這樣翻出來也是對稱的。
     dh = raw + (raw < 0 ? 360 : -360);
-    const shift = raw < 0 ? 360 : -360;
-    hb = (hp1 + hp2 + shift) / 2;
+    const hbNear = Math.abs(hp1 - hp2) <= 180 ? (hp1 + hp2) / 2
+                 : (hp1 + hp2 + (hp1 + hp2 < 360 ? 360 : -360)) / 2;
+    hb = (hbNear + 180) % 360;
   }
   const dH = 2 * Math.sqrt(Cp1 * Cp2) * Math.sin(dh / 2 * rad);
   const T = 1 - 0.17 * Math.cos((hb - 30) * rad) + 0.24 * Math.cos(2 * hb * rad)
@@ -1507,6 +1520,44 @@ function de2000Side(hex1, hex2, side){
   return { dE: Math.sqrt(P(dL / Sl, 2) + P(dC / Sc, 2) + P(dH / Sh, 2) + Rt * (dC / Sc) * (dH / Sh)),
            gap: Math.abs(hp1 - hp2) };
 }
+
+// **色距函式自己的必要條件，不需要任何外部測資。**
+// 一個 peer 提出用這兩條當自檢，理由很準：**不對稱正是「分支只翻了一半」的症狀**
+// ——`dh` 翻了而 `hb` 沒翻（或反過來）會讓 a→b 與 b→a 落在不同側。
+//
+// 它抓到了我二十分鐘前才 land 的 bug：我的 far 側最大不對稱 **18.53**
+// （`#a2003c` 對 `#314640`，一個方向 42.31、另一個方向 23.78），near 側是 0。
+//
+// **這兩條不驗證校準**——對稱且自距離為零的錯誤實作是存在的。它們驗證的是
+// 「這支函式對它自己是自洽的」，而那正好是分支 bug 會破壞的性質。
+// 真正的校準要靠 Sharma 測資（我的實作 14/15，那 1 組差 0.0032）。
+check('色距函式對它自己是自洽的（對稱、自距離為零，兩側都要）', () => {
+  if (FLOOR_K == null) return 'TODO: 讀不到 theme.js，取不到樓層明暗係數';
+  const cols = [...new Set(Object.values(PEOPLE).map(p => p.acc).filter(Boolean))];
+  for (const b of BANDS) for (const k of FLOOR_K) cols.push(shadeHex(b.color, k));
+  const ne = nonEmpty(cols.length >= 2 ? cols.length : 0, '湊不出兩個顏色，這條 guard 沒有試過任何東西');
+  if (ne !== true) return ne;
+  const EPS = 1e-9;
+  const bad = [];
+  let pairs = 0;
+  for (const side of ['near', 'far']){
+    let maxAsym = 0, worst = '';
+    for (let i = 0; i < cols.length; i++){
+      const self = Math.abs(de2000Side(cols[i], cols[i], side).dE);
+      if (self > EPS) bad.push(`${side}：${cols[i]} 對自己的距離是 ${self}，不是 0`);
+      for (let j = i + 1; j < cols.length; j++){
+        pairs++;
+        const d = Math.abs(de2000Side(cols[i], cols[j], side).dE - de2000Side(cols[j], cols[i], side).dE);
+        if (d > maxAsym){ maxAsym = d; worst = cols[i] + ' / ' + cols[j]; }
+      }
+    }
+    if (maxAsym > EPS)
+      bad.push(`${side} 側不對稱：最大差 ${maxAsym.toFixed(6)}（${worst}）`
+             + `——**那是「分支只翻了一半」的症狀**`);
+  }
+  return ok(bad.length === 0,
+    `${cols.length} 個顏色、${pairs} 組配對 × 2 側：` + bad.join('｜'));
+});
 
 check('沒有任何一條色距判定的真假取決於 CIEDE2000 走了哪一側', () => {
   if (FLOOR_K == null || RENDER_SRC == null) return 'TODO: 讀不到 theme.js 或 render.js';
