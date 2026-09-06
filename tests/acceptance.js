@@ -1168,9 +1168,21 @@ check('一次丟出幾十則提示，整疊仍然裝得下', () => {
 //   門檻那一位不可能被磨掉。**（peer 的色距檢查就是被 `.toFixed(2)` 把
 //   11.9988 印成 12.00，於是它在物理上分不出「剛好 12」和「差一點不到 12」。）
 //
-// **同框過濾不是修飾，是這條判準能不能用的關鍵**：全表最像的一對是
-// `ceo/scientist` d=4，而**它是誤報**——CEO 在辦公帶、研究員在實驗帶，
-// 永遠不會同時出現。過濾把 d<10 的配對從 24 砍到 14。
+// ⚠ **這裡本來有一個「同框過濾」，而那個前提後來被量出來是錯的。**
+//
+// 原本的理由是：全表最像的一對 `ceo/scientist` d=4 是誤報，因為 CEO 在辦公帶、
+// 研究員在實驗帶「永遠不會同時出現」。**電梯轎廂會把不同帶的乘客放在一起。**
+// 實測（70 層、4 井、seeded）：**7,968 次「車上有 2 人以上」的取樣裡，
+// 648 次（8.1%）車上同時有 2 個以上不同樓層帶的乘客**，最多一次看到三個帶，
+// **六種帶配對全部出現過**（hotel+office / hotel+resid / hotel+retail /
+// office+resid / office+retail / resid+retail）。
+//
+// 所以 `ceo/scientist` **不是誤報**，那兩個真的會並排出現在同一台車裡。
+// 過濾拿掉之後背債從 29 對變 54 對——**那 25 對本來就存在，只是被一個錯的
+// 範圍藏起來了。**
+//
+// 這是「一句正確的話配上錯誤的適用範圍」的又一次：**「不同帶的乘客不會站在
+// 同一層」是對的，「所以他們不會出現在一起」是錯的**——樓層不是唯一的畫面。
 //
 // **這條擋得住哪一半／擋不住哪一半**：
 // 它**完全不涵蓋顏色**（重上色對 d 的貢獻依構造是 0），所以形狀與顏色兩條線
@@ -1189,6 +1201,7 @@ const SHAPE_MIN = 12;
 // 低分幾乎都掛在 `office` 與 `ceo` 身上——它們是「普通人」的基本體，
 // 而任何「普通人的變體」都會擠在它們旁邊。
 const SHAPE_DEBT = new Set([
+  // 原本 29 對（同框範圍下的）
   'guest|office','ceo|coffeegoer','ceo|interviewee','office|scientist','courier|diner',
   'courier|movie','attendee|ceo','attendee|coffeegoer','ceo|remote','ceo|tourist',
   'closing|sampler','interviewee|office','interviewee|tourist','office|waxer','ceo|office',
@@ -1196,6 +1209,14 @@ const SHAPE_DEBT = new Set([
   'observer|tourist','office|stroller','office|tourist','scientist|tourist',
   'attendee|nightowl','child|guard','courier|office','dolly|office','guard|interviewee',
   'stroller|waxer',
+  // **拿掉錯誤的同框過濾之後多出來的 25 對。** 它們本來就存在，
+  // 只是被「不同帶不會同時出現」這個錯的前提藏起來了。
+  'attendee|scientist','blackouter|waxer','ceo|diner','ceo|observer','ceo|scientist',
+  'child|observer','coffeegoer|guest','coffeegoer|scientist','diner|newhire',
+  'dolly|guest','guest|scientist','guest|stroller','guest|waxer','homecomer|loaded',
+  'interviewee|observer','interviewee|scientist','laidoff|sampler','laidoff|waxer',
+  'loaded|repairman','movie|outager','nightowl|scientist','observer|remote',
+  'observer|scientist','remote|scientist','remote|waxer',
 ]);
 
 const shapeCell = ch => ch === '.' ? 0 : ch === '#' ? 1 : 2;
@@ -1210,7 +1231,7 @@ const shapeDist = (x, y) =>
   Math.min(shapeHam(PEOPLE[x].normal, PEOPLE[y].normal),
            shapeHam(PEOPLE[x].urgent, PEOPLE[y].urgent));
 
-check('新加的圖不可以跟同框的既有圖形狀太像', () => {
+check('新加的圖不可以跟既有的圖形狀太像', () => {
   const bandOf = Object.fromEntries(PASSENGERS.map(p => [p.id, p.band]));
   const ids = Object.keys(PEOPLE).filter(i => bandOf[i]).sort();
   const ne = nonEmpty(ids.length >= 2 ? ids.length : 0,
@@ -1222,14 +1243,11 @@ check('新加的圖不可以跟同框的既有圖形狀太像', () => {
   if (shapeDist(ids[0], ids[0]) !== 0)
     return `儀器壞了：${ids[0]} 跟自己的形狀距離不是 0`;
 
-  const coFrame = (x, y) =>
-    bandOf[x] === 'any' || bandOf[y] === 'any' || bandOf[x] === bandOf[y];
   const bad = [];
   let pairs = 0, debtSeen = 0;
   for (let i = 0; i < ids.length; i++)
     for (let j = i + 1; j < ids.length; j++){
       const x = ids[i], y = ids[j];
-      if (!coFrame(x, y)) continue;
       pairs++;
       const key = x < y ? x + '|' + y : y + '|' + x;
       const d = shapeDist(x, y);
@@ -1237,7 +1255,7 @@ check('新加的圖不可以跟同框的既有圖形狀太像', () => {
       if (d < SHAPE_MIN) bad.push(`${key} d=${d}`);
     }
   return ok(bad.length === 0,
-    `比對了 ${pairs} 組同框配對（其中 ${debtSeen} 組是既有的背債），`
+    `比對了 ${pairs} 組配對（其中 ${debtSeen} 組是既有的背債），`
     + `${bad.length} 組新的低於 ${SHAPE_MIN}：` + bad.join('、')
     + `｜要跨過 ${SHAPE_MIN} 需要**大約六格以上的結構改變**——一隻抬起的手、`
     + `一條繩子、一個背在身上的東西。**換配件顏色對這個距離的貢獻是 0**，`
@@ -1657,7 +1675,7 @@ const SIL_DEBT = {
     + '兩個人同時編輯 js/sprites.js 是這個專案付過學費的形狀。',
 };
 
-check('沒有兩張同框的圖剪影完全相同', () => {
+check('沒有兩張圖的剪影完全相同', () => {
   const bandOf = Object.fromEntries(PASSENGERS.map(p => [p.id, p.band]));
   const ids = Object.keys(PEOPLE).filter(i => bandOf[i]).sort();
   const ne = nonEmpty(ids.length >= 2 ? ids.length : 0, 'PEOPLE 少於兩張圖，沒有配對可以比');
@@ -1673,12 +1691,13 @@ check('沒有兩張同框的圖剪影完全相同', () => {
                                   sil(PEOPLE[x].urgent, PEOPLE[y].urgent));
   // 儀器活著嗎？一張圖跟自己的剪影距離必須是 0——證明這個度量真的會回 0。
   if (dist(ids[0], ids[0]) !== 0) return '儀器壞了：' + ids[0] + ' 跟自己的剪影距離不是 0';
-  const coFrame = (x, y) => bandOf[x] === 'any' || bandOf[y] === 'any' || bandOf[x] === bandOf[y];
+  // 這裡本來也有同框過濾，跟第 15 組同一個錯的前提，一起拿掉（見第 15 組的註解）。
+  // 拿掉之後結果不變——剪影完全相同的仍然只有 closing|sampler——
+  // **但留著一個我已經量出來是錯的過濾，等於在程式碼裡放一句假話。**
   const same = [], known = [];
   let pairs = 0;
   for (let i = 0; i < ids.length; i++)
     for (let j = i + 1; j < ids.length; j++){
-      if (!coFrame(ids[i], ids[j])) continue;
       pairs++;
       if (dist(ids[i], ids[j]) !== 0) continue;
       const key = ids[i] + '|' + ids[j];
@@ -1691,7 +1710,7 @@ check('沒有兩張同框的圖剪影完全相同', () => {
       same.push(key + '（已經修好或圖不見了，該從 SIL_DEBT 移除）');
   }
   return ok(same.length === 0,
-    '比對了 ' + pairs + ' 組同框配對，' + same.length + ' 組**新的剪影一模一樣**：' + same.join('、')
+    '比對了 ' + pairs + ' 組配對，' + same.length + ' 組**新的剪影一模一樣**：' + same.join('、')
     + (known.length ? '｜已知背債：' + known.join('、') : '')
     + '｜這不是「太像」，是「同一個形狀」——玩家只剩顏色可以分辨，'
     + '而在 cs=1（17 層以上，一張圖 7×9 個實體像素）配件只有 1–2 個像素。'
