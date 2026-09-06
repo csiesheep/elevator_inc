@@ -85,7 +85,6 @@ export const EN = {
     m_cap:   { name:'Wider car',          detail:'Starting capacity +2' },
     m_cool:  { name:'Superconducting motor', detail:'Heat capacity +4, cooling +40% (at max, overheating is gone entirely)' },
     o_shaft: { name:'Pre-cut shaft',      detail:'Start with +1 shaft' },
-    o_algo:  { name:'Controller firmware',detail:'Algorithm efficiency +8%' },
     o_fare:  { name:'Dynamic pricing',    detail:'All fares +6%' },
     o_surge: { name:'Surge pay',          detail:'Passengers from an event pay +18%' },
     o_evac:  { name:'Evacuation mode',    detail:'Unlocks a button that sends every car to the surge floor (cooldown 90/70/50s)' },

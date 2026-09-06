@@ -116,7 +116,6 @@ const DICT = {
   thEff:         ['效率', 'Eff'],
   expressTag:    ['快', 'exp'],
   rowAlgo:       ['演算法', 'Algorithm'],
-  algoCoef:      ['（效率係數 {0}）', ' (efficiency {0})'],
   rowServed:     ['送達 / 放棄', 'Delivered / lost'],
   rowLostPct:    ['放棄率', 'Loss rate'],
   notBuiltYet:   ['尚未蓋到', 'not built yet'],

@@ -70,7 +70,6 @@ export function derived(st){
   d.boardTime = 0.18 * Math.max(0, d.capacity - 4) / 4;
   d.noOverheat = (sk.m_cool || 0) >= 5;
   d.fareMult = (1 + 0.25 * st.rating) * (1 + 0.06 * (sk.o_fare || 0));
-  d.algoEff  = algoEfficiency(st) * (1 + 0.08 * (sk.o_algo || 0));
   d.ratingGain = 1 + 0.2 * (sk.a_rate || 0);
   // 11 口碑迴圈：評價不只影響票價，也影響「有多少人願意上門」
   d.womMult = C.WOM_MIN + (C.WOM_MAX - C.WOM_MIN) * (st.rating / C.RATING_MAX);
@@ -81,21 +80,6 @@ export function derived(st){
   // 6 解除 clamp：人流不再由 min(floors, 40) 決定，改由 sim.js 依「真實樓數 × 每層人口
   // 權重」算出來，所以蓋高樓真的會變忙。
   return d;
-}
-
-// 演算法效率：既影響統計流量模型，也是統計頁上「誰在偷懶」的指標基準
-export function algoEfficiency(st){
-  let e = 0.35;                       // 純手動
-  if (st.auto.autodoor) e = 0.45;
-  if (st.auto.fifo)     e = 0.60;
-  if (st.auto.scan)     e = 0.75;
-  if (st.auto.look)     e = 0.90;
-  if (st.auto.dest)     e *= 1.25;
-  if (st.auto.group)    e *= 1.20;
-  if (st.auto.shuttle)  e *= 1.15;
-  if (st.auto.double)   e *= 1.30;
-  if (st.auto.skylobby) e *= 1.40;
-  return e;
 }
 
 export function algoName(st){

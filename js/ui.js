@@ -187,7 +187,7 @@ function tabStats(){
   }
   h += `</table>`;
   const rows = [
-    [t('rowAlgo'), algoName(st) + t('algoCoef', d.algoEff.toFixed(2))],
+    [t('rowAlgo'), algoName(st)],
     [t('rowServed'), `${Math.round(st.stats.served)} / ${Math.round(st.stats.abandoned)}`],
     [t('rowLostPct'), st.stats.served + st.stats.abandoned > 0
        ? Math.round(st.stats.abandoned / (st.stats.served + st.stats.abandoned) * 100) + '%' : '—'],
