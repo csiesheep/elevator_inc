@@ -45,6 +45,9 @@ export const EN = {
     guest:     { name:'Hotel guest',   note:'Luggage takes two slots. Hotel floors only.' },
     resident:  { name:'Resident',      note:'A regular, and patient with it. Residential floors only.' },
     observer:  { name:'Sightseer',     note:'Arrives in groups heading for the observation deck.' },
+    // 觀景台帶的事件（#5）。十列事件只加了這一個型別，其餘指向既有的
+    // `observer` 與 #101–#103 的三個。
+    student:   { name:'Schoolchild',   note:'Twenty or thirty of them at once, and the lowest fare on the board.' },
     scientist: { name:'Researcher',    note:'Experimental floors only. In a hurry, and will not say why.' },
     influencer:{ name:'Queue influencer', note:'Retail floors only. Deliver one and two or three companions turn up in the lobby. The companions bring nobody.' },
     waxer:     { name:'Cleaning crew',    note:'The floor-waxing crew. Deliver them and the floor closes — leave them in the lobby and they will take the stairs anyway.' },
@@ -248,6 +251,20 @@ export const EN = {
     shutterbug: { name:'Tripods upstairs', note:'Deliver 20 photo crews — three slots of kit every time.' },
     groundlevel:{ name:'Ground is better', note:'Take 22 vertigo visitors back down — the shortest patience in the building.' },
     flagfollower:{name:'Follow the flag',  note:'Deliver 6 deck guides — each one arrives with four to six sightseers in tow.' },
+    // 觀景台帶的事件（#5，#90–#99）。門檻的數字要跟中文那一列逐字對得上（第 8 組）。
+    // ⚠ 英文名字刻意不跟事件的英文名字撞：事件叫 'Golden hour' / 'Drone show'，
+    //   成就叫 'Sunset shift' / 'The night of the drones'。兩張表是不同的命名空間，
+    //   第 13 組不會紅，但玩家是在同一個畫面上看它們的。
+    viewdeck:    { name:'Up the queue',    note:'Deliver 22 people from the deck-queue event up to the observation deck.' },
+    goldenhour:  { name:'Sunset shift',    note:'Get 25 people up to the deck during the golden hour.' },
+    deckcleared: { name:'Last ones down',  note:'Bring 30 people down from the deck after closing.' },
+    thequestion: { name:'He asked',        note:'Deliver 4 proposal riders — two couples, each of them in the same car the whole way.' },
+    fieldtrip:   { name:'A coachload',     note:'Take 32 schoolchildren up to the deck at the lowest fare on the board.' },
+    firstlight:  { name:'First light',     note:'Get 10 sunrise photographers up there, three slots each.' },
+    fogbound:    { name:'After the fog',   note:'Ride out 4 fogs without a single person giving up on the closed floor.' },
+    frontrow:    { name:'Best seats',      note:'Deliver 16 people to the deck on fireworks night — one night brings 24 to 36, so catching one is enough.' },
+    straightdown:{ name:'Straight back down', note:'Deliver 4 people down from the vertigo event — this lot will not wait for you.' },
+    dronenight:  { name:'The night of the drones', note:'Move 6 people to a different deck floor during the drone show.' },
   },
 
   roofs: {
@@ -320,5 +337,23 @@ export const EN = {
     renovation:  { name:'Fitting-out crew',text:'🔨 Fitting-out crew: {n} fitters in the lobby with their tools, bound for floor {f}, three slots each' },
     latenight:   { name:'Home in the small hours', text:'🌃 Home in the small hours: {n} people in the lobby — yours is the only lift still running' },
     blackout:    { name:'Blackout',        text:'🔌 The power is out: {n} people push down from floor {f} in the dark, and none of them will wait' },
+    // 觀景台帶（#5，#90–#99）。`tour` 的英文在上面，本來就在。
+    // ⚠ `proposal` 的文案現在才可以講「兩個人」與「同一台」：#101 的 `proposer`
+    //   （pair:true）已經落地，事件補上 `type:` 之後這一句才是真的。中文同理。
+    // ⚠ `deckclose` 的英文名字不能叫 'Closing time'——`closetime`（零售帶的打烊清場）
+    //   已經占了那個意思，中文那邊也是同一個坑（既有的 `closetime` 中文就叫「打烊清場」，
+    //   所以這一列改叫「觀景台清場」）。驗收第 13 組擋的正是這個。
+    sunset:      { name:'Golden hour',    text:'🌇 Golden hour: {n} people in the lobby, all of them racing the sunset up to the deck' },
+    deckclose:   { name:'Deck closing',   text:'🌃 The deck closes: all {n} of them want to leave floor {f} at once' },
+    proposal:    { name:'The proposal',   text:'💍 A proposal: two people in the lobby are heading up to the deck, and they have to ride together' },
+    schooltrip:  { name:'School trip',    text:'🎒 School trip: {n} schoolchildren in the lobby bound for the deck, at the lowest fare on the board' },
+    sunrisecrew: { name:'Sunrise crew',   text:'📸 Chasing the sunrise: {n} photographers in the lobby with tripods, three slots each' },
+    fog:         { name:'Fogged in',      text:'🌫 Fog closes in: floor {f} is a wall of white, and nobody is getting up there for {s} seconds' },
+    fireworks:   { name:'Fireworks night',text:'🎆 Fireworks night: {n} people pour out of the lobby for the deck all at once' },
+    // ⚠ n:[1,3]，所以 {n} 會是 1。第一版寫 '{n} people … want'，實測跑出
+    //   'Vertigo: 1 people on floor 72 … want back down'。這一句刻意不用會隨單複數
+    //   變形的名詞與動詞（中文那一行沒有這個問題，所以只有英文要繞）。
+    vertigo:     { name:'Vertigo',        text:'😰 Vertigo: {n} on floor {f} took one look over the edge and went straight back to the down button' },
+    droneshow:   { name:'Drone show',     text:'🚁 Drone show: {n} people on floor {f} are moving to another deck for a better angle' },
   },
 };

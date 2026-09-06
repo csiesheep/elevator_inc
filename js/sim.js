@@ -146,7 +146,13 @@ function pickFloor(st, h, role, lo, hi){
 //
 // 之所以做成 export 的三支小 API 而不是塞在事件裡：#5-7「起霧」、#20「打烊清場」
 // 這類「一段時間內某層不一樣」的項目都要接同一個狀態。
-export function blockFloor(st, sim, f, secs){
+// evId（選填）：**是哪一列事件封的**。只有一個用途，而那個用途是一條會安靜壞掉的路：
+// 觀察單到期時記的計數器 `codex.waxClean` 名字叫「打蠟」，而 `waxdry` 那條成就的文案
+// 也寫「撐過 4 次地板打蠟」。#96 起霧是第二列寫 `block:` 的事件——不帶 evId 的話它會
+// 安靜地灌進同一個計數器，於是**一句沒有數字錯誤的文案開始描述一件沒發生過的事**
+// （驗收第 8 組只比數字，比不出這一種）。所以觀察單記得住是誰封的。
+// ⚠ **下一個寫 `block:` 的事件要在到期那裡多一行**，否則它會回到同一個坑。
+export function blockFloor(st, sim, f, secs, evId){
   if (!(secs > 0)) return false;
   if (!(f > 0) || f >= st.floors) return false;      // 大廳與不存在的樓層封不了
   sim.blocked = sim.blocked || {};
@@ -165,7 +171,7 @@ export function blockFloor(st, sim, f, secs){
   sim.blockWatch = sim.blockWatch || [];
   const open = sim.blockWatch.find(w => w.f === f);
   if (open) open.until = until;
-  else sim.blockWatch.push({ f, until, clean: true });
+  else sim.blockWatch.push({ f, until, clean: true, ev: evId || null });
   return true;
 }
 
@@ -490,7 +496,7 @@ function runEvent(st, sim, ev, band, tenant, simTopAll, scale){
   if (ev.block){
     const secs = ev.block[0] + Math.random() * (ev.block[1] - ev.block[0]);
     if (ev.blockOn === 'deliver'){ arm = { ev, secs, floor: from, used: false }; blockSecs = secs; }
-    else if (blockFloor(st, sim, from, secs)) blockSecs = secs;
+    else if (blockFloor(st, sim, from, secs, ev.id)) blockSecs = secs;
   }
   const base = ev.n[0] + ((Math.random() * (ev.n[1] - ev.n[0] + 1)) | 0);
   const n = Math.min(40, Math.round(base * (scale || 1)));
@@ -508,6 +514,7 @@ function runEvent(st, sim, ev, band, tenant, simTopAll, scale){
     if (ev.panic) p.left = p.patience = p.patience * ev.panic;
     p.surge = d.surgeMult;                       // B 尖峰加給
     p.fromEvent = true;
+    p.evId = ev.id;                              // 是哪一列事件生的（成就的計數器要用）
     if (arm) p.blockArm = arm;                   // 送達時才真的封鎖
     made++;
     // pair:true 的型別在 makePassenger **裡面**就把同伴生好了，所以上面那四項只蓋得到
@@ -519,6 +526,7 @@ function runEvent(st, sim, ev, band, tenant, simTopAll, scale){
       if (ev.panic) mate.left = mate.patience = mate.patience * ev.panic;
       mate.surge = p.surge;
       mate.fromEvent = true;
+      mate.evId = p.evId;                        // ⚠ 下面那條規則的第一個新欄位，逐字補上
       if (arm) mate.blockArm = arm;
       made++;
     }
@@ -568,7 +576,7 @@ function stairsUp(st, sim){
   for (const s of sim.shafts) for (const r of s.riders) seen(r);
   if (!fired) return;
   fired.used = true;
-  const ok = blockFloor(st, sim, fired.floor, fired.secs);
+  const ok = blockFloor(st, sim, fired.floor, fired.secs, fired.ev && fired.ev.id);
   // arm 是同一次事件共用的同一個物件，所以逐個比對就抓得到同一批人：一起走樓梯。
   //
   // **車上的那個也要一起下車走。** 第一版寫的是「已經有人在車上就不觸發，讓那一趟
@@ -792,6 +800,46 @@ function openDoors(st, sim, s, f){
       //   **下一個寫 pair:true 的人物要在這裡多一行。**
       if (p.pairOf && --p.pairOf.left === 0 && p.type === 'newlywed')
         st.codex.newlywedPairs = (st.codex.newlywedPairs || 0) + 1;
+      // 觀景台帶的事件（#5，#90–#99）：**一列事件一個計數器。**
+      //
+      // 為什麼不用 `codex[p.type]`（上面那兩行已經在寫的東西）：這一帶九列事件指的是
+      // **五個型別，而那五個鍵全部已經被別的成就佔走了**——`skyline` 讀 observer、
+      // `saidyes` 讀 proposer、`shutterbug` 讀 photocrew、`groundlevel` 讀 acrophobe、
+      // `flagfollower` 讀 deckguide（#100–#104）。再掛一條上去就是 `walkies`／`hotfood`
+      // 第三次重演：**同一個 codex 鍵、同一個意思、只有門檻不同，而兩邊各自的
+      // harness 都會是綠的**，因為衝突只在兩邊同時存在時才存在。
+      // 而且那五個型別**都有 w > 0**（8/12/20/3 與 observer 的 30），所以它們的鍵裡
+      // 混著大量自然生成的人：`codex.observer` 有 34.5% 是導遊招來的同伴。
+      // 「送達幾個觀景客」與「在夕陽時段送上去幾個」不是同一件事，也不該共用一個數字。
+      //
+      // 兩條路可以走，選的是 (b)：
+      //   (a) 一列事件一個 w:0 的專屬型別 —— 辦公帶（八個型別）與零售帶走的路。
+      //   (b) 在乘客身上記下「是哪一列事件生的」，計數器掛在事件 id 上。
+      // (b) 的理由是這幾列的差別**在時段與人數，不在人物的數值**：夕陽的人跟煙火的人
+      // 是同一種觀景客，只是來的時間不一樣。為它們各開一個型別是拿**色彩空間**
+      // （三條硬判準同時滿足的點只剩 476/262,144）去換一個計數器。
+      // 唯一有既有型別表達不了的數值的那一列（`student`，全表最低票價）仍然是型別，
+      // 而且它 w:0、只有 `schooltrip` 指得到它，所以 `codex.student` 本來就是乾淨的。
+      //
+      // ⚠ **鍵一定要寫成字面的 `st.codex.xxx`**：驗收第 11 組靜態掃這支檔案的
+      //   `codex.xxx` 來決定「成就讀的鍵有沒有人寫得進去」，`st.codex['ev_'+id]`
+      //   算出來的鍵它看不到，於是那一整類安靜的錯又變回安靜的。
+      // ⚠ **`summon` 招來的同伴拿不到 `evId`**，跟它們拿不到 `ev.panic` 是同一個洞：
+      //   `summonCompanions()` 跟 `makeMate()` 一樣在 `makePassenger()` **裡面**跑，
+      //   而這三個欄位是 `runEvent()` 在它**回傳之後**才蓋的。今天沒有任何一列事件
+      //   指向會招同伴的型別（唯一一個是 `deckguide`，它靠 w:3 自然生成），所以這個
+      //   洞今天量不出來。**哪天有一列事件寫 `type:'deckguide'`，這裡跟 panic 兩邊
+      //   都要補。** 已回報 orchestrator。
+      if (p.evId){
+        if (p.evId === 'tour')        st.codex.tourUp      = (st.codex.tourUp      || 0) + 1;
+        if (p.evId === 'sunset')      st.codex.sunsetUp    = (st.codex.sunsetUp    || 0) + 1;
+        if (p.evId === 'deckclose')   st.codex.deckDown    = (st.codex.deckDown    || 0) + 1;
+        if (p.evId === 'proposal')    st.codex.proposalUp  = (st.codex.proposalUp  || 0) + 1;
+        if (p.evId === 'sunrisecrew') st.codex.sunriseUp   = (st.codex.sunriseUp   || 0) + 1;
+        if (p.evId === 'fireworks')   st.codex.fireworksUp = (st.codex.fireworksUp || 0) + 1;
+        if (p.evId === 'vertigo')     st.codex.vertigoDown = (st.codex.vertigoDown || 0) + 1;
+        if (p.evId === 'droneshow')   st.codex.droneHop    = (st.codex.droneHop    || 0) + 1;
+      }
       if (p.t.ghost){
         const bonus = 50 * st.floors;
         st.cash += bonus; st.runRevenue += bonus; sim.rateAcc += bonus;
@@ -802,7 +850,7 @@ function openDoors(st, sim, s, f){
       // 招來同伴（#27）都在這裡。arm 是同一次事件的清潔工共用的，所以只會封一次。
       if (p.blockArm && !p.blockArm.used && p.blockArm.floor === ff){
         p.blockArm.used = true;
-        if (blockFloor(st, sim, ff, p.blockArm.secs))
+        if (blockFloor(st, sim, ff, p.blockArm.secs, p.blockArm.ev && p.blockArm.ev.id))
           sim.toasts.push({ txt: L(p.blockArm.ev, 'blockText', 'events')
             .replace('{f}', ff + 1).replace('{s}', Math.round(p.blockArm.secs)), life:4 });
       }
@@ -955,7 +1003,11 @@ export function step(st, sim, dt){
       const w = sim.blockWatch[i];
       if (w.until > st.t) continue;
       sim.blockWatch.splice(i, 1);
-      if (w.clean) st.codex.waxClean = (st.codex.waxClean || 0) + 1;
+      // **一列事件一個計數器**，理由寫在 blockFloor 的 evId 那一段：`waxClean` 這個名字
+      // 已經被 `waxdry` 那條成就的文案綁死成「打蠟」，共用它等於讓文案開始說謊。
+      if (!w.clean) continue;
+      if (w.ev === 'fog') st.codex.fogClear = (st.codex.fogClear || 0) + 1;
+      else                st.codex.waxClean = (st.codex.waxClean || 0) + 1;
     }
   }
 
