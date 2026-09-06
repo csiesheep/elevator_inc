@@ -1010,7 +1010,10 @@ check('乘客文案裡的「佔幾格 / 卡幾秒」要跟資料對得上', () =
   const W = { one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9, ten:10 };
   const slots = t => {
     const s = String(t || ''), out = [];
-    for (const m of s.matchAll(/佔\s*([0-9]+)\s*格/g)) out.push(+m[1]);
+    // 「佔 N 格」是最常見的寫法，但不是唯一的：一個 peer 拿掉 pair:true 之後
+    // 發現這條 guard 只抓到英文的 "four slots"，中文「一組要**空出** 4 格」溜過去
+    // ——它是拿我的 guard 當探照燈才照出來的。動詞要列全。
+    for (const m of s.matchAll(/(?:佔|佔用|空出|留出|騰出|要有)\s*([0-9]+)\s*格/g)) out.push(+m[1]);
     for (const m of s.matchAll(/([0-9]+|one|two|three|four|five|six|seven|eight|nine|ten)[\s-]+slots?/gi)){
       const v = isNaN(+m[1]) ? W[m[1].toLowerCase()] : +m[1];
       if (v) out.push(v);
