@@ -38,7 +38,7 @@ export const EN = {
     tourist:   { name:'Tourist',       note:'Keeps taking photos. Adds 1.2s to the door cycle.' },
     courier:   { name:'Courier',       note:'The trolley takes two slots.' },
     guard:     { name:'Security',      note:'Pays nothing, but patrolling lifts the building rating.' },
-    ceo:       { name:'CEO',           note:'Enormous fare, no patience at all. Keeping one waiting hurts the rating badly.' },
+    ceo:       { name:'CEO',           note:'Enormous fare, no patience at all. Keeping one waiting hurts the rating badly. Only rides at rush hour.' },
     cat:       { name:'Cat',           note:'Pays nothing. Purely raises the rating. Rare.' },
     ghost:     { name:'Ghost',         note:'Only ever on the 13th floor. Carrying it leaves you an unexpected sum.' },
     mover:     { name:'Removals crew', note:'Fills most of the car on its own.' },
@@ -70,6 +70,10 @@ export const EN = {
     nightowl:  { name:'Late worker',      note:'Still here at midnight. Few of them, well paid, and the most patient — nobody else wants the lift at this hour.' },
     coffeegoer:{ name:'Coffee run',       note:'Office workers heading down for an afternoon coffee. The only crowd the offices send into the shops.' },
     laidoff:   { name:'Laid-off worker',  note:'Their last trip down, carrying a box. The shortest patience of anyone who arrives in a crowd — and leaving them behind hurts the rating extra.' },
+    // 辦公帶的隨機池人物（#50 #52 #53）
+    interviewee:{ name:'Interviewee',     note:'Office floors only. On the way to a job interview — get one there on time and the rating goes up; let one give up and it costs more than usual.' },
+    repairman: { name:'Copier engineer',  note:'Office floors only. The toolbox takes three slots, but he is in no hurry — this one costs you space, not time.' },
+    remote:    { name:'Remote worker',    note:'Office floors only. Turns up between 10pm and 5am and nowhere else, and waits patiently — the night shift owns those floors.' },
   },
 
   tenants: {
@@ -154,6 +158,12 @@ export const EN = {
     burningoil:{ name:'Overtime',          note:'Take 25 late workers home.' },
     caffeine:  { name:'Caffeine',          note:'Deliver 6 people on a coffee run.' },
     severance: { name:'Severance',         note:'Deliver 25 laid-off workers.' },
+    // 辦公帶隨機池那四個人物的成就（#49 #50 #52 #53）。
+    // 數字要跟 content.js 的判定一致（驗收第 8 組逐條比對中英兩邊）。
+    boardroom: { name:'Take the boss up',  note:'Deliver 5 CEOs — the least patient people in the building.' },
+    hired:     { name:'You got the job',   note:'Get 3 interviewees there on time.' },
+    toner:     { name:'Toner rescue',      note:'Deliver 10 copier engineers, three slots each.' },
+    nightshift:{ name:'The night office',  note:'Deliver 24 remote workers, who only ever turn up after dark.' },
   },
 
   roofs: {

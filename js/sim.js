@@ -732,8 +732,8 @@ function openDoors(st, sim, s, f){
       // 沒寫的人物走的還是原本那一行、一個位元組都沒變。
       // 走跟車資完全一樣的帳（現金／本輪／終身／離線速率窗），因為它就是收入的一部分，
       // 不是另一種貨幣；分開記帳只會多一個以後對不起來的數字。
-      const tip = (p.t.tip && sat >= (p.t.tip.sat != null ? p.t.tip.sat : 0.6))
-        ? fare * (p.t.tip.mult || 0) : 0;
+      const onTime = !!p.t.tip && sat >= (p.t.tip.sat != null ? p.t.tip.sat : 0.6);
+      const tip = onTime ? fare * (p.t.tip.mult || 0) : 0;
       if (tip > 0) st.stats.tips = (st.stats.tips || 0) + 1;
       const money = fare + tip;
       st.cash += money; st.runRevenue += money; st.lifetimeRevenue += money;
@@ -762,6 +762,26 @@ function openDoors(st, sim, s, f){
       // 滿意度 → 評價（設計 4.5：別讓乘客生氣有長期複利價值）。sat 在上面算過了。
       st.rating += (sat - 0.40) * 0.035 * d.ratingGain;
       if (p.t.rating) st.rating += p.t.rating;
+      // 準時獎勵的評價那一半（#50 面試者）。跟小費**同一個 sat、同一個門檻**——
+      // 「夠快」在這支檔案裡只有一個定義。**加評價這一半是純資料驅動的**：
+      // 任何一列寫了 tip.rating 就有，沒寫的人物一個位元組都沒變。
+      //
+      // 計數器帶著型別（intervieweeOnTime），不是一個共用的 codex.onTime：
+      // 成就的文案講的是**哪一種人**準時送到幾個，共用計數器會讓下一個寫
+      // tip.rating 的人物把那句話變成假的。
+      //
+      // ⚠ **鍵寫成字面值，不是 `p.type + 'OnTime'` 算出來的**（第一版是算出來的）。
+      // 驗收第 11 組那條 guard 靜態掃這支檔案的 `codex.xxx`，確認「成就讀的鍵真的
+      // 有人寫得進去」——算出來的鍵它看不到，而它看不到的正好是它要抓的那種安靜
+      // 錯誤：成就的鍵打錯一個字母 → 那條成就永遠拿不到，不丟例外、不壞畫面。
+      // 這跟 crewIntact／waxClean 是同一個形狀（條件來自資料，計數器的名字是字面值）。
+      // **下一個寫 tip.rating 的人物要在這裡多一行。** 那一行是刻意的成本，
+      // 它換到的是「這個計數器有人寫得進去」變成機器檢查得到的事實。
+      if (onTime && p.t.tip.rating){
+        st.rating += p.t.tip.rating;
+        if (p.type === 'interviewee')
+          st.codex.intervieweeOnTime = (st.codex.intervieweeOnTime || 0) + 1;
+      }
       if (money > 0) sim.pops.push({ txt:'+$' + fmtShort(money), floor: ff, life:1, off: Math.random()*20-10 });
       // 招來同伴（#27）：送到之後才發生，所以掛在這裡而不是上車或生成的時候。
       summonCompanions(st, sim, p, hourOf(st), 'deliver', summoned);
