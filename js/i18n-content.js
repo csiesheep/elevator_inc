@@ -74,6 +74,11 @@ export const EN = {
     interviewee:{ name:'Interviewee',     note:'Office floors only. On the way to a job interview — get one there on time and the rating goes up; let one give up and it costs more than usual.' },
     repairman: { name:'Copier engineer',  note:'Office floors only. The toolbox takes three slots, but he is in no hurry — this one costs you space, not time.' },
     remote:    { name:'Remote worker',    note:'Office floors only. Turns up between 10pm and 5am and nowhere else, and waits patiently — the night shift owns those floors.' },
+    // 飯店帶的四個人物（#63 #64 #65 #66）
+    newlywed:  { name:'Honeymoon couple', note:'Hotel floors only. The two of them must ride together — delivering them separately does not count, so a couple needs four slots free. Worth well over double a hotel guest.' },
+    roomcart:  { name:'Room-service cart',note:'A trolley that fills most of the car, moving between floors. Never gives up — leave it and it just stands there.' },
+    bellhop:   { name:'Bellhop',          note:'Carries the luggage. Pays nothing and never gives up, but a ride lifts the building rating. Two slots.' },
+    nightguest:{ name:'Late-night guest', note:'Hotel floors only. Turns up between 11pm and 4am and nowhere else, for the best fare on the floor — nobody else wants the lift at that hour.' },
   },
 
   tenants: {
@@ -164,6 +169,12 @@ export const EN = {
     hired:     { name:'You got the job',   note:'Get 3 interviewees there on time.' },
     toner:     { name:'Toner rescue',      note:'Deliver 10 copier engineers, three slots each.' },
     nightshift:{ name:'The night office',  note:'Deliver 24 remote workers, who only ever turn up after dark.' },
+    // 飯店帶的四條（#63 #64+#58 #65 #66）。
+    // 數字要跟 content.js 的判定一致（驗收第 8 組逐條比對中英兩邊）。
+    honeymoon:  { name:'Honeymoon suite',  note:'Get 29 honeymoon couples there together — delivered apart does not count.' },
+    trolley:    { name:'Trolley service',  note:'Deliver 10 room-service carts, four slots each.' },
+    porter:     { name:'Bags upstairs',    note:'Deliver 36 bellhops — they pay nothing and only lift the rating.' },
+    lastcheckin:{ name:'Home at last',     note:'Deliver 29 late-night guests, who only ever turn up in the small hours.' },
   },
 
   roofs: {
@@ -212,5 +223,7 @@ export const EN = {
     overtime:   { name:'Working late',   text:'🌙 Working late: {n} people are still on floor {f}' },
     coffee:     { name:'Coffee run',     text:'☕ Coffee run: {n} people head down from floor {f}' },
     layoff:     { name:'Layoff day',     text:'📄 Layoff day: {n} people leave floor {f} with a box, and none of them will wait' },
+    // 飯店帶：客房服務（#58）
+    roomservice:{ name:'Room service',   text:'🛎 Room service: {n} trolleys wheel out of floor {f}, each one filling most of a car' },
   },
 };

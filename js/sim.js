@@ -257,8 +257,50 @@ function makePassenger(st, sim, origin, dest, h, ev, out){
     born: st.t, patience, left: patience,
   };
   (out || sim.waiting).push(p);
+  if (type.pair) makeMate(st, sim, p, out);
   if (type.summon) summonCompanions(st, sim, p, h, 'spawn', out);
   return p;
+}
+
+// ------------------------------------------------------------ 必須同車（成對，可重用）
+// 人物資料上的 pair:true（欄位說明在 content.js）。#63 新婚夫婦是第一個用它的，
+// 住宅 B／E7（遛狗）與觀景台 B／E4（求婚）也要用同一個欄位，所以它是資料不是特例。
+//
+// 這裡只做一件事：**再生一個同起訖、同型別的人，兩邊互指**。真正的「必須同車」
+// 發生在 openDoors 的上客迴圈裡（兩個一起上，或兩個都不上）。
+//
+// 三條刻意的規則：
+//   1. **同伴不會再帶同伴**（pairing 這個深度旗標）。少了它 makePassenger → makeMate
+//      → makePassenger 是無窮遞迴，不是慢慢長大而是直接爆掉。
+//   2. **WAIT_CAP 擋掉同伴的話，第一個人就不成對**（不設 p.mate）。
+//      上客那邊看的是 `p.mate` 不是 `p.t.pair`，所以他退回一個普通乘客，
+//      而不是一個「永遠等不到另一半、必然佔著位子到耐性歸零」的殭屍。
+//   3. **兩個人的 patience 逐字相同**（同 origin/dest → 同 far），所以耐性迴圈裡
+//      他們一定同一個 tick 一起放棄。不需要第二條「一個走了另一個怎麼辦」的路——
+//      多一條路就多一個以後會分岔的地方。上客那邊仍然防禦性地檢查 mate 還在不在。
+//
+// ⚠ **今天沒有任何事件用 pair 的型別，而如果有人要這樣寫，這裡要先改。**
+//    runEvent 在 makePassenger **回傳之後**才蓋上 `p.surge` / `p.fromEvent` /
+//    `p.blockArm`，也才乘 `ev.panic` —— 那些全部只蓋得到第一個人，另一半是在
+//    makePassenger **裡面**生出來的，拿不到。後果依序是：同伴少一份尖峰加給、
+//    不算事件乘客、以及**兩個人的耐性分岔**（規則 3 的前提就沒了）。
+//    上客那邊有一行防它變成殭屍，但那是止血不是修好。
+let pairing = false;
+function makeMate(st, sim, p, out){
+  if (pairing) return null;                                     // 規則 1
+  if (sim.waiting.length + (out ? out.length : 0) >= WAIT_CAP) return null;   // 規則 2
+  pairing = true;
+  let q = null;
+  try {
+    q = makePassenger(st, sim, p.origin, p.dest, hourOf(st), { type: p.type }, out);
+  } finally { pairing = false; }
+  if (!q || q.type !== p.type){ if (q) q.mate = null; return null; }
+  p.mate = q; q.mate = p;
+  // 「整對送到」的計數用共用物件，跟 #27 的 crew 同一個形狀：送達時 --left，
+  // 歸零才記一筆。他們同上同下，所以這個數字就是「幾對」。
+  const g = { left: 2 };
+  p.pairOf = q.pairOf = g;
+  return q;
 }
 
 // ------------------------------------------------------------ 招來同伴（可重用）
@@ -745,6 +787,15 @@ function openDoors(st, sim, s, f){
       // 記在 codex 不是 stats —— codex 跨拆樓保留（doPrestige），這是長線的收藏。
       if (p.crew && --p.crew.left === 0)
         st.codex.crewIntact = (st.codex.crewIntact || 0) + 1;
+      // 必須同車（#63）：整對送到才記一筆。他們同上同下，所以 left 一定會歸零，
+      // 這個數字就是「送到幾對」而不是「送到幾個人」。
+      // ⚠ **鍵是字面值，而且帶著型別**，跟 intervieweeOnTime 同一個形狀：
+      //   驗收第 11 組那條 guard 靜態掃這支檔案的 `codex.xxx`，算出來的鍵它看不到。
+      //   而共用一個 codex.pairsDelivered 會讓下一個寫 pair:true 的人物
+      //   （住宅 B 遛狗、觀景台 B 求婚）把「新婚夫婦」那句成就文案變成假的。
+      //   **下一個寫 pair:true 的人物要在這裡多一行。**
+      if (p.pairOf && --p.pairOf.left === 0 && p.type === 'newlywed')
+        st.codex.newlywedPairs = (st.codex.newlywedPairs || 0) + 1;
       if (p.t.ghost){
         const bonus = 50 * st.floors;
         st.cash += bonus; st.runRevenue += bonus; sim.rateAcc += bonus;
@@ -800,8 +851,19 @@ function openDoors(st, sim, s, f){
     for (let i = 0; i < sim.waiting.length; i++){
       const p = sim.waiting[i];
       if (p.origin !== ff) continue;
-      if (used() + p.t.size > cap) continue;
-      // 目的地控制：只收同方向的人，停靠次數大減
+      // 必須同車（#63）：兩個人要嘛一起上，要嘛都不上。**位子要一次留兩份**——
+      // 這一行就是這個機制的全部成本，也是它唯一會失敗的地方。
+      let mate = (p.mate && p.mate.mate === p) ? p.mate : null;
+      // 另一半已經不在等了 → 這個人退回一個普通乘客，不要變成一個永遠訂著
+      // 四格、永遠上不了車的殭屍。今天走不到這一行（兩個人的耐性逐字相同，
+      // 一定同一個 tick 一起放棄），但**只要有人給一列 pair 的資料加上事件的
+      // panic，兩邊的耐性就會分岔**——runEvent 的 `p.left = p.patience * ev.panic`
+      // 只改得到第一個人。留這一行比留一句「不會發生」便宜。
+      if (mate && sim.waiting.indexOf(mate) < 0) mate = null;
+      const need = p.t.size + (mate ? mate.t.size : 0);
+      if (used() + need > cap) continue;
+      // 目的地控制：只收同方向的人，停靠次數大減。成對的兩個人 origin/dest 逐字
+      // 相同，所以判一次等於判兩次。
       if (st.auto.dest && s.riders.length && used() >= cap * 0.5){
         const dir = Math.sign(s.riders[0].dest - ff);
         if (dir !== 0 && Math.sign(p.dest - ff) !== dir) continue;
@@ -810,6 +872,19 @@ function openDoors(st, sim, s, f){
       s.riders.push(p); sim.waiting.splice(i, 1); i--;
       boarded++;
       if (p.t.doorPenalty) extra += p.t.doorPenalty;
+      if (mate){
+        // 另一半一定跟他同一層（同 origin）而且還在等（同 patience → 同一個 tick
+        // 才會放棄）。indexOf 是為了不假設他排在誰後面：招來同伴、封鎖清除都會
+        // 動到 sim.waiting 的順序。
+        const j = sim.waiting.indexOf(mate);
+        if (j >= 0){
+          mate.board = st.t;
+          s.riders.push(mate); sim.waiting.splice(j, 1);
+          if (j <= i) i--;
+          boarded++;
+          if (mate.t.doorPenalty) extra += mate.t.doorPenalty;
+        }
+      }
     }
   }
   // 同伴要等上客結束才進 waiting：不然「送到 A 樓 → 同伴出現在 A 樓 → 同一次開門
