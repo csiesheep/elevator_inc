@@ -21,7 +21,12 @@ export function check(name, fn){
   const label = group ? group + ' · ' + name : name;
   try {
     const r = fn();
-    if (r === 'TODO'){ R.todo.push({ label, msg: '尚未實作' }); return; }
+    // 'TODO' 或 'TODO: 還缺什麼'。**帶得動訊息**：一句沒有說出「什麼還沒做」的
+    // 「尚未實作」，只夠告訴你有一格是空的，不夠告訴你要去做什麼。
+    if (r === 'TODO' || (typeof r === 'string' && r.slice(0, 5) === 'TODO:')){
+      R.todo.push({ label, msg: r === 'TODO' ? '尚未實作' : r.slice(5).trim() });
+      return;
+    }
     if (r === true || r === undefined){ R.pass.push({ label }); return; }
     R.fail.push({ label, msg: String(r) });
   } catch (e){
