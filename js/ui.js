@@ -231,10 +231,43 @@ function tabPrestige(){
 }
 
 // ------------------------------------------------------------ 提示 / 覆蓋層
+// 同一個 frame 可能一次丟出幾十則:**舊存檔第一次載入新版本**時，這一輪新增的成就
+// 門檻早就滿足了，checkAchievements() 會在同一幀把它們全部判成剛達成。實測一個
+// 45 層的舊存檔一次丟出 **28 則**，而 `#toasts` 有 max-width 卻**沒有 max-height**
+// （#34 只修了寬度），所以它們會疊出視窗，手機上還會蓋掉整個遊戲畫面。
+//
+// 夾住「同時看得到幾則」，多出來的收斂成一行計數。
+// **刻意不採用的做法:把 toast 縮小或字改小。** 那只是把「裝不下」換成
+// 「裝得下但看不清楚」——這個專案為那個換法付過一次學費。
+const MAX_TOASTS = 4;
+let overflowN = 0, overflowEl = null;
+
 export function toast(txt, ms = 2600){
+  const box = $('#toasts');
+  const live = box.querySelectorAll('.toast:not(.more)').length;
+
+  if (live >= MAX_TOASTS){
+    overflowN++;
+    if (!overflowEl || !overflowEl.isConnected){
+      overflowEl = document.createElement('div');
+      overflowEl.className = 'toast more';
+      overflowN = 1;
+    }
+    box.appendChild(overflowEl);            // 計數列固定留在最下面
+    overflowEl.textContent = t('toastMore', overflowN);
+    clearTimeout(overflowEl._timer);
+    const dying = overflowEl;
+    dying._timer = setTimeout(() => {
+      dying.classList.add('out');
+      setTimeout(() => { dying.remove(); if (overflowEl === dying){ overflowEl = null; overflowN = 0; } }, 400);
+    }, ms);
+    return;
+  }
+
   const el = document.createElement('div');
   el.className = 'toast'; el.textContent = txt;
-  $('#toasts').appendChild(el);
+  // 新的一則插在計數列上面，計數列永遠是最後一個
+  box.insertBefore(el, (overflowEl && overflowEl.isConnected) ? overflowEl : null);
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, ms);
 }
 
