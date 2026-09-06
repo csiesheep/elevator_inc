@@ -1705,36 +1705,52 @@ export const SKILLS = [
 // ---------------------------------------------------------------- 租戶類型（5.6 的 A）
 // 租戶決定一個樓層帶的「人流形狀」，不只是人流多少：
 //   fare = 這一帶的票價倍率, pop = 人流量倍率
-//   event = 這種租戶會週期性製造的突發事件, every = 幾秒一次（隨機區間）
 // 招商取消之後，每一帶固定用 defaultTenant()（標了 plain 的那一個），玩家不再挑租戶。
-// ⚠ 所以現在**沒有任何一帶的租戶帶 event**——七筆 byTenant 的 EVENTS 目前打不到。
-//   這是 #1–#7（每種樓層自己的事件與人物）要接的接縫，資料換掉就會活過來。
+//
+// 這裡曾經有 event / every 兩欄:租戶會週期性製造自己的突發事件（tenantEvents()）。
+// **招商移除之後那條路 0 次觸發**——七個 defaultTenant 全是 plain、都沒有 event——
+// 而它在表上看起來仍然是活的，三個 peer 各自在旁邊註記過「這是死的」但沒有人開單。
+// **orchestrator 裁決（#86）**:整條路與那七列 byTenant 的 EVENTS 一起移除。
+// ⚠ **owner 尚未對「大樓的組成決定它的節奏」這個構想表態**;那個問題留在 #89。
+//   這裡移除的是一條 0 次觸發的死路，**不是那個構想**。
+// 量出來的理由（60 遊戲日 × 3 種子）:
+//   · 復活後租戶事件 30 層 4.5 倍、60 層 9.3 倍於**全部**隨機事件的預算，
+//     而且倍數是樓高的函數——隨機事件是固定全域預算（≈1.3 次/日，與樓高無關），
+//     租戶事件是每帶一個計時器且隨層數加速。**調常數解不了斜率。**
+//   · 七列裡有五列的內容，#1–#7 已經用隨機事件做過一遍
+//     （foodcourt≈lunch、screening≈cinema、movingday≈moving、wedding≈banquet、
+//      office 帶已有七個事件涵蓋 shift）。
+//   · 只有 expo／seating 的內容沒有被覆蓋，而它們屬於觀景台——那一帶目前 0 個事件，
+//     內容已交給 #5 的 brief，不在這裡就地改寫。
+// 「大樓的組成決定它的節奏」那個構想本身是好的，但它不在這份資料裡（觸發 0 次）;
+// 它被寫成 **#89**（提案，未定案），那裡記著一個可能的做法:讓租戶決定
+// 「抽到哪一列」而不是「多久一次」，與隨機事件共用同一個全域預算。
 export const TENANTS = [
   { id:'shop', plain:true,    name:'一般店面',   bands:['retail'], fare:1.00, pop:1.00, note:'平穩，沒有驚喜。' },
   { id:'food',    name:'美食街',     bands:['retail'], fare:1.35, pop:1.45,
-    event:'lunch', every:[150,240], note:'人多、單價中等，中午會整層一起下樓。' },
+    note:'人多、單價中等，中午會整層一起下樓。' },
   { id:'cinema',  name:'電影院',     bands:['retail','office'], fare:1.70, pop:0.85,
-    event:'cinema', every:[170,260], note:'平常很安靜，散場時一次湧出一整廳。' },
+    note:'平常很安靜，散場時一次湧出一整廳。' },
 
   { id:'desk', plain:true,    name:'一般辦公',   bands:['office'], fare:1.00, pop:1.00, note:'平穩的上下班潮。' },
   { id:'conf',    name:'會議中心',   bands:['office'], fare:1.55, pop:1.10,
-    event:'meeting', every:[120,200], note:'單價高，但每場會議散場都是一次爆量。' },
+    note:'單價高，但每場會議散場都是一次爆量。' },
   { id:'callctr', name:'客服中心',   bands:['office'], fare:1.25, pop:1.60,
-    event:'shift', every:[140,220], note:'人非常多，而且整班一起換班。' },
+    note:'人非常多，而且整班一起換班。' },
 
   { id:'room', plain:true,    name:'客房',       bands:['hotel'], fare:1.00, pop:1.00, note:'夜間到達、早晨退房。' },
   { id:'banquet', name:'宴會廳',     bands:['hotel'], fare:1.85, pop:1.15,
-    event:'banquet', every:[160,260], note:'深夜散場，一次一大群，而且都很累。' },
+    note:'深夜散場，一次一大群，而且都很累。' },
   { id:'expo',    name:'會展中心',   bands:['hotel','obs'], fare:1.60, pop:1.35,
-    event:'expo', every:[130,210], note:'整天都有人潮，開展與閉展各一波。' },
+    note:'整天都有人潮，開展與閉展各一波。' },
 
   { id:'flat', plain:true,    name:'住宅',       bands:['resid'], fare:1.00, pop:1.00, note:'常客，作息穩定。' },
   { id:'sublet',  name:'短租公寓',   bands:['resid'], fare:1.40, pop:1.25,
-    event:'moving', every:[180,280], note:'租金高，但三天兩頭有人搬家。' },
+    note:'租金高，但三天兩頭有人搬家。' },
 
   { id:'deck', plain:true,    name:'觀景台',     bands:['obs'], fare:1.00, pop:1.20, note:'觀光客單向朝聖。' },
   { id:'skyrest', name:'空中餐廳',   bands:['obs'], fare:1.95, pop:0.90,
-    event:'seating', every:[150,240], note:'單價最高的觀光收入，整批帶位、整批離席。' },
+    note:'單價最高的觀光收入，整批帶位、整批離席。' },
 
   { id:'lab', plain:true,     name:'實驗室',     bands:['exp'], fare:1.00, pop:1.00, note:'研究員趕時間。' },
   { id:'server',  name:'資料中心',   bands:['exp','roof'], fare:2.40, pop:0.25,
@@ -2839,49 +2855,21 @@ export const EVENTS = [
     hours:[0,24], panic:1/3, type:'blackouter',
     text:'🔌 停電了：{f} 樓 {n} 個人摸黑往下擠，而且沒有人願意等' },
 
-  // --- 由租戶類型觸發的事件（5.6 的 A）。不進隨機池，只有租了對應租戶才會發生。
-  { id:'lunch',   name:'午餐時間', byTenant:true, n:[8,15],  to:'lobby',
-    text:'🍜 午餐時間：{f} 樓的美食街一次下來 {n} 個人' },
-  { id:'cinema',  name:'電影散場', byTenant:true, n:[12,22], to:'lobby',
-    text:'🎬 電影散場：{f} 樓一整廳 {n} 個人同時出來' },
-  { id:'shift',   name:'客服換班', byTenant:true, n:[10,18], to:'lobby',
-    text:'🎧 換班時間：{f} 樓 {n} 個人同時打卡下班' },
-  { id:'banquet', name:'宴會散場', byTenant:true, n:[14,24], to:'lobby', panic:0.75,
-    text:'🥂 宴會散場：{f} 樓 {n} 個人，都累了' },
-  { id:'expo',    name:'會展人潮', byTenant:true, n:[10,20], to:'any',
-    text:'🎪 會展人潮：{n} 個人湧向 {f} 樓' },
-  { id:'moving',  name:'搬家日',   byTenant:true, n:[4,8],   to:'lobby',
-    text:'📦 搬家日：{f} 樓有 {n} 車家當要下樓' },
-  { id:'seating', name:'整批帶位', byTenant:true, n:[10,18], to:'lobby',
-    text:'🍽 空中餐廳換場：{f} 樓 {n} 個人要下去' },
+  // 這裡曾經有七列 byTenant:true 的事件（lunch / cinema / shift / banquet / expo /
+  // moving / seating）。它們只能由 tenantEvents() 走到，而那條路在招商移除之後
+  // **0 次觸發**（實測 3 種子 × 60 遊戲日 × 12/30/60 層，全部 0）。orchestrator 裁決（#86）移除。
+  // 內容的去處寫在上面 TENANTS 的註解裡；expo／seating 交給 #5（觀景台）。
 ];
 
-// 事件查詢。**id 目前是唯一鍵，但這支不假設它永遠是。**
-//
-// 歷史（#30）：'party' 曾經有兩列（隨機池的「尾牙散場」與 byTenant 的「宴會散場」，
-// panic 0.75），裸的 .find() 只拿得到第一列，所以租戶路徑安靜地拿到錯的那一列——
-// 而且**英文玩家兩個事件會看到同一句話**，因為 i18n-content.js 的對照表以 id 為鍵。
-// byTenant 那一列已經改成 id:'banquet'（連同宴會廳租戶的 event: 與英文對照一起改），
-// 所以今天 `EVENTS` 裡沒有重複的 id。
-//
-// 為什麼消歧義的參數留著、沒有順手拆掉：
-//   1. sim.js 的租戶路徑（tenantEvents）仍然用 { byTenant:true } 呼叫它，而那個呼叫
-//      **是有意義的**——它說出「我要的是租戶那一列」，不是「隨便給我一列」。
-//   2. #1–#7 每一帶都會再長出自己的事件，同名的「隨機池版」與「租戶版」很可能再出現。
-//      拆掉之後下一次重複會是同一個安靜的錯，而且沒有人會記得為什麼。
-//   3. 拆掉是零收益的改動：這支目前 8 行。
-// 唯一性由測試守（tests/ 是 orchestrator 的；BE 側在 _probe/ 有一條）。
-//   opts.byTenant = true  → 只要租戶事件那一列
-//   opts.byTenant = false → 只要隨機池那一列
-//   沒帶 opts             → 第一列，給不在乎的呼叫端用
-export const eventById = (id, opts) => {
-  if (opts && opts.byTenant != null){
-    const want = !!opts.byTenant;
-    const hit = EVENTS.find(e => e.id === id && !!e.byTenant === want);
-    if (hit) return hit;
-  }
-  return EVENTS.find(e => e.id === id);
-};
+// 這裡曾經有 eventById(id, opts)：一支帶 { byTenant } 消歧義參數的事件查詢。
+// 它存在的理由是「同一個 id 可能有隨機池版與租戶版兩列」（#30 的 'party' 就是），
+// 而它唯一的呼叫點是 sim.js 的 tenantEvents()。#86 把租戶那條路整個移除之後：
+//   · 沒有任何呼叫端了
+//   · 它要消的那個歧義**在結構上不可能再出現**——EVENTS 裡不會再有 byTenant 的列
+// 它自己的註解裡那條「留著是因為 tenantEvents 還在用」也因此不再成立。
+// 留一支沒有人呼叫、而且為一個消失的區別而存在的匯出函式，正是這一整張 issue
+// 在講的那種東西，所以一起移除。
+// **id 的唯一性仍然需要有人守**：那由 tests/ 的可達性 guard 負責，不是由這支。
 
 export const passengerById = id => PASSENGERS.find(p => p.id === id);
 
