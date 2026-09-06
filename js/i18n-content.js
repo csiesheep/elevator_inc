@@ -48,6 +48,11 @@ export const EN = {
     scientist: { name:'Researcher',    note:'Experimental floors only. In a hurry, and will not say why.' },
     influencer:{ name:'Queue influencer', note:'Retail floors only. Deliver one and two or three companions turn up in the lobby. The companions bring nobody.' },
     waxer:     { name:'Cleaning crew',    note:'The floor-waxing crew. Deliver them and the floor closes — leave them in the lobby and they will take the stairs anyway.' },
+    stroller:  { name:'Parent with a pushchair', note:'Retail floors only. The pushchair takes three slots and adds 1.5s to the door cycle — it costs you space and time at once.' },
+    loaded:    { name:'Laden shopper',    note:'Retail floors only. The bags take two slots. Get one there quickly (waiting under 35% of their patience) and they add half the fare again as a tip.' },
+    janitor:   { name:'Closing-time cleaner', note:'Turns up once the shops shut. Pays nothing, but taking them down lifts the rating.' },
+    sampler:   { name:'Sample seller',    note:'Works the retail floors. Pays little, never gives up, and rides straight back once you deliver them.' },
+    closing:   { name:'Shop staff',       note:'Pulling the shutters down and heading home. Only appears at closing time.' },
   },
 
   tenants: {
@@ -105,6 +110,11 @@ export const EN = {
     sky:     { name:'Sky lobby',         note:'Build the transfer hall.' },
     tall:    { name:'Seventy floors',    note:'Reach 70 floors.' },
     orbit:   { name:'Escape velocity',   note:'Take the elevator off the planet.' },
+    pram:    { name:'Pushchair express', note:'Deliver 30 parents with pushchairs.' },
+    tipjar:  { name:'Much obliged',      note:'Collect 25 tips.' },
+    lastcall:{ name:'Shutters down',     note:'Deliver 20 shop staff at closing time.' },
+    mopup:   { name:'Closing up',        note:'Deliver 10 closing-time cleaners.' },
+    taster:  { name:'One more sample',   note:'Deliver 12 sample sellers.' },
   },
 
   roofs: {
@@ -127,6 +137,8 @@ export const EN = {
     waxing:   { name:'Floor waxing',   text:'🧴 A cleaning crew of {n} is in the lobby, headed for floor {f}: it shuts for {s}s once they get up there — by lift or by stairs',
                 blockText:'🧴 Waxing has started: floor {f} is closed for {s}s — no stopping',
                 blockLateText:'🧴 The cleaners gave up on the lift and took the stairs up to floor {f}: closed for {s}s' },
+    closetime:{ name:'Closing time',   text:'🔒 Closing time: the shutters come down on floor {f} and {n} people all want to leave' },
+    sampling: { name:'Sample stands',  text:'🍢 Sample stands: {n} sellers set out from floor {f}, and they ride straight back once you deliver them' },
     lunch:    { name:'Lunch hour',     text:'🍜 Lunch hour: {n} people come down from the food court on floor {f}' },
     cinema:   { name:'Screening ends', text:'🎬 Screening ends: a full house of {n} leaves floor {f} at once' },
     shift:    { name:'Shift change',   text:'🎧 Shift change: {n} people clock off floor {f} together' },

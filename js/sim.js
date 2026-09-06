@@ -680,7 +680,19 @@ function openDoors(st, sim, s, f){
     for (let i = s.riders.length - 1; i >= 0; i--){
       const p = s.riders[i];
       if (p.dest !== ff) continue;
-      const money = fareOf(st, d, p);
+      // 滿意度：等待越短越高。下面結算評價要用它，**小費也用同一個**——
+      // 「夠快」在這支檔案裡只能有一個定義（#25）。
+      const wait = st.t - p.born;
+      const sat = 1 - Math.min(1, wait / Math.max(1, p.patience));
+      const fare = fareOf(st, d, p);
+      // 送得夠快的小費（#25 大包小包購物客）。**資料寫了 tip:{sat,mult} 才會發生**，
+      // 沒寫的人物走的還是原本那一行、一個位元組都沒變。
+      // 走跟車資完全一樣的帳（現金／本輪／終身／離線速率窗），因為它就是收入的一部分，
+      // 不是另一種貨幣；分開記帳只會多一個以後對不起來的數字。
+      const tip = (p.t.tip && sat >= (p.t.tip.sat != null ? p.t.tip.sat : 0.6))
+        ? fare * (p.t.tip.mult || 0) : 0;
+      if (tip > 0) st.stats.tips = (st.stats.tips || 0) + 1;
+      const money = fare + tip;
       st.cash += money; st.runRevenue += money; st.lifetimeRevenue += money;
       sim.rateAcc += money;
       st.stats.served++; s.st.carried++;
@@ -700,9 +712,7 @@ function openDoors(st, sim, s, f){
           sim.toasts.push({ txt: L(p.blockArm.ev, 'blockText', 'events')
             .replace('{f}', ff + 1).replace('{s}', Math.round(p.blockArm.secs)), life:4 });
       }
-      // 滿意度 → 評價（設計 4.5：別讓乘客生氣有長期複利價值）
-      const wait = st.t - p.born;
-      const sat = 1 - Math.min(1, wait / Math.max(1, p.patience));
+      // 滿意度 → 評價（設計 4.5：別讓乘客生氣有長期複利價值）。sat 在上面算過了。
       st.rating += (sat - 0.40) * 0.035 * d.ratingGain;
       if (p.t.rating) st.rating += p.t.rating;
       if (money > 0) sim.pops.push({ txt:'+$' + fmtShort(money), floor: ff, life:1, off: Math.random()*20-10 });

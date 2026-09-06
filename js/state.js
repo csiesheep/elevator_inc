@@ -19,8 +19,11 @@ export function newGame(carry){
     prestiges: (carry && carry.prestiges) || 0,
     bandsSeen: (carry && carry.bandsSeen) || { retail:true },
     runRevenue: 0, lifetimeRevenue: (carry && carry.lifetimeRevenue) || 0,
+    // tips = 收到幾次小費（#25）。舊存檔沒有這一欄，sim.js 那邊是 `(st.stats.tips || 0) + 1`，
+    // 所以不會變成 NaN；load() 只補頂層的欄位，不補 stats 裡面的，這是刻意的——
+    // 補進去等於幫舊存檔憑空發明一個「他曾經拿過 0 次」的事實，而那本來就是 0。
     stats: { served:0, abandoned:0, trips:0, floorsTravelled:0, boostTime:0, overheats:0,
-             shafts:[], bestRun:(carry && carry.bestRun) || 0 },
+             tips:0, shafts:[], bestRun:(carry && carry.bestRun) || 0 },
     ending: (carry && carry.ending) || false,
     roofStyle: (carry && carry.roofStyle) || 'chinese',   // 外觀，跨拆樓保留
     lastSave: Date.now(),
