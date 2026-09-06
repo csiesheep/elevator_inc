@@ -557,13 +557,17 @@ check('尖峰窗真的改變人流分布，兩個方向都要對（端對端）'
   //
   // 三個時段吃**同一條亂數序列**，所以唯一的差異是 st.t。那才是公平的對照。
   //
-  // **這條 guard 的餘裕很薄，踩到的人先讀這段**：釘住種子之後實測
-  //   出發 18 點 17.1% vs 3 點 12.2% → 比值 1.40（門檻 1.3，只有 7% 餘裕）
-  //   抵達  9 點 28.6% vs 3 點 16.2% → 比值 1.76（寬鬆）
-  // 薄的是「出發」那半。它紅的時候有兩種可能：尖峰窗真的失效了（缺陷），
-  // 或者有人動了樓層帶的 pop / up / down / wknd（合理的調參）。
-  // **先去看 BANDS 有沒有被改過，再懷疑 windowWeight。**
-  // 我沒有把門檻放寬——放寬會讓它抓不到小幅度的退步，而那正是它存在的理由。
+  // 餘裕（修好取樣之後重量，三顆種子）：
+  //   出發 18/3 → 1.51 / 1.64 / 1.85     抵達 9/3 → 1.68 / 1.66 / 1.87
+  //   門檻 1.3，餘裕 16–42%。樣本 646–1391。
+  //
+  // **修好之前是 1.40、樣本約 340，而且會亂跳**——一個 peer 量到：只改一個跟這條
+  // guard 完全無關的權重（貓，band:'any'、rare），比值在 1.271～1.731 之間跳、
+  // 對權重完全不單調，加了它反而更高。成因是下面那段索引取樣的 bug。
+  //
+  // 它紅的時候有兩種可能：尖峰窗真的失效了（缺陷），或者有人動了樓層帶的
+  // pop / up / down / wknd（合理的調參）。**先去看 BANDS 有沒有被改過，
+  // 再懷疑 windowWeight。** 我沒有把門檻放寬——放寬會讓它抓不到小幅度的退步。
   const sample = hour => withSeed(0x5eed1234, () => {
     const st = S.newGame(); st.floors = 60; st.cash = 1e9;
     st.up.speed = 4; st.up.cap = 4; st.up.shaft = 2;
@@ -572,17 +576,30 @@ check('尖峰窗真的改變人流分布，兩個方向都要對（端對端）'
     const bandOf = f => BANDS.find(x => f + 1 >= x.from && f + 1 <= x.to);
     const from = {}, to = {};
     let n = 0;
+    // **不要用索引認新乘客。** 第一版是 `for (k = before; k < sim.waiting.length; k++)`，
+    // 而 `sim.waiting` 在 step() 裡有三處 splice（封鎖清除 545、上車 790、放棄 855）：
+    //   · 上車的比新生的多 → 長度變短 → 那一圈整批漏掉
+    //   · 長度變長時 waiting[k] 也不保證是新來的（前面的人被移走，後面的往前遞補）
+    // 一個 peer 量到的症狀：只改一個**跟這條 guard 完全無關**的權重（貓，band:'any'、
+    // rare），比值在 1.271～1.731 之間亂跳、對權重完全不單調，而且加了它反而更高。
+    //
+    // 乘客有唯一的 `id`（sim.js:256 `nextId++`），所以改成按身分認。
+    // **同時掃 waiting 與所有 riders**：一個乘客在同一步裡出生又上車的話，
+    // 只看 waiting 會漏掉他——那不是隨機的漏，是偏向電梯剛好停著的那幾層。
+    const seen = new Set();
+    const note = p => {
+      if (seen.has(p.id)) return;
+      seen.add(p.id);
+      const bo = bandOf(p.origin), bd = bandOf(p.dest);
+      if (bo) from[bo.key] = (from[bo.key] || 0) + 1;
+      if (bd) to[bd.key] = (to[bd.key] || 0) + 1;
+      n++;
+    };
     for (let i = 0; i < 60000; i++){
       st.t = C.DAY_SECONDS * hour / 24;      // 每一步都釘住，否則跑一跑就跨出尖峰窗
-      const before = sim.waiting.length;
       M.step(st, sim, 1 / 20);
-      for (let k = before; k < sim.waiting.length; k++){
-        const p = sim.waiting[k];
-        const bo = bandOf(p.origin), bd = bandOf(p.dest);
-        if (bo) from[bo.key] = (from[bo.key] || 0) + 1;
-        if (bd) to[bd.key] = (to[bd.key] || 0) + 1;
-        n++;
-      }
+      for (const p of sim.waiting) note(p);
+      for (const sh of sim.shafts) for (const r of sh.riders) note(r);
     }
     return { from, to, n };
   });
