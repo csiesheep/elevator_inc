@@ -547,7 +547,24 @@ check('尖峰窗真的改變人流分布，兩個方向都要對（端對端）'
   //
   // 而且**只測一個方向不夠**：一個把 up/down 對調的實作，會在其中一個方向上
   // 看起來完全正常。兩個方向都要測，才分辨得出來。
-  const sample = hour => {
+  // **這條原本沒有釘住亂數**，於是它大約 6% 的機率會自己閃紅（一個 peer 用
+  // 17 次觀察量出來的：乾淨的 main 連跑 5 次全綠、它的 build 連跑 11 次全綠，
+  // 只有最初那一次紅）。第 9 組用了 withSeed，這一列漏了。
+  //
+  // 一個會自己閃紅的檢查比沒有這條檢查更糟：它訓練所有人忽略紅色，而且會讓
+  // 「基準線是零紅，所以任何紅都是你造成的」這個判準失效——我才剛把那句話
+  // 寫進派工單，然後這條就讓它變成假的。
+  //
+  // 三個時段吃**同一條亂數序列**，所以唯一的差異是 st.t。那才是公平的對照。
+  //
+  // **這條 guard 的餘裕很薄，踩到的人先讀這段**：釘住種子之後實測
+  //   出發 18 點 17.1% vs 3 點 12.2% → 比值 1.40（門檻 1.3，只有 7% 餘裕）
+  //   抵達  9 點 28.6% vs 3 點 16.2% → 比值 1.76（寬鬆）
+  // 薄的是「出發」那半。它紅的時候有兩種可能：尖峰窗真的失效了（缺陷），
+  // 或者有人動了樓層帶的 pop / up / down / wknd（合理的調參）。
+  // **先去看 BANDS 有沒有被改過，再懷疑 windowWeight。**
+  // 我沒有把門檻放寬——放寬會讓它抓不到小幅度的退步，而那正是它存在的理由。
+  const sample = hour => withSeed(0x5eed1234, () => {
     const st = S.newGame(); st.floors = 60; st.cash = 1e9;
     st.up.speed = 4; st.up.cap = 4; st.up.shaft = 2;
     st.auto.fifo = st.auto.scan = st.auto.look = true;
@@ -568,7 +585,7 @@ check('尖峰窗真的改變人流分布，兩個方向都要對（端對端）'
       }
     }
     return { from, to, n };
-  };
+  });
   const evening = sample(18), morning = sample(9), night = sample(3);
   const ne = nonEmpty(Math.min(evening.n, morning.n, night.n),
     `有時段一個乘客都沒生成（18點 ${evening.n}、9點 ${morning.n}、3點 ${night.n}）`);
