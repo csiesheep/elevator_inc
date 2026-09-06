@@ -202,6 +202,14 @@ export const EN = {
     trolley:    { name:'Trolley service',  note:'Deliver 10 room-service carts, four slots each.' },
     porter:     { name:'Bags upstairs',    note:'Deliver 36 bellhops — they pay nothing and only lift the rating.' },
     lastcheckin:{ name:'Home at last',     note:'Deliver 29 late-night guests, who only ever turn up in the small hours.' },
+    // 住宅帶的五條（#79 #80 #81 #82 #83）。
+    // 數字要跟 content.js 的判定一致（驗收第 8 組逐條比對中英兩邊）。
+    // walkies 的兩個數字都寫出來，理由跟中文那一列一樣：它數的是人次不是組數。
+    bigmove:   { name:'Moving day',        note:'Deliver 10 removals crews — their load takes four slots, so it is nearly a whole empty car.' },
+    walkies:   { name:'Walkies',           note:'Deliver 48 dog-walker rides — the owner and the dog each count, so 24 pairs in all.' },
+    hotfood:   { name:'Still hot',         note:'Deliver 26 food couriers — the shortest patience on these floors.' },
+    lastlight: { name:'Last light',        note:'Deliver 28 late homecomers, who only ever turn up between midnight and 4am.' },
+    renovated: { name:'Refurbished',       note:'Deliver 12 renovation crews — three slots of tools every time.' },
   },
 
   roofs: {
