@@ -41,6 +41,10 @@ const SPEC = {
 // 抓不到就讓那條 guard 回報 TODO——它不能假裝自己驗過。
 const SIM_SRC = await fetch(new URL('../js/sim.js', import.meta.url) + '?probe=' + Math.random())
   .then(r => r.ok ? r.text() : null).catch(() => null);
+const RENDER_SRC = await fetch(new URL('../js/render.js', import.meta.url) + '?probe=' + Math.random())
+  .then(r => r.ok ? r.text() : null).catch(() => null);
+const THEME_SRC = await fetch(new URL('../js/theme.js', import.meta.url) + '?probe=' + Math.random())
+  .then(r => r.ok ? r.text() : null).catch(() => null);
 
 // 招商在不在？第 3 組和第 7 組都要靠它決定「這條規則現在還存不存在」。
 const leasingGone = typeof S.buyLease !== 'function';
@@ -1255,5 +1259,181 @@ check('形狀背債表上的配對都還存在，而且都還在門檻以下', (
     `背債表 ${SHAPE_DEBT.size} 筆，${stale.length} 筆過期：` + stale.join('、'));
 });
 
+
+// ---------------------------------------------------------------- 16 配件色對得起地板嗎
+// 色距的第四條判準：**配件色對樓層底色 ΔE ≥ 25**。它是辦公帶那一趟才補上的
+// ——在它之前，判準只涵蓋三個身體色，所以 #31 把 `tourist` 的相機從「撞 pal.bad」
+// 改成「撞地板」時，**沒有任何東西會紅**。
+//
+// 一個 peer 把它跑遍現有 38 張（我複驗了 `tourist` 的 11.04 與最糟落點）：
+// **不及格的有五張，不只 tourist** —— tourist 11.04、office 18.93、queuer 19.96、
+// ceo 20.70、child 24.79。辦公帶的 artist 只回報 tourist，因為它是在自己那 12 張
+// 的脈絡下看的；`office` 是 26 張時代就有的、`queuer`／`child` 是零售帶的。
+//
+// **一個結構性的簡化（peer 發現）**：38 張全部、無一例外，最糟的都落在
+// `@0.78`（白天最亮的那一格）。所以給 artist 的實務建議是「只要對七個帶的
+// `shadeHex(band.color, 0.78)` 過關就夠了」——但 guard 仍然算全部 28 種，
+// 因為「最糟總是 0.78」是今天的事實，不是不變量。
+//
+// **一個我駁回的簡化**：peer 另外算了「只比乘客站得到的樓層」，那樣只剩三張
+// 不及格（ceo 與 child 掉出來，因為它們最糟的是實驗帶而它們不會站到那裡）。
+// **我用規格版（全部 28 種）**：可達性要把事件的 `at`／`to`／`summon` 會把人
+// 放到哪裡一起算進去，那是一個會安靜過期的推導；而**嚴一點的代價是 artist
+// 多花力氣，鬆一點的代價是玩家分不出來**。
+//
+// **這條擋得住哪一半／擋不住哪一半**：
+// peer 提了一個真的反對意見——`tourist`（3 格）與 `ceo`（2 格）的配件
+// **完全包在身體裡，四鄰沒有一格碰到背景**（我複驗過：touch=0），所以
+// 「配件對地板」量的不是它們真正的邊界。**但那個反對在 cs=1 時瓦解**：
+// `cs = clamp(floor(view.fh/11), 1, 3)`，我實測手機上 17 層以上一律 cs=1，
+// 整張圖只有 63 個實體像素、身體只有 1px 厚——**1px 的邊框在知覺上隔離不了
+// 任何東西**。所以：**cs=3（前期、1–10 層）時這條對「包在身體裡的配件」偏嚴，
+// cs=1（17 層以上）時它是對的**，而那正是形狀判準失效、顏色接手的那一段。
+section('16 配件色對得起地板嗎');
+
+// shadeHex 是從 render.js 逐字抄過來的（那裡沒有 export）。**抄本會漂移**，
+// 所以下面有一條檢查比對原始碼的文字；對不上就回 TODO，不假裝驗過。
+const SHADE_SRC_SIG = 'out |= Math.min(255, Math.round(((n >> sh) & 255) * k)) << sh';
+const shadeHex = (hex, k) => {
+  const n = parseInt(hex.slice(1), 16);
+  let out = 0;
+  for (const sh of [16, 8, 0]) out |= Math.min(255, Math.round(((n >> sh) & 255) * k)) << sh;
+  return '#' + out.toString(16).padStart(6, '0');
+};
+
+// **明暗係數從產品讀，不從設計文件抄。** 這跟第 0 組的原則不衝突：那些是
+// 設計**規定**的常數，而這裡問的是「產品實際畫得出來的每一種地板色」——
+// 主張的對象就是產品的渲染面，所以要跟著它走。有人加第三套主題也會被抓進來。
+const FLOOR_K = THEME_SRC == null ? null
+  : [...new Set((THEME_SRC.match(/floor[AB]:\s*([0-9.]+)/g) || [])
+      .map(m => parseFloat(m.split(':')[1])))].sort((a, b) => a - b);
+
+// ---- CIEDE2000（獨立實作，不從產品讀）。**比較之前不做任何格式化**：
+// 一個 peer 的檢查最後是 `.toFixed(2)`，把 11.9988 印成 12.00，於是它在物理上
+// 分不出「剛好 12」和「差一點不到 12」。這裡只在最後印出來時才格式化，
+// 而且印四位小數——門檻附近的餘裕看得見才有用。
+function hexToLab(hex){
+  const n = parseInt(hex.slice(1), 16);
+  const srgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(v => {
+    v /= 255;
+    return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  const [r, g, b] = srgb;
+  const X = (r * 0.4124564 + g * 0.3575761 + b * 0.1804375) / 0.95047;
+  const Y = (r * 0.2126729 + g * 0.7151522 + b * 0.0721750);
+  const Z = (r * 0.0193339 + g * 0.1191920 + b * 0.9503041) / 1.08883;
+  const f = t => t > 0.008856451679 ? Math.cbrt(t) : (903.2962962 * t + 16) / 116;
+  const fx = f(X), fy = f(Y), fz = f(Z);
+  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+}
+function ciede2000(hex1, hex2){
+  const [L1, a1, b1] = hexToLab(hex1), [L2, a2, b2] = hexToLab(hex2);
+  const rad = Math.PI / 180, deg = 180 / Math.PI;
+  const C1 = Math.hypot(a1, b1), C2 = Math.hypot(a2, b2), Cb = (C1 + C2) / 2;
+  const G = 0.5 * (1 - Math.sqrt(Math.pow(Cb, 7) / (Math.pow(Cb, 7) + Math.pow(25, 7))));
+  const A1 = (1 + G) * a1, A2 = (1 + G) * a2;
+  const Cp1 = Math.hypot(A1, b1), Cp2 = Math.hypot(A2, b2);
+  const hh = (x, y) => { if (x === 0 && y === 0) return 0; const t = Math.atan2(y, x) * deg; return t < 0 ? t + 360 : t; };
+  const hp1 = hh(A1, b1), hp2 = hh(A2, b2);
+  const dL = L2 - L1, dC = Cp2 - Cp1;
+  let dh = 0;
+  if (Cp1 * Cp2 !== 0){
+    dh = hp2 - hp1;
+    if (dh > 180) dh -= 360; else if (dh < -180) dh += 360;
+  }
+  const dH = 2 * Math.sqrt(Cp1 * Cp2) * Math.sin(dh / 2 * rad);
+  const Lb = (L1 + L2) / 2, Cpb = (Cp1 + Cp2) / 2;
+  let hb;
+  if (Cp1 * Cp2 === 0) hb = hp1 + hp2;
+  else if (Math.abs(hp1 - hp2) <= 180) hb = (hp1 + hp2) / 2;
+  else hb = (hp1 + hp2 + (hp1 + hp2 < 360 ? 360 : -360)) / 2;
+  const T = 1 - 0.17 * Math.cos((hb - 30) * rad) + 0.24 * Math.cos(2 * hb * rad)
+          + 0.32 * Math.cos((3 * hb + 6) * rad) - 0.20 * Math.cos((4 * hb - 63) * rad);
+  const dTh = 30 * Math.exp(-Math.pow((hb - 275) / 25, 2));
+  const Rc = 2 * Math.sqrt(Math.pow(Cpb, 7) / (Math.pow(Cpb, 7) + Math.pow(25, 7)));
+  const Sl = 1 + (0.015 * Math.pow(Lb - 50, 2)) / Math.sqrt(20 + Math.pow(Lb - 50, 2));
+  const Sc = 1 + 0.045 * Cpb, Sh = 1 + 0.015 * Cpb * T;
+  const Rt = -Math.sin(2 * dTh * rad) * Rc;
+  return Math.sqrt(Math.pow(dL / Sl, 2) + Math.pow(dC / Sc, 2) + Math.pow(dH / Sh, 2)
+                 + Rt * (dC / Sc) * (dH / Sh));
+}
+
+const FLOOR_MIN = 25;
+// **既有的五張按名字放行**（身分棘輪，跟第 15 組同一個作法）。這裡要擋的是
+// 「新圖讓它變糟」。每一條都要有理由，而且修好了要從表上移除——第二條檢查會點名。
+const FLOOR_DEBT = {
+  tourist: '#31 把相機從「撞 pal.bad」改成「撞地板」時，當時的判準只涵蓋身體色。'
+         + '11.04 是全表最差，而且最糟落在 office 白天（11–20 樓，前期玩家最常看的那一段）。#67 在處理。',
+  office:  '26 張時代就有的。18.93 對 hotel 白天。上班族是全遊戲最常出現的型別，'
+         + '改它會動到每一個畫面，要跟 #67 一起評估而不是順手改。',
+  queuer:  '零售帶的。規格版最糟是 obs 白天 19.96，但它只站零售帶——'
+         + '真正會遇到的最糟是 retail 白天 23.27。不及格，但不及格的理由跟規格算出來的不是同一個。',
+  ceo:     '20.70 對 exp 白天，而 CEO 在辦公帶、不會站到實驗樓層。'
+         + '配件只有 2 格而且四鄰沒有一格碰到背景（完全包在身體裡），'
+         + 'cs=3 時這條對它偏嚴；cs=1 時身體只有 1px 厚，隔離不了。',
+  child:   '24.79 對 exp 白天，差 0.21。走失兒童在零售帶、不會站到實驗樓層。'
+         + '七格配件有六格碰到背景，所以這條對它是適用的——只是最糟的那一格到不了。',
+};
+
+check('新加的圖，配件色對每一種樓層底色都要夠遠', () => {
+  if (FLOOR_K == null) return 'TODO: 讀不到 theme.js，取不到樓層明暗係數';
+  if (RENDER_SRC == null) return 'TODO: 讀不到 render.js，無法確認 shadeHex 的抄本沒有漂移';
+  if (RENDER_SRC.indexOf(SHADE_SRC_SIG) < 0)
+    return 'TODO: render.js 的 shadeHex 跟 harness 的抄本對不上了，這裡算出來的地板色不可信';
+  const ne0 = nonEmpty(FLOOR_K.length, 'theme.js 裡找不到任何 floorA/floorB');
+  if (ne0 !== true) return ne0;
+
+  const shades = [];
+  for (const b of BANDS) for (const k of FLOOR_K) shades.push(shadeHex(b.color, k));
+  const ne1 = nonEmpty(shades.length, '算不出任何樓層底色');
+  if (ne1 !== true) return ne1;
+
+  // 儀器活著嗎？一個顏色跟它自己的 ΔE 必須是 0，而且要看得到一個大的值。
+  if (ciede2000(shades[0], shades[0]) !== 0) return '儀器壞了：同色的 ΔE 不是 0';
+  if (!(ciede2000('#000000', '#ffffff') > 90)) return '儀器壞了：黑對白的 ΔE 不到 90';
+
+  const bad = [], rows = [], tight = [];
+  let checked = 0;
+  for (const [id, sp] of Object.entries(PEOPLE)){
+    if (!sp.acc) continue;
+    checked++;
+    let min = Infinity, at = '';
+    for (const b of BANDS) for (const k of FLOOR_K){
+      const d = ciede2000(sp.acc, shadeHex(b.color, k));
+      if (d < min){ min = d; at = b.key + '@' + k; }
+    }
+    if (FLOOR_DEBT[id]){ rows.push(id + ' ' + min.toFixed(4) + '（背債）'); continue; }
+    if (min < FLOOR_MIN) bad.push(id + ' ' + sp.acc + ' 最小 ΔE ' + min.toFixed(4) + ' @ ' + at);
+    else tight.push([id, min]);
+  }
+  // **門檻正上方那一叢要看得見。** 兩個獨立的 CIEDE2000 實作在同一組顏色上
+  // 差到 0.0022（我跟一個 peer 對過），而 townhaller 25.0122 / nightowl 25.0144
+  // 的餘裕只有那個差距的六倍——**換一個實作有可能翻面**。不是現在會錯，
+  // 是它們沒有餘裕，而下一個人要知道「25 不是一個可以瞄準的數字」。
+  tight.sort((x, y) => x[1] - y[1]);
+  const ne2 = nonEmpty(checked, '沒有任何一張圖有 acc，這條 guard 沒有試過任何東西');
+  if (ne2 !== true) return ne2;
+  return ok(bad.length === 0,
+    checked + ' 張圖 × ' + shades.length + ' 種樓層底色，' + bad.length
+    + ' 張新的低於 ' + FLOOR_MIN + '：' + bad.join('、') + '｜既有背債：' + rows.join('、')
+    + '｜貼著門檻的（沒有餘裕，換一個 ΔE 實作可能翻面）：'
+    + tight.slice(0, 3).map(x => x[0] + ' ' + x[1].toFixed(4)).join('、'));
+});
+
+check('配件色的背債表都還存在，理由都寫了，而且都還不及格', () => {
+  if (FLOOR_K == null || RENDER_SRC == null) return 'TODO: 讀不到 theme.js 或 render.js';
+  const ne = nonEmpty(Object.keys(FLOOR_DEBT).length, 'FLOOR_DEBT 是空的');
+  if (ne !== true) return ne;
+  const stale = [];
+  for (const [id, why] of Object.entries(FLOOR_DEBT)){
+    if (!PEOPLE[id] || !PEOPLE[id].acc){ stale.push(id + '（圖或 acc 不見了）'); continue; }
+    if (!why || why.length < 30){ stale.push(id + '（理由太短：沒有理由的例外等於沒有這條 guard）'); continue; }
+    let min = Infinity;
+    for (const b of BANDS) for (const k of FLOOR_K) min = Math.min(min, ciede2000(PEOPLE[id].acc, shadeHex(b.color, k)));
+    if (min >= FLOOR_MIN) stale.push(id + '（已經修好，' + min.toFixed(4) + '，該從表上移除）');
+  }
+  return ok(stale.length === 0,
+    '背債表 ' + Object.keys(FLOOR_DEBT).length + ' 筆，' + stale.length + ' 筆過期：' + stale.join('、'));
+});
 
 export { summary };
