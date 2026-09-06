@@ -21,6 +21,10 @@ export function createSim(st){
     rateWin: 0, rateAcc: 0,
     lobby: 0,
     blocked: {},                        // 封鎖樓層：{ 樓層索引: 解封時的 st.t }
+    // #111 電力突波的觀察單（同一個形狀，見 blockWatch）：停機期間沒有人放棄才記一筆。
+    stallWatch: null,
+    // #114 諾貝爾獎來訪：暫時的評價加值，到期扣回。null = 現在沒有任何加值。
+    ratingLift: null,
     // #22 的成就用的觀察單：每一次封鎖開一張，那層樓有人放棄就作廢。
     // 放在 sim 而不是 st：它是「這一次封鎖進行到哪」的暫時狀態，解封就結案，
     // 結案的**次數**才寫進 st.codex（設計 4.13：存檔只存 GameState）。
@@ -492,6 +496,27 @@ function runEvent(st, sim, ev, band, tenant, simTopAll, scale){
     if (ev.blockOn === 'deliver'){ arm = { ev, secs, floor: from, used: false }; blockSecs = secs; }
     else if (blockFloor(st, sim, from, secs)) blockSecs = secs;
   }
+  // 電力突波（#111）：**所有**電梯井強制停機。資料寫了 stall:[a,b] 才會發生，
+  // 沒寫的事件一個位元組都沒變。
+  //
+  // 走的是**既有的 `s.lock` 狀態機**（超速過熱用的那一個），不是第二套「電梯不能動」：
+  // 停機期間的行為因此跟過熱逐字相同（不移動、不開門、解鎖時熱量歸零），而玩家對
+  // 那個懲罰的體感已經被超速教過一次。`s.heat = heatMax` 只是為了讓畫面上的熱量條
+  // 對得起「熱量瞬間拉滿」這句文案——真正讓車停下來的是 `lock`。
+  let stallSecs = 0;
+  if (ev.stall){
+    stallSecs = ev.stall[0] + Math.random() * (ev.stall[1] - ev.stall[0]);
+    for (const sh of sim.shafts){ sh.heat = d.heatMax; sh.lock = stallSecs; }
+    // #111 的成就「停機也沒人走」用的觀察單，形狀跟 #22 的 blockWatch 一樣：
+    // 開一張，停機期間有人放棄就作廢，撐過去才記一筆。**一次只有一張**——
+    // 突波期間再來一次突波是同一段停機的延長，開兩張等於同一件事算兩次。
+    sim.stallWatch = { until: st.t + stallSecs, abandoned: st.stats.abandoned };
+  }
+  // 暫時的評價加值（#114）。夾限與漂移造成的失真寫在 content.js 的 ratingLift 欄位說明。
+  if (ev.ratingLift){
+    st.rating += ev.ratingLift[0];
+    sim.ratingLift = { amt: ev.ratingLift[0], until: st.t + ev.ratingLift[1] };
+  }
   const base = ev.n[0] + ((Math.random() * (ev.n[1] - ev.n[0] + 1)) | 0);
   const n = Math.min(40, Math.round(base * (scale || 1)));
   let made = 0;
@@ -526,10 +551,13 @@ function runEvent(st, sim, ev, band, tenant, simTopAll, scale){
   // 「一個人都沒生出來」原本就靜靜結束（免得跳出「0 個人」的提示）。**立刻封鎖**的
   // 事件是第一種不生人也真的發生了的事件，所以它要能走到下面；但**送達才封鎖**的
   // 事件在沒有人可送的時候什麼都不會發生，那就跟沒發生一樣，要靜靜結束。
-  if (!made && (arm || !blockSecs)) return;
+  // **停機是第二種「不生人也真的發生了」的事件**（第一種是立刻封鎖），所以它跟
+  // blockSecs 一起放行。送達才封鎖的那一種仍然要靜靜結束。
+  if (!made && (arm || (!blockSecs && !stallSecs))) return;
   const label = tenant ? `${L(tenant,'name','tenants')}：` : '';
   sim.toasts.push({ txt: label + L(ev,'text','events')
-    .replace('{n}', made).replace('{f}', from + 1).replace('{s}', Math.round(blockSecs)), life: 4 });
+    .replace('{n}', made).replace('{f}', from + 1)
+    .replace('{s}', Math.round(blockSecs || stallSecs)), life: 4 });
   sim.lastEvent = { name: L(ev,'name','events'), t: st.t, floor: from, n: made,
                     block: blockSecs, armed: !!arm };
   // B 疏散模式的目標。封鎖那層沒有人可疏散（電梯根本不能停），指過去只會讓玩家
@@ -646,13 +674,59 @@ function startMove(st, sim, s, f){
 // 車廂載滿了人在樓裡繞，一邊繼續開去接它已經接不下的人（#38）。
 // 上車時 s.riders.push(p) 推的是同一個物件，born 還在，所以兩邊都用 born。
 // 改這裡之前先問：新填進去的值，跟旁邊那一行是同一個時鐘嗎？
+// ------------------------------------------------------------ 包場（可重用，#117 機密貨箱）
+// 人物資料上的 `exclusive:true`（欄位說明在 content.js）。**它是一條上車規則，
+// 不是一個佔位數字**——用 `size:6` 表達「佔滿整台」在起始載客量 4 是「永遠上不了車」、
+// 在載客量 16 是「只佔 3/8」，兩端都壞。
+//
+// 這支只回答一個問題：這台車現在被包場了嗎。三個呼叫點共用它，因為
+// 「車上有沒有包場的乘客」在這支檔案裡只能有一個定義。
+const isSealed = s => s.riders.some(r => r.t.exclusive);
+
+// **空車優先去接包場的乘客。這一條不是優化，是這個機制能不能運作的關鍵。**
+// 包場的乘客只上空車，而一台空車在高人流下幾乎立刻就會載到別人——所以
+// 「剛好空著、而且第一個停靠剛好是他那層」是一個機率極低的巧合，不是一條路。
+// 實測（100 層 / LOOK / 4 井 / cap 8 / 8 種子 × 20 遊戲日，逐步量上車前的等待）：
+//     只擋「載不了他就不瞄準他」      中位 856 秒、最長 1555 秒，8 場裡 6 場結束時還卡著一個
+//     再加上這一條                    數字寫在 content.js 的 `crate` 那一列
+// 代價是明確而且是**這個機制本來就該付的**：一台空車會為了一個貨箱跑一趟遠路，
+// 那正是「誰都不能一起搭」的意思。crate 的 `w:3`（一場約兩個）讓它不會變成常態。
+// 回傳 null = 現在沒有這種呼叫，呼叫端照原本的路走（所以沒有 exclusive 資料時
+// 這支永遠回 null，整個機制等於不存在）。
+function soloCalls(st, sim, s){
+  if (s.riders.length) return null;
+  const out = [];
+  for (const p of sim.waiting){
+    if (!p.t.exclusive) continue;
+    if (p.origin < s.from || p.origin > s.to) continue;
+    if (isFloorBlocked(st, sim, p.origin)) continue;
+    out.push({ f: p.origin, since: p.born });
+  }
+  return out.length ? out : null;
+}
+
 function candidates(st, sim, s){
   const out = [], spare = [];
   // 封鎖中的樓層不是候選：車上要去那層的人先留在車上，等解封再送。
   for (const r of s.riders) if (!isFloorBlocked(st, sim, r.dest)) out.push({ f: r.dest, since: r.born });
+  // 包場中：這一趟一個人都上不了，所以候選只剩「把他送到」。
+  // **少了這一行，載著貨箱的車會照常開去接一整層它一個都收不了的人**，而 FIFO 會
+  // 照 `since` 把它釘在最早出現的那一層——貨箱於是永遠到不了，而且畫面上看起來
+  // 電梯很忙。這正是 #68「瞄準一個上不了車的乘客」的形狀，只是這次上不了車的
+  // 是別人。
+  if (isSealed(s)) return out;
   for (const p of sim.waiting){
     if (p.origin < s.from || p.origin > s.to) continue;
     if (isFloorBlocked(st, sim, p.origin)) continue;
+    // **不要瞄準一個這台車載不了的乘客**——這是 #68 那條學費的正面版本。
+    // 包場的乘客只上空車，所以一台載著人的車去他那層是白跑一趟；而他 patience 999,
+    // 會永遠是 FIFO 排序裡「最早開始等」的那一個，於是**每一台車都一直開去同一層、
+    // 每一次都載不到他**。實測（100 層 / LOOK / 4 井 / cap 8 / 8 種子 × 20 遊戲日，
+    // 沒有這一行）：貨箱上車前的等待中位 **449 秒**、最長 **998 秒**，場上最久的一個
+    // 等了 **1950 秒（10.8 個遊戲日）**，而且**每一場結束時都還有一個卡在佇列裡**。
+    // 加上這一行之後的數字寫在 content.js 的 `crate` 那一列。
+    if (p.t.exclusive && s.riders.length) continue;
+
     if (st.auto.group && p.assigned != null && p.assigned !== s.id){ spare.push({ f: p.origin, since: p.born }); continue; }
     out.push({ f: p.origin, since: p.born });
   }
@@ -696,14 +770,24 @@ function chooseTarget(st, sim, s){
   const cand = candidates(st, sim, s);
   if (!cand.length) return null;
 
+  // 空車優先去接包場的乘客（#117）。**放在這裡而不是 candidates() 裡面**：目的地控制
+  // 那一段不讀 `cand`，它自己從 sim.waiting 重算一遍權重，所以只擋 candidates() 會
+  // 漏掉一半的呼叫端。這裡是三種演算法唯一都會經過的地方。
+  // 排序用 `since`（開始等的時刻），跟 FIFO 同一個時鐘——兩個貨箱時先接先等的那一個。
+  const solo = soloCalls(st, sim, s);
+  if (solo) return solo.sort((a, b) => a.since - b.since)[0].f;
+
   // 目的地控制：系統知道每個人要去哪，所以會挑「最多人受益」的那一站
   if (st.auto.dest){
     const weight = new Map();
     const add = (f, w) => weight.set(f, (weight.get(f) || 0) + w);
     for (const r of s.riders) if (!isFloorBlocked(st, sim, r.dest)) add(r.dest, 1.4);   // 車上的人優先送到
-    for (const p of sim.waiting){
+    // 包場中不收人，所以等待的人一個都不進權重表——理由與 candidates() 那一行相同。
+    // **這條路要單獨擋一次**：目的地控制不讀 cand，它自己從 sim.waiting 重算一遍。
+    if (!isSealed(s)) for (const p of sim.waiting){
       if (p.origin < s.from || p.origin > s.to) continue;
       if (isFloorBlocked(st, sim, p.origin)) continue;
+      if (p.t.exclusive && s.riders.length) continue;   // 載不了他，理由見 candidates()
       if (st.auto.group && p.assigned != null && p.assigned !== s.id) continue;
       add(p.origin, 1 + (1 - p.left / p.patience));   // 快沒耐性的權重更高
     }
@@ -773,12 +857,43 @@ function openDoors(st, sim, s, f){
       const onTime = !!p.t.tip && sat >= (p.t.tip.sat != null ? p.t.tip.sat : 0.6);
       const tip = onTime ? fare * (p.t.tip.mult || 0) : 0;
       if (tip > 0) st.stats.tips = (st.stats.tips || 0) + 1;
-      const money = fare + tip;
+      // 限時獎金（#106 / #116）。**這不是第二個「快」的定義，是第二件事。**
+      // `tip` 的門檻是 `sat`（等待佔**耐性**的比例）；這一個的門檻是**絕對秒數**。
+      //
+      // 為什麼非要第二個欄位不可 —— 我先用 `tip` 做，然後量了：
+      //   100 層 / LOOK / 4 井 / cap 8，6 種子 × 20 遊戲日，大廳 → 實驗層，
+      //   **送到的樣本送件員 sat 全部是 0**（n=9，max 0.000）。
+      //   原因是結構性的：`sat = 1 − 等待/場上耐性`，而「等待」含移動時間；
+      //   一趟 90 層的移動本身就要 76–253 秒，場上耐性只有 66.7 秒。
+      //   所以 `tip` **無論門檻訂多低都給不出來**（sat≥0.1 也是 0%）。
+      //   一個永遠不會觸發的獎金，跟沒有這個獎金是一樣的。
+      // 「時間內送到」在長程上只能用秒數表達，這就是那個欄位。短程的人物繼續用 `tip`
+      // ——兩個欄位各自回答一個問題，沒有哪一個是另一個的複本。
+      // **沒寫 `bonus` 的人物一個位元組都沒變**，而且它不進 `st.stats.tips`：
+      // 那個計數器是 #25 那條成就的，混進來會讓那句文案變成假的。
+      const inTime = !!p.t.bonus && wait <= p.t.bonus.secs;
+      const bonus = inTime ? fare * (p.t.bonus.mult || 0) : 0;
+      const money = fare + tip + bonus;
       st.cash += money; st.runRevenue += money; st.lifetimeRevenue += money;
       sim.rateAcc += money;
       st.stats.served++; s.st.carried++;
       if (!st.codex[p.type]) { st.codex[p.type] = 0; }
       st.codex[p.type]++;
+      // 實驗樓層帶（#109 / #110 / #112）：三個事件跟三個人物**共用同一個型別**
+      // （#105：每開一個新型別，artist 就要多擠一個顏色進一個快要沒有位置的空間），
+      // 而兩條成就不可以讀同一個 codex 鍵。所以事件那一半改數「這一趟是不是事件生的」
+      // ——`p.fromEvent` 是 runEvent 蓋上去的旗標，隨機池裡遇到的同一種人沒有它。
+      // ⚠ **鍵寫成字面值，不是 `p.type + 'Event'` 算出來的**，跟 intervieweeOnTime /
+      //   waxClean / crewIntact 同一個形狀：驗收第 11 組靜態掃這支檔案的 `codex.xxx`，
+      //   算出來的鍵它看不到，而它看不到的正好是它要抓的那種安靜錯誤。
+      // ⚠ **這三行的前提是「今天只有那一個事件會生出這個型別」。**
+      //   再加一列 `type:'crate'` / `'hazmat'` / `'keeper'` 的事件，這三個計數器就會
+      //   被混進去，那三條成就的文案就變成假的。**下一個寫這三種 type 的事件要回來看這裡。**
+      if (p.fromEvent){
+        if (p.type === 'crate')  st.codex.crateEscort = (st.codex.crateEscort || 0) + 1;
+        if (p.type === 'hazmat') st.codex.protoDemo   = (st.codex.protoDemo   || 0) + 1;
+        if (p.type === 'keeper') st.codex.animalRound = (st.codex.animalRound || 0) + 1;
+      }
       // #27「一團都不能少」：整團送完、而且一路上沒有人放棄，才記一筆。
       // 記在 codex 不是 stats —— codex 跨拆樓保留（doPrestige），這是長線的收藏。
       if (p.crew && --p.crew.left === 0)
@@ -829,6 +944,17 @@ function openDoors(st, sim, s, f){
         if (p.type === 'interviewee')
           st.codex.intervieweeOnTime = (st.codex.intervieweeOnTime || 0) + 1;
       }
+      // 限時獎金的評價那一半，跟 `tip.rating` 完全平行：**純資料驅動**，
+      // 任何一列寫了 `bonus.rating` 就有，沒寫的一個位元組都沒變。
+      // 計數器帶著型別、而且是字面值 —— 跟 `intervieweeOnTime` 同一個形狀，
+      // 理由也逐字相同（第 11 組靜態掃這支檔案的 `codex.xxx`，算出來的鍵它看不到）。
+      // `codex.runner`（#116 那條成就）數的是**送到幾個**，這一個數的是**趕上倒數幾次**。
+      // **下一個寫 `bonus.rating` 的人物要在這裡多一行。**
+      if (inTime && p.t.bonus.rating){
+        st.rating += p.t.bonus.rating;
+        if (p.type === 'runner')
+          st.codex.runnerOnTime = (st.codex.runnerOnTime || 0) + 1;
+      }
       if (money > 0) sim.pops.push({ txt:'+$' + fmtShort(money), floor: ff, life:1, off: Math.random()*20-10 });
       // 招來同伴（#27）：送到之後才發生，所以掛在這裡而不是上車或生成的時候。
       summonCompanions(st, sim, p, hourOf(st), 'deliver', summoned);
@@ -843,10 +969,21 @@ function openDoors(st, sim, s, f){
   const boardFloors = floorsServed.filter(x => !isFloorBlocked(st, sim, x));
   const cap = d.capacity;
   const used = () => s.riders.reduce((a, p) => a + p.t.size, 0);
+  // 包場（#117）。整個機制在上車這一段，兩條規則：
+  //   1. **車上已經有包場的乘客 → 這一趟誰都不能再上。** `sealed` 在下客之後才算，
+  //      所以「貨箱下車了」的那一次開門會照常收人。
+  //   2. **包場的乘客只上空車。** 車上還有別人就跳過他，他繼續等下一台空的。
+  // 沒有任何一列資料寫 `exclusive` 的時候 `sealed` 恆為 false，這一段等於不存在。
+  let sealed = isSealed(s);
   for (const ff of boardFloors){
+    if (sealed) break;
     for (let i = 0; i < sim.waiting.length; i++){
+      if (sealed) break;
       const p = sim.waiting[i];
       if (p.origin !== ff) continue;
+      // 規則 2。**用 riders.length 不是 used()**：一個 size 0 的幽靈也算「車上有人」，
+      // 而「包場」講的是誰都不能一起搭，不是還剩幾格。
+      if (p.t.exclusive && s.riders.length) continue;
       // 必須同車（#63）：兩個人要嘛一起上，要嘛都不上。**位子要一次留兩份**——
       // 這一行就是這個機制的全部成本，也是它唯一會失敗的地方。
       let mate = (p.mate && p.mate.mate === p) ? p.mate : null;
@@ -867,6 +1004,7 @@ function openDoors(st, sim, s, f){
       p.board = st.t;
       s.riders.push(p); sim.waiting.splice(i, 1); i--;
       boarded++;
+      if (p.t.exclusive) sealed = true;    // 規則 1 從這一刻起生效（兩層轎廂的第二層也擋掉）
       if (p.t.doorPenalty) extra += p.t.doorPenalty;
       if (mate){
         // 另一半一定跟他同一層（同 origin）而且還在等（同 patience → 同一個 tick
@@ -957,6 +1095,24 @@ export function step(st, sim, dt){
       sim.blockWatch.splice(i, 1);
       if (w.clean) st.codex.waxClean = (st.codex.waxClean || 0) + 1;
     }
+  }
+
+  // #111 結算停機觀察單。**跟 blockWatch 一樣放在耐性迴圈之後**，理由逐字相同：
+  // 解除停機的那一格 tick 裡，因為停機而耗盡耐性的人是在這一輪才被結算掉的，
+  // 先結案就會把最後那一秒的流失算成「撐過去了」。
+  // 比的是 st.stats.abandoned 的**前後差**，不是某一層——突波停的是所有車，
+  // 所以整棟樓的任何一個放棄都算數。
+  if (sim.stallWatch && sim.stallWatch.until <= st.t){
+    if (st.stats.abandoned === sim.stallWatch.abandoned)
+      st.codex.surgeRide = (st.codex.surgeRide || 0) + 1;
+    sim.stallWatch = null;
+  }
+
+  // #114 暫時的評價加值到期：扣回同樣的 amt。下面的夾限那一行會處理超出範圍的情況
+  // ——所以「加之前是 4.9」的那一次扣完會是 4.65，這個失真寫在 content.js 的欄位說明。
+  if (sim.ratingLift && sim.ratingLift.until <= st.t){
+    st.rating -= sim.ratingLift.amt;
+    sim.ratingLift = null;
   }
 
   if (st.auto.group) groupAssign(st, sim, d);

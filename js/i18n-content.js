@@ -112,6 +112,21 @@ export const EN = {
     photocrew: { name:'Photo crew',       note:'Observation deck only. Tripods and kit take three slots, but they are here to wait for the light — this one costs you space, not time.' },
     acrophobe: { name:'Vertigo visitor',  note:'One look over the edge and they want straight back down. The least patient passenger in the building — but only one slot, and no hard feelings.' },
     deckguide: { name:'Deck guide',       note:'Observation deck only. Turns up with four to six sightseers in tow, so a party needs a whole row of slots. He barely pays a thing himself — the money is in the group.' },
+    // 實驗樓層帶的八個人物（#116–#119 四個進隨機池，另外四個 w:0 只由事件生）。
+    // **#115 研究員沒有在這裡**：它就是上面既有的 `scientist` / Researcher，
+    // 這一趟沒有開第二個研究員（issue 本文寫著「（現有）」）。
+    // ⚠ 第 13 組會比對「佔 N 格」與「卡 N 秒」（中英各一次）：
+    //   `hazmat` 是唯一有 doorPenalty 的一列（2.0），所以**只有它可以寫 "seconds"**；
+    //   其餘七列一個 "second" 都不可以出現。size 2 的三列（hazmat / keeper / rackman）
+    //   寫 "two slots" 是對的，其餘五列 size 1，一個 slot 數字都不寫。
+    runner:    { name:'Sample runner',    note:'Experimental floors only. The sample is on a countdown: beat it and the bonus is one and a half times the fare — faster than the median run, so it is not a given. Late by a moment and it is nothing at all.' },
+    crate:     { name:'Sealed crate',     note:'Experimental floors only. It rides alone: it boards an empty car only, and once it is aboard nobody else gets in. It never gives up — it simply stands there until you clear a car for it.' },
+    hazmat:    { name:'Hazmat technician',note:'Experimental floors only. Everything has to be decontaminated on the way in and out, so each one adds 2 seconds to the door cycle, and the suit takes two slots. Get a crowd of them and the doors never shut.' },
+    keeper:    { name:'Animal keeper',    note:'Experimental floors only. Commonest between six and nine in the morning. The cage takes two slots, and every trip is a short one.' },
+    leaker:    { name:'Breach evacuee',   note:'A containment breach sends a whole laboratory floor downstairs. The event cuts their patience to a quarter, so they are in far more of a hurry than they look.' },
+    nightlab:  { name:'Night-shift researcher', note:'Both ends of a handover: as one goes up, the one being relieved comes down. So a handover puts twice as many people on the floor as the event says.' },
+    rackman:   { name:'Server-rack porter', note:'Moving a machine room one rack at a time. Every one of them is pushing a full rack that takes two slots — a dozen arrive at once and no single trip will clear them.' },
+    laureate:  { name:'Nobel laureate',   note:'The highest fare in the building, and six research staff arrive with them — one party fills a whole car, and they will not wait long.' },
   },
 
   tenants: {
@@ -248,6 +263,23 @@ export const EN = {
     shutterbug: { name:'Tripods upstairs', note:'Deliver 20 photo crews — three slots of kit every time.' },
     groundlevel:{ name:'Ground is better', note:'Take 22 vertigo visitors back down — the shortest patience in the building.' },
     flagfollower:{name:'Follow the flag',  note:'Deliver 6 deck guides — each one arrives with four to six sightseers in tow.' },
+    // 實驗樓層帶的十四條（#106–#119）。**門檻的數字要跟中文那一邊一致**，
+    // harness 第 8 組會逐條比對中英兩邊。十四條讀十四個互不相同的 codex 鍵。
+    // 門檻怎麼量出來的（一場 = 20 遊戲日，目標約三場）寫在 content.js 那一區的表。
+    labcoat:      { name:'Lab coats',        note:'Deliver 30 researchers — the escort a laureate brings up all count.' },
+    chainofcustody:{name:'Chain of custody', note:'Deliver 10 sample runners. Theirs is the shortest patience on these floors; one in three getting through is a good day.' },
+    sealedload:   { name:'Sole occupant',    note:'Deliver 9 sealed crates — each one wants an empty car, so you have to clear everyone out first.' },
+    decontam:     { name:'Decon cycle',      note:'Deliver 16 hazmat technicians — every one of them adds two seconds of decontamination at the door.' },
+    feedingtime:  { name:'Feeding time',     note:'Deliver 25 animal keepers.' },
+    stillcold:    { name:'Still cold',       note:'Beat the countdown on 5 sample runs — you have to be quicker than an ordinary trip to manage it.' },
+    breachclear:  { name:'Breach cleared',   note:'Get 7 people down during containment breaches. They are on a quarter of their patience, so most of them you cannot save.' },
+    shiftchange:  { name:'Shift change',     note:'Deliver 2 night-shift researchers — a handover only happens in the last two hours of the day.' },
+    escorted:     { name:'Escorted',         note:'Complete 4 sealed-crate escorts — lobby to the laboratories, with the car cleared for it.' },
+    unveiled:     { name:'Unveiled',         note:'Take 5 hazmat technicians and their exhibit up to the observation deck.' },
+    rodeitout:    { name:'Rode out the surge',note:'Ride out 5 power surges — from the forced shutdown to the restart, with nobody giving up on waiting.' },
+    roundsdone:   { name:'Rounds done',      note:'Complete 4 early-morning animal-care rounds.' },
+    rackedup:     { name:'Rack by rack',     note:'Deliver 15 server-rack porters — every one of them pushing a full rack that takes two slots.' },
+    laureled:     { name:'The laureate',     note:'Deliver 2 Nobel laureates — a party of 7 fills a whole car, and the research escort is counted separately.' },
   },
 
   roofs: {
@@ -320,5 +352,19 @@ export const EN = {
     renovation:  { name:'Fitting-out crew',text:'🔨 Fitting-out crew: {n} fitters in the lobby with their tools, bound for floor {f}, three slots each' },
     latenight:   { name:'Home in the small hours', text:'🌃 Home in the small hours: {n} people in the lobby — yours is the only lift still running' },
     blackout:    { name:'Blackout',        text:'🔌 The power is out: {n} people push down from floor {f} in the dark, and none of them will wait' },
+    // 實驗樓層帶的九個事件（#106–#114）。
+    // ⚠ `cratehaul` 的英文名刻意是 'Sealed crate escort' 而不是 'Sealed crate'：
+    //   人物 `crate` 已經叫 'Sealed crate'，兩邊逐字同名正是 `movingday`
+    //   （'Moving day' → 'Moving crew'）與 `screening` 付過學費的形狀。
+    //   第 13 組只在同一張表內查撞名，所以同名不會紅——這是文案的消歧，不是被逼的。
+    sampledash: { name:'Sample dash',      text:'🧊 Sample dash: a specimen in the lobby is bound for the laboratories, and it is on a countdown' },
+    lableak:    { name:'Containment breach', text:'☣ Containment breach: {n} people on floor {f} have to get down now, and not one of them will wait' },
+    handover:   { name:'Shift handover',   text:'🌙 Shift handover on floor {f}: {n} people are swapping over — the relief goes up as the night shift comes down' },
+    cratehaul:  { name:'Sealed crate escort', text:'🔒 Sealed crate: one is waiting in the lobby for the laboratories, and it wants a car to itself' },
+    protodemo:  { name:'Prototype demo',   text:'🔬 Prototype demo: {n} people are taking the exhibit from floor {f} up to the deck, decontaminating at every door' },
+    powersurge: { name:'Power surge',      text:'⚡ Power surge: every car has gone straight to maximum heat and shut down for {s}s' },
+    animalcare: { name:'Animal care',      text:'🐁 Animal care: {n} keepers on floor {f} are moving cages to another floor' },
+    datamove:   { name:'Data-centre move', text:'🖥 Data-centre move: {n} people on floor {f}, one rack each, and every rack takes two slots' },
+    nobel:      { name:'Nobel visit',      text:'🏅 A Nobel laureate is here: a party of 7 in the lobby bound for floor {f}, and the whole building looks better for it' },
   },
 };
