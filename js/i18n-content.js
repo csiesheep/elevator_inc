@@ -83,7 +83,7 @@ export const EN = {
     celeb:       { name:'Celebrity',       note:'A celebrity checking in — a pack of reporters turns up with them. Second-highest fare in the game, and barely more patient than the CEO.' },
     reporter:    { name:'Reporter',        note:'Press following the celebrity up. The gear takes two slots, and six to nine of them will not fit in one car.' },
     delegate:    { name:'Conference delegate', note:'A whole delegation arriving at once, all for the same floor. Plenty of them, but nothing in their hands except a lanyard.' },
-    jamcart:     { name:'Luggage trolley', note:'A hotel porter with a luggage trolley. Three slots, and it jams the doors open for 8 seconds — that car is going nowhere.' },
+    jamcart:     { name:'Luggage trolley', note:'A luggage trolley pushed by a hotel porter. Three slots, and it jams the doors open for 8 seconds — that car is going nowhere.' },
   },
 
   tenants: {
