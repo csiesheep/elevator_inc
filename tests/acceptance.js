@@ -5,7 +5,7 @@
 // 不是從 content.js 讀的。這是刻意的：見 harness.js 開頭第 1 點。
 
 import { section, check, eq, near, ok, nonEmpty, R, summary } from './harness.js';
-import { CONFIG as C, BANDS, UPGRADES, PASSENGERS, ACHIEVEMENTS, SKILLS, EVENTS } from '../js/content.js';
+import { CONFIG as C, BANDS, UPGRADES, PASSENGERS, ACHIEVEMENTS, SKILLS, EVENTS, TENANTS } from '../js/content.js';
 import { EN } from '../js/i18n-content.js';
 import { PEOPLE } from '../js/sprites.js';
 import * as S from '../js/state.js';
@@ -1697,6 +1697,61 @@ check('沒有兩張同框的圖剪影完全相同', () => {
     + '而在 cs=1（17 層以上，一張圖 7×9 個實體像素）配件只有 1–2 個像素。'
     + '**第 15 組的三態度量看不到這一格**：它把剪影相同的一對算成 9，'
     + '跟其他「有點像」的配對沒有差別。');
+});
+
+
+// ---------------------------------------------------------------- 18 每一列事件都走得到嗎
+// #86：七列事件在表上看起來是活的，實際上**從招商移除之後觸發過 0 次**——
+// 它們走的是 `tenantEvents()`，而那條路的入口是每一帶的 `defaultTenant()`，
+// 招商拿掉之後七個 default 全是 plain、都沒有 `event`。
+//
+// **三個 peer 各自在旁邊註記過「這是死的」，沒有人開單**，而它安靜地佔著
+// `EVENTS` 表五分之一。整條路已經移除（`orchestrator 裁決（#86）`，
+// 而 owner 對「大樓的組成決定它的節奏」那個構想的表態留在 #89）。
+//
+// 這一組守兩件事，而第二件是一個 peer 指出的、比我原本想的緊：
+//
+// > **這次的 bug 不是「走不到」，是「走得到但沒有人在那條路上」。**
+//
+// 所以除了「每一列都走得到」，還要擋「**被移除的那條路以死資料的形式回來**」。
+section('18 每一列事件都走得到嗎');
+
+check('每一列事件都進得了隨機事件池', () => {
+  const bandKeys = new Set(BANDS.map(b => b.key));
+  // `at` / `to` 可以是樓層帶、'lobby'、或 'any'
+  const resolves = k => k == null || k === 'lobby' || k === 'any' || bandKeys.has(k);
+  const bad = [];
+  for (const e of EVENTS){
+    if (!(e.w > 0)) bad.push(`${e.id} 的 w 是 ${e.w}——**權重 0 就永遠抽不到**`);
+    if (!resolves(e.at)) bad.push(`${e.id} 的 at='${e.at}' 解析不到任何樓層帶`);
+    if (!resolves(e.to)) bad.push(`${e.id} 的 to='${e.to}' 解析不到任何樓層帶`);
+  }
+  const ne = nonEmpty(EVENTS.length, 'EVENTS 是空的，這條 guard 沒有試過任何東西');
+  if (ne !== true) return ne;
+  return ok(bad.length === 0,
+    `${EVENTS.length} 列事件，${bad.length} 列進不了池子：` + bad.join('、')
+    + `｜（時段能不能抽到是第 12 組在管——一列可以 w>0、at/to 都對，`
+    + `而 hours 窗落在梳齒之間，那時它一樣是死的。）`);
+});
+
+check('已經移除的租戶事件路徑，不可以用死資料的形式回來', () => {
+  const ne1 = nonEmpty(EVENTS.length, 'EVENTS 是空的');
+  if (ne1 !== true) return ne1;
+  const ne2 = nonEmpty(TENANTS.length, 'TENANTS 是空的');
+  if (ne2 !== true) return ne2;
+  const bad = [];
+  for (const e of EVENTS)
+    if (e.byTenant)
+      bad.push(`EVENTS.${e.id} 標了 byTenant——**那條路 #86 已經移除，這一列永遠不會觸發**`);
+  for (const t of TENANTS){
+    if (t.event) bad.push(`TENANTS.${t.id} 有 event:'${t.event}'——沒有人會讀它`);
+    if (t.every) bad.push(`TENANTS.${t.id} 有 every——沒有人會讀它`);
+  }
+  return ok(bad.length === 0,
+    `${EVENTS.length} 列事件 + ${TENANTS.length} 個租戶，${bad.length} 處是死資料：` + bad.join('、')
+    + `｜**這一類不會出錯、不會空白**：它在表上看起來是活的，而執行時一次都不會走到。`
+    + `要恢復「大樓的組成決定它遇到什麼」，正確的做法在 #89——`
+    + `讓租戶決定「抽到哪一列」而不是「多久一次」，共用同一個全域預算。`);
 });
 
 export { summary };
