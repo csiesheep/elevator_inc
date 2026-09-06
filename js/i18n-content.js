@@ -131,6 +131,9 @@ export const EN = {
     launchday: { name:'Launch day',       note:'Deliver 30 launch queuers.' },
     foundkid:  { name:'Found you',        note:'Carry a lost child.' },
     jackpot:   { name:'Collect the prize',note:'Deliver 20 prize winners.' },
+    // #22 / #27。數字要跟 content.js 的判定一致（驗收第 8 組逐條比對）。
+    waxdry:    { name:'Clean finish',     note:'Ride out 4 floor-waxing shutdowns with nobody giving up on the sealed floor.' },
+    entourage: { name:'Nobody left behind',note:'Deliver 25 complete influencer entourages without losing a single companion.' },
   },
 
   roofs: {

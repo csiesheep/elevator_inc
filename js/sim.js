@@ -21,6 +21,10 @@ export function createSim(st){
     rateWin: 0, rateAcc: 0,
     lobby: 0,
     blocked: {},                        // 封鎖樓層：{ 樓層索引: 解封時的 st.t }
+    // #22 的成就用的觀察單：每一次封鎖開一張，那層樓有人放棄就作廢。
+    // 放在 sim 而不是 st：它是「這一次封鎖進行到哪」的暫時狀態，解封就結案，
+    // 結案的**次數**才寫進 st.codex（設計 4.13：存檔只存 GameState）。
+    blockWatch: [],
   };
   syncShafts(st, sim);
   return sim;
@@ -154,7 +158,22 @@ export function blockFloor(st, sim, f, secs){
     if (s.queue.length) s.queue = s.queue.filter(q => q !== f);
     if (s.target === f && s.mode === 'moving'){ s.target = null; s.vel = 0; s.mode = 'idle'; }
   }
+  // #22 成就「撐過一次打蠟」：開一張觀察單。**掛在 blockFloor() 而不是打蠟事件裡**，
+  // 因為這裡是「某一層剛剛被封起來」唯一的入口（事件送達觸發與 stairsUp 兩條路都經過
+  // 這裡）；掛在事件上就會有第二條漏掉的路。
+  // 同一層再被封（延長）不開第二張——延長的是同一次封鎖，開兩張等於同一件事算兩次。
+  sim.blockWatch = sim.blockWatch || [];
+  const open = sim.blockWatch.find(w => w.f === f);
+  if (open) open.until = until;
+  else sim.blockWatch.push({ f, until, clean: true });
   return true;
+}
+
+// 那層樓有人放棄 → 這次封鎖不算乾淨。沒有觀察單的樓層是 no-op，所以呼叫端
+// 不必先問「現在有沒有被封」——那個問題問了兩次就會有兩種答案。
+function markBlockLoss(sim, f){
+  if (!sim.blockWatch) return;
+  for (const w of sim.blockWatch) if (w.f === f) w.clean = false;
 }
 export function isFloorBlocked(st, sim, f){
   const until = sim.blocked && sim.blocked[f];
@@ -271,17 +290,34 @@ function summonCompanions(st, sim, p, h, when, out){
   if (isFloorBlocked(st, sim, to)) return 0;   // 跟 spawn() 同一條規則：終點不生，起點照常
   const [a, z] = cfg.n || [1, 1];
   const want = a + ((Math.random() * (z - a + 1)) | 0);
-  let made = 0;
+  const crew = [];
   summonDepth++;
   try {
     for (let i = 0; i < want; i++){
       if (sim.waiting.length + (out ? out.length : 0) >= WAIT_CAP) break;   // 閘 2
       const q = makePassenger(st, sim, o, to, h, cfg.type ? { type: cfg.type } : null, out);
       q.summoned = true;
-      made++;
+      crew.push(q);
     }
   } finally { summonDepth--; }
-  return made;
+  // #27 的成就「一團都不能少」：真的招到兩個以上才算一團。
+  //   · **用 crew.length 不是 want**：WAIT_CAP 擋掉的那幾個從來沒有存在過，
+  //     拿 want 當分母等於要求玩家送到不存在的人——一條永遠拿不到的成就。
+  //   · **≥2 才成團**：n:[1,1] 的試吃推銷員（#26）與走失兒童（#21）走的是同一支
+  //     程式，一個人的「團」只是一位乘客，算進來會把這條變成「又一個計數器」。
+  //     今天唯一 on:'deliver' 且會招到 2 個以上的資料列就是網紅排隊客（n:[2,3]）。
+  //     **再加一列這種資料的人：回來看這裡，成就文案寫的是網紅。**
+  //   · left 從 crew.length 開始，每**送到**一個減一，歸零才記一筆。
+  //     ⚠ 這裡原本還有一個 `ok` 旗標，在耐性迴圈裡標記「有人放棄了」——**那是死碼**，
+  //     實測拿掉它 8×3×4 格的數字一個都沒動。理由：left 只有送達會減，放棄的人
+  //     不會減，所以只要有一個人放棄，left 就永遠到不了 0。「整團送完」本身已經
+  //     蘊含「一個都沒放棄」。留著一個永遠不會改變結果的旗標，下一個人會以為
+  //     那裡有一道防線。
+  if (crew.length >= 2 && (cfg.on || 'deliver') === 'deliver'){
+    const g = { left: crew.length };
+    for (const q of crew) q.crew = g;
+  }
+  return crew.length;
 }
 
 // 2 垂直人口分布。整棟樓逐個模擬 —— 不再有「高樓層只取樣 5%」這件事，
@@ -705,6 +741,10 @@ function openDoors(st, sim, s, f){
       st.stats.served++; s.st.carried++;
       if (!st.codex[p.type]) { st.codex[p.type] = 0; }
       st.codex[p.type]++;
+      // #27「一團都不能少」：整團送完、而且一路上沒有人放棄，才記一筆。
+      // 記在 codex 不是 stats —— codex 跨拆樓保留（doPrestige），這是長線的收藏。
+      if (p.crew && --p.crew.left === 0)
+        st.codex.crewIntact = (st.codex.crewIntact || 0) + 1;
       if (p.t.ghost){
         const bonus = 50 * st.floors;
         st.cash += bonus; st.runRevenue += bonus; sim.rateAcc += bonus;
@@ -815,7 +855,19 @@ export function step(st, sim, dt){
       sim.waiting.splice(i, 1);
       st.stats.abandoned++;
       st.rating -= 0.02 * (p.t.angry || 1);
+      markBlockLoss(sim, p.origin);          // #22：這一層正在封鎖的話，這次不算乾淨
       sim.pops.push({ txt:t('gaveUp'), floor:p.origin, life:1, bad:true, off: Math.random()*20-10 });
+    }
+  }
+
+  // #22 結算觀察單。**放在耐性迴圈之後**：解封的那一格 tick 裡，因為封鎖而耗盡耐性
+  // 的人還是在這一輪才被結算掉，先結案就會把最後那一秒的流失算成「乾淨」。
+  if (sim.blockWatch){
+    for (let i = sim.blockWatch.length - 1; i >= 0; i--){
+      const w = sim.blockWatch[i];
+      if (w.until > st.t) continue;
+      sim.blockWatch.splice(i, 1);
+      if (w.clean) st.codex.waxClean = (st.codex.waxClean || 0) + 1;
     }
   }
 
