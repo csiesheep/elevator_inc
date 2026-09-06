@@ -1,0 +1,578 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+  <style>
+    body { margin: 0; }
+    x-dc { display: block; }
+    a { color: #7dd8f7; } a:hover { color: #ffd23f; }
+    canvas { image-rendering: pixelated; display: block; }
+    .pxs { font-family: "Pixelify Sans", "Courier New", monospace; }
+    .k { color: #e8eaf0; font-weight: 700; }
+    code { font-family: ui-monospace, monospace; color: #7dd8f7; font-size: .94em; }
+    th, td { text-align: left; padding: 6px 14px 6px 0; font-size: 12.5px; vertical-align: top; }
+    th { color: #6b6f9e; font-weight: 500; border-bottom: 1px solid #2a2d55; }
+    td { border-bottom: 1px solid #20233c; color: #b9bfd8; line-height: 1.55; }
+    .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+    .cell { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+    .cap { font-size: 10.5px; color: #6b6f9e; text-align: center; }
+    .capk { font-size: 11px; color: #e8eaf0; font-weight: 700; text-align: center; }
+    .capn { font-size: 10px; color: #ffd23f; text-align: center; font-family: ui-monospace, monospace; }
+    h2.pxs { margin: 30px 0 6px; font-size: 17px; color: #ffd23f; }
+    p.lead { margin: 0 0 14px; font-size: 12.5px; line-height: 1.8; color: #8f95d6; max-width: 80em; }
+    .panel { background: #0a0c12; border: 1px solid #20233c; padding: 14px 16px 16px; }
+    .lbl { font-size: 11px; color: #6b6f9e; margin-bottom: 8px; letter-spacing: .06em; }
+    .ok { color: #5ddc9a; } .no { color: #ff8a8a; } .warn { color: #f0a04a; }
+    .warnbox { border-left: 3px solid #f0a04a; padding: 8px 0 8px 12px; margin: 12px 0;
+               font-size: 12px; line-height: 1.75; color: #d8c0a0; max-width: 78em; }
+    .okbox { border-left: 3px solid #5ddc9a; padding: 8px 0 8px 12px; margin: 12px 0;
+             font-size: 12px; line-height: 1.75; color: #a8d8bd; max-width: 78em; }
+  </style>
+</helmet>
+
+<div style="max-width: 1420px; background: #0f1116; padding: 22px 24px 44px;
+     font-family: 'Noto Sans TC','PingFang TC',sans-serif; color: #e8eaf0;">
+
+  <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:6px">
+    <h1 class="pxs" style="margin:0;font-size:26px;font-weight:700;color:#ffd23f">辦公帶的 12 張新圖</h1>
+    <span style="font-size:12.5px;color:#8f95d6">#39 · 併成一組看</span>
+  </div>
+  <p class="lead">
+    這一頁的規矩跟 <code>RetailSprites.dc.html</code> 一樣，只是這次是 <span class="k">38 張</span>：
+    背景用<span class="k">遊戲真正的樓層底色</span>（<code>shade(band.color, pal.floorA/floorB, pal.floorAlpha)</code>，
+    辦公帶 <code>#3f5a52</code>），<span class="k">日夜各一次</span>，<span class="k">normal 與 urgent 兩種姿勢</span>，
+    格子大小用遊戲真正的 <code>cs = clamp(floor(fh/11), 1, 3)</code>。
+    <span class="k">下面每一節的第一個尺寸都是 cs=1</span>，也就是 7×9 個實體像素——27 層以上整場都是這個大小，
+    放大好看不算數。所有數字（ΔE、形狀差）都在這一頁<span class="k">當場算</span>，不是抄來的。
+  </p>
+
+  <div class="row" style="align-items:center;gap:10px;margin:16px 0 6px">
+    <span style="font-size:12px;color:#8f95d6">外部光線</span>
+    <button id="bNight" style="font:12px 'Noto Sans TC',sans-serif;padding:5px 14px;cursor:pointer;
+      background:#191c3e;color:#e8eaf0;border:1px solid #3f4478">夜（0:00）</button>
+    <button id="bDay" style="font:12px 'Noto Sans TC',sans-serif;padding:5px 14px;cursor:pointer;
+      background:#191c3e;color:#e8eaf0;border:1px solid #3f4478">日（12:00）</button>
+    <span id="now" style="font:12px ui-monospace,monospace;color:#ffd23f"></span>
+    <span style="font-size:11.5px;color:#6b6f9e">
+      —— <code>ink</code>／<code>bad</code> 在 theme.js 裡日夜同色，只有 <code>floorA/B</code> 的乘數會走
+      （夜 0.62／0.52 → 日 0.78／0.66）。<span class="k">所以這顆鍵在測的是「背景變亮 26% 之後，配件還在不在」</span>。</span>
+  </div>
+
+  <h2 class="pxs">0 · 接觸印樣：38 張一次看完（這一頁的驗收憑據）</h2>
+  <p class="lead">
+    每一格：<span class="k">左邊 normal、右邊 urgent</span>，底色是真的樓層底色（奇偶層兩種交錯），
+    下面那一條是<span class="k">遊戲裡真正的三種大小 cs=1／2／3，沒放大</span>。
+    要看的是：<span class="k">掃過去有沒有哪兩張讓你停下來想「這兩個是不是同一個」</span>。
+  </p>
+  <div class="panel" style="overflow-x:auto"><canvas id="sheet" width="1360" height="1000"></canvas></div>
+
+  <h2 class="pxs">1 · cs=1，樓層底色（現場最常見的大小）</h2>
+  <p class="lead">1:1 的 7×9 實體像素，旁邊那格是同一張放大 6 倍、只為了看清楚哪一格是哪一格。</p>
+  <div class="panel"><div class="lbl">既有 26 種（一格都沒動）</div><div class="row" id="g1old"></div></div>
+  <div class="panel" style="margin-top:12px"><div class="lbl">新增 12 種（辦公帶 #39）</div><div class="row" id="g1new"></div></div>
+
+  <h2 class="pxs">2 · urgent：身體整個轉成 <code>pal.bad</code>，只剩剪影跟配件在扛</h2>
+  <p class="lead">
+    耐性剩 25% 以下時身體變 <code>#e2645a</code>，配件保留自己的顏色，頭上加一個驚嘆號。
+    <span class="k">這一關最容易出事</span>——#31 觀光客的相機就是在這裡消失的（它的相機色逐字等於 <code>pal.bad</code>）。
+    新的 12 個對 <code>pal.bad</code> 的最小 ΔE 見第 5 節。
+  </p>
+  <div class="panel"><div class="lbl">既有 26 種 · urgent</div><div class="row" id="g2old"></div></div>
+  <div class="panel" style="margin-top:12px"><div class="lbl">新增 12 種 · urgent</div><div class="row" id="g2new"></div></div>
+
+  <h2 class="pxs">3 · 轎廂裡：墨色會翻過來，配件不翻</h2>
+  <p class="lead">
+    樓層上身體是 <code>pal.ink</code>（<code>#eaf0fb</code>，淺墨深底）；進了轎廂變 <code>pal.inkCar</code>
+    （<code>#12161f</code>，深墨淺底），<span class="k">但配件色不翻</span>。一張圖要在兩種都成立。
+  </p>
+  <div class="panel"><div class="lbl">轎廂內 · 新增 12 種</div><div class="row" id="g3"></div></div>
+
+  <h2 class="pxs">4 · 真的樓層：家具、樓層號、目的地牌都在</h2>
+  <p class="lead">
+    上面那幾格是把小人放在純色塊上。實際上他們站在<span class="k">有家具、有左緣色條、右邊還有目的地牌</span>的地方，
+    而且<span class="k">隊伍靠著電梯由右往左排</span>。這一節照 <code>render.js</code> 的排法重畫，
+    每格 <code>7·cs + 牌寬 + 14</code>。
+  </p>
+  <div class="panel"><div class="lbl">樓高 34px（cs=3，約 10 層樓的塔）</div><canvas id="scene3" width="1320" height="76"></canvas></div>
+  <div class="panel" style="margin-top:12px"><div class="lbl">樓高 24px（cs=2，約 22 層樓）</div><canvas id="scene2" width="1320" height="56"></canvas></div>
+  <div class="panel" style="margin-top:12px"><div class="lbl">樓高 17px（cs=1，約 33 層樓——再低就不畫人了）</div><canvas id="scene1" width="1320" height="42"></canvas></div>
+
+  <h2 class="pxs">5 · 配件色：四條判準，全部當場算</h2>
+  <p class="lead">
+    檔頭那三條（兩兩 ≥ 12、對三種身體色 ≥ 25、色相位移 ≤ 21°）加上<span class="k">這一趟加的第四條</span>：
+    <span class="k">對 28 種樓層底色 ΔE ≥ 25</span>（7 個帶 × 4 個乘數）。
+    前三條只管身體色，完全沒管背景；而<span class="k">配件被背景吃掉跟被身體吃掉是同一種失效</span>。
+  </p>
+  <div class="panel"><div id="verdict"></div></div>
+  <div class="panel" style="margin-top:12px"><div class="lbl">新增 12 色 · 色票畫在真的樓層底色上</div>
+    <div class="row" id="swatch" style="gap:10px"></div></div>
+  <div class="panel" style="margin-top:12px"><div class="lbl">逐一：每個新色離什麼最近</div>
+    <table style="width:100%;border-collapse:collapse" id="tblColor"></table></div>
+
+  <h2 class="pxs">6 · 形狀：最像的幾對（把「看得出來」變成數字）</h2>
+  <p class="lead">
+    分數 = <code>min(normal, urgent)</code> 的「<span class="k">輪廓格差 + 配件格差</span>」，越小越像。
+    輪廓格差 = 兩張的「有畫東西的格子」集合對稱差；配件格差 = 兩張的 <code>'o'</code> 格集合對稱差。
+    <span class="k">這不是替代眼睛，是替眼睛排優先序</span>：分數低的那幾對，上面第 0 節要盯著看。
+  </p>
+  <div class="panel"><table style="width:100%;border-collapse:collapse" id="tblShape"></table></div>
+
+  <h2 class="pxs">7 · 量體分配表（這一組真正的設計）</h2>
+  <p class="lead">
+    26 張之後，7×9 的<span class="k">明顯位置已經用完了</span>。所以這一組是先列出「還空著的位置」，
+    再一個一個填進去——不是先畫圖再看撞到誰。
+  </p>
+  <div class="panel"><table style="width:100%;border-collapse:collapse" id="tblMass"></table></div>
+
+  <div class="warnbox" id="notes"></div>
+</div>
+
+<script type="module">
+import { PEOPLE, SPRITE_W, SPRITE_H } from '../js/sprites.js';
+import { P, setHour } from '../js/theme.js';
+import { MOTIFS, MOTIF_W, MOTIF_H } from '../js/interior.js';
+import { numWidth, drawPlate, GLYPH_H } from '../js/digits.js';
+
+// ---- 從 content.js 抄過來的常數（這一頁不 import content.js，免得跟 BE 的改動綁在一起）
+const OFFICE_COLOR = '#3f5a52';
+const BANDS = { retail:'#3a4a63', office:'#3f5a52', hotel:'#5c4a3a', resid:'#4a3f5c',
+                obs:'#3a5570', exp:'#5c3a4a', roof:'#2f4f6b' };
+const FLOOR_K = [0.52, 0.62, 0.66, 0.78];   // floorB 夜／floorA 夜／floorB 日／floorA 日
+
+const OLD = ['office','tourist','courier','guard','ceo','cat','ghost','mover','guest','resident',
+             'observer','scientist','anniv','winner','diner','movie','dolly','queuer','closing',
+             'child','waxer','sampler','stroller','loaded','janitor','influencer'];
+const NEW = ['attendee','townhaller','client','newhire','interviewee','nightowl',
+             'coffeegoer','repairman','outager','laidoff','evacuee','remote'];
+const NAME = {
+  office:'上班族', tourist:'觀光客', courier:'送貨員', guard:'保全', ceo:'CEO', cat:'貓',
+  ghost:'幽靈', mover:'搬家公司', guest:'房客', resident:'住戶', observer:'觀景客', scientist:'研究員',
+  anniv:'週年慶客', winner:'中獎人', diner:'午餐客', movie:'散場觀眾', dolly:'推車送貨員',
+  queuer:'首賣排隊客', closing:'打烊人潮', child:'走失兒童', waxer:'打蠟工', sampler:'試吃推銷員',
+  stroller:'推嬰兒車家長', loaded:'大包小包購物客', janitor:'打烊清潔工', influencer:'網紅排隊客',
+  attendee:'會議與會者', townhaller:'開全員大會的員工', client:'來訪客戶', newhire:'新人',
+  interviewee:'面試者', nightowl:'加班的人', coffeegoer:'下樓買咖啡的人', repairman:'影印機維修員',
+  outager:'當機下樓的員工', laidoff:'被裁員的人', evacuee:'疏散人群', remote:'遠距工作者',
+};
+const ISSUE = { attendee:'#41', townhaller:'#41', client:'#43', newhire:'#44', interviewee:'#51',
+  nightowl:'#46', coffeegoer:'#47', repairman:'#52', outager:'#45', laidoff:'#40',
+  evacuee:'#42', remote:'#53' };
+const MASS = {
+  attendee:  ['左側掛物（不落地）', '腋下的資料夾，2 寬 3 列貼左緣。既有「左側」只有 janitor 的拖把，而那支落地。urgent 只舉得起右手。'],
+  townhaller:['軀幹中央 3 寬 3 列 + 頂到下巴', '抱著的講義。tourist 的相機同位置同寬但**只有一列**；這一疊還往上頂掉脖子那一列。'],
+  client:    ['頭上滿寬 7 格', '禮帽。既有的頭上配件最寬是 5（guard／winner／queuer），穿出去的橫線只有他有。'],
+  newhire:   ['軀幹兩側內緣 U + 繞過脖子', '識別證掛繩。跟 nightowl 是刻意做的一對反例。'],
+  interviewee:['中央從胸垂到地', '履歷。ceo 的領帶從同一格開始但只有兩列；這張穿過兩腿之間落地。'],
+  nightowl:  ['肩線滿寬 + 兩側外緣 ∩', '披在肩上的外套。跟 newhire 的 U 是一對反例：開口方向相反、內外緣相反。'],
+  coffeegoer:['脖子那一列的兩側', '舉到肩上的兩杯。row2 既有 26 張全部是空的。urgent 舉不起手。'],
+  repairman: ['兩側都落地', '左工具箱 2 寬、右梯子 1 寬。janitor 只有左、dolly 只有右——只有他兩邊都有。這就是 size:3。'],
+  outager:   ['軀幹最窄（3 寬）', '手插口袋。全套最窄的軀幹，兩隻手就是那兩條配件色。'],
+  laidoff:   ['下半身三列實心', '紙箱大到看不見腿。sampler 的攤台是一列滿寬 + 底下中空。'],
+  evacuee:   ['臉的下緣一整列 + 跑姿', '拉起來摀住口鼻的衣領。observer 的望遠鏡在 row1（眼睛），這條在 row2（口鼻）。'],
+  remote:    ['頭與腳兩端', '耳機 + 拖鞋。全套唯一把識別分在兩端、中間整段留空的。'],
+};
+
+// ================================================================ 顏色工具
+function shade(hex, k, alpha){
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.min(255, Math.round(((n >> 16) & 255) * k));
+  const g = Math.min(255, Math.round(((n >> 8) & 255) * k));
+  const b = Math.min(255, Math.round((n & 255) * k));
+  return `rgba(${r},${g},${b},${alpha == null ? 1 : alpha})`;
+}
+function shadeHex(hex, k){
+  const n = parseInt(hex.slice(1), 16);
+  let out = 0;
+  for (const sh of [16, 8, 0]) out |= Math.min(255, Math.round(((n >> sh) & 255) * k)) << sh;
+  return '#' + out.toString(16).padStart(6, '0');
+}
+// ---- CIEDE2000（跟 #37 用的是同一條公式；這一頁當場算，不抄數字）
+function rgbOf(h){ const n = parseInt(h.slice(1),16); return [(n>>16)&255,(n>>8)&255,n&255]; }
+function lab(h){
+  const f = c => { c/=255; return c<=0.04045 ? c/12.92 : Math.pow((c+0.055)/1.055,2.4); };
+  const [R,G,B] = rgbOf(h).map(f);
+  const X = (R*0.4124564+G*0.3575761+B*0.1804375)/0.95047;
+  const Y = (R*0.2126729+G*0.7151522+B*0.0721750)/1.0;
+  const Z = (R*0.0193339+G*0.1191920+B*0.9503041)/1.08883;
+  const g = t => t>0.008856451679 ? Math.cbrt(t) : 7.787037*t+16/116;
+  const fx=g(X), fy=g(Y), fz=g(Z);
+  return [116*fy-16, 500*(fx-fy), 200*(fy-fz)];
+}
+function dE(h1, h2){
+  const [L1,a1,b1] = lab(h1), [L2,a2,b2] = lab(h2);
+  const rad = d => d*Math.PI/180, deg = r => r*180/Math.PI;
+  const C1 = Math.hypot(a1,b1), C2 = Math.hypot(a2,b2), Cb = (C1+C2)/2;
+  const G = 0.5*(1-Math.sqrt(Math.pow(Cb,7)/(Math.pow(Cb,7)+Math.pow(25,7))||0));
+  const A1 = (1+G)*a1, A2 = (1+G)*a2;
+  const c1 = Math.hypot(A1,b1), c2 = Math.hypot(A2,b2);
+  let h1p = (A1||b1) ? (deg(Math.atan2(b1,A1))+360)%360 : 0;
+  let h2p = (A2||b2) ? (deg(Math.atan2(b2,A2))+360)%360 : 0;
+  const dL = L2-L1, dC = c2-c1;
+  let dh = 0;
+  if (c1*c2 !== 0){
+    dh = h2p-h1p;
+    if (dh > 180) dh -= 360; else if (dh < -180) dh += 360;
+  }
+  const dH = 2*Math.sqrt(c1*c2)*Math.sin(rad(dh)/2);
+  const Lb = (L1+L2)/2, Cbp = (c1+c2)/2;
+  let hb;
+  if (c1*c2 === 0) hb = h1p+h2p;
+  else if (Math.abs(h1p-h2p) <= 180) hb = (h1p+h2p)/2;
+  else if (h1p+h2p < 360) hb = (h1p+h2p+360)/2;
+  else hb = (h1p+h2p-360)/2;
+  const T = 1-0.17*Math.cos(rad(hb-30))+0.24*Math.cos(rad(2*hb))
+              +0.32*Math.cos(rad(3*hb+6))-0.20*Math.cos(rad(4*hb-63));
+  const dth = 30*Math.exp(-Math.pow((hb-275)/25,2));
+  const Rc = 2*Math.sqrt(Math.pow(Cbp,7)/(Math.pow(Cbp,7)+Math.pow(25,7))||0);
+  const Sl = 1+(0.015*Math.pow(Lb-50,2))/Math.sqrt(20+Math.pow(Lb-50,2));
+  const Sc = 1+0.045*Cbp, Sh = 1+0.015*Cbp*T;
+  const Rt = -Math.sin(rad(2*dth))*Rc;
+  return Math.sqrt(Math.pow(dL/Sl,2)+Math.pow(dC/Sc,2)+Math.pow(dH/Sh,2)+Rt*(dC/Sc)*(dH/Sh));
+}
+
+const BODY = { ink:'#eaf0fb', inkCar:'#12161f', bad:'#e2645a' };
+const FLOORS = [];
+for (const [k,c] of Object.entries(BANDS))
+  for (const m of FLOOR_K) FLOORS.push([`${k}@${m}`, shadeHex(c, m)]);
+// cat／ghost／influencer 的配件不貼身體（逐格四鄰接檢查過），身體判準對它們不適用
+const NO_BODY = new Set(['cat','ghost','influencer']);
+const ALL = OLD.concat(NEW);
+
+// ================================================================ 畫圖
+function blit(ctx, key, x, y, cs, urgent, inCar){
+  const pal = P(), s = PEOPLE[key], rows = urgent ? s.urgent : s.normal;
+  ctx.fillStyle = urgent ? pal.bad : (inCar ? pal.inkCar : pal.ink);
+  for (let r = 0; r < SPRITE_H; r++)
+    for (let c = 0; c < SPRITE_W; c++)
+      if (rows[r][c] === '#') ctx.fillRect(x + c*cs, y + r*cs, cs, cs);
+  ctx.fillStyle = s.acc;
+  for (let r = 0; r < SPRITE_H; r++)
+    for (let c = 0; c < SPRITE_W; c++)
+      if (rows[r][c] === 'o') ctx.fillRect(x + c*cs, y + r*cs, cs, cs);
+  if (urgent){
+    ctx.fillStyle = pal.bad;
+    const ex = x + SPRITE_W*cs - cs, ey = y - cs*4;
+    ctx.fillRect(ex, ey, cs, cs*2);
+    ctx.fillRect(ex, ey + cs*3, cs, cs);
+  }
+}
+function floorBg(odd){
+  const pal = P();
+  return shade(OFFICE_COLOR, odd ? pal.floorA : pal.floorB, pal.floorAlpha);
+}
+
+// ---------------------------------------------------------------- 0 · 接觸印樣
+function drawSheet(){
+  const cv = document.getElementById('sheet'), ctx = cv.getContext('2d');
+  const pal = P();
+  ctx.fillStyle = '#0a0c12'; ctx.fillRect(0, 0, cv.width, cv.height);
+  const Z = 7;                              // 放大倍率（只為了看形狀）
+  const tw = 132, th = 224, cols = 10, x0 = 12, y0 = 44;
+  ctx.font = '600 11px system-ui'; ctx.textAlign = 'left';
+  ctx.fillStyle = '#ffd23f';
+  ctx.font = '700 13px system-ui';
+  ctx.fillText(`辦公帶 12 張新圖 · 併成一組（38 張）　　外部光線：${curLabel}　　底色 = shade('${OFFICE_COLOR}', pal.floorA/B, 1)`, x0, 20);
+  ctx.font = '400 11px system-ui'; ctx.fillStyle = '#8f95d6';
+  ctx.fillText('每格：左 normal / 右 urgent（放大 7×）；下面一條是遊戲真正的 cs=1 / 2 / 3，沒放大。前 26 格是既有的，最後 12 格（黃色名字）是新的。', x0, 36);
+
+  ALL.forEach((key, i) => {
+    const cx = x0 + (i % cols) * tw, cy = y0 + Math.floor(i / cols) * th;
+    const isNew = NEW.includes(key);
+    // 兩塊底色：normal 用偶數層、urgent 用奇數層，順便看兩種底色
+    const bw = SPRITE_W*Z + 4, bh = SPRITE_H*Z + Z*5;
+    ctx.fillStyle = floorBg(false); ctx.fillRect(cx, cy, bw, bh);
+    ctx.fillStyle = floorBg(true);  ctx.fillRect(cx + bw + 3, cy, bw, bh);
+    blit(ctx, key, cx + 2, cy + Z*4, Z, false, false);
+    blit(ctx, key, cx + bw + 5, cy + Z*4, Z, true, false);
+    // 真正的三種大小
+    let sx = cx, sy = cy + bh + 6;
+    for (const cs of [1, 2, 3]){
+      const w = SPRITE_W*cs + 2, h = SPRITE_H*cs + cs*5;
+      ctx.fillStyle = floorBg(false); ctx.fillRect(sx, sy, w, h);
+      blit(ctx, key, sx + 1, sy + cs*4, cs, false, false);
+      const w2 = SPRITE_W*cs + 2;
+      ctx.fillStyle = floorBg(true); ctx.fillRect(sx + w + 2, sy, w2, h);
+      blit(ctx, key, sx + w + 3, sy + cs*4, cs, true, false);
+      sx += w + w2 + 8;
+    }
+    ctx.font = '700 11px system-ui'; ctx.textAlign = 'left';
+    ctx.fillStyle = isNew ? '#ffd23f' : '#9aa4bd';
+    ctx.fillText(NAME[key] || key, cx, cy + bh + 44);
+    ctx.font = '400 10px ui-monospace,monospace';
+    ctx.fillStyle = PEOPLE[key].acc;
+    ctx.fillText(`${key} ${PEOPLE[key].acc}`, cx, cy + bh + 58);
+  });
+  // 既有 / 新 的分隔線（第 26 張之後）
+  const sepRow = Math.floor(26 / cols), sepCol = 26 % cols;
+  ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  ctx.moveTo(x0 + sepCol*tw - 4, y0 + sepRow*th - 8);
+  ctx.lineTo(x0 + cols*tw - 8, y0 + sepRow*th - 8);
+  ctx.moveTo(x0 + sepCol*tw - 4, y0 + sepRow*th - 8);
+  ctx.lineTo(x0 + sepCol*tw - 4, y0 + (sepRow+1)*th - 8);
+  ctx.lineTo(x0 - 4, y0 + (sepRow+1)*th - 8);
+  ctx.stroke(); ctx.setLineDash([]);
+}
+
+// ---------------------------------------------------------------- 卡片
+function card(key, { cs = 1, urgent = false, inCar = false, zoom = 6, odd = false } = {}){
+  const pal = P();
+  const bg = inCar ? pal.car : floorBg(odd);
+  const padT = urgent ? 5 : 1;
+  const w1 = SPRITE_W*cs + 4, h1 = SPRITE_H*cs + padT + 2;
+  const wrap = document.createElement('div'); wrap.className = 'cell';
+  const strip = document.createElement('div');
+  strip.style.cssText = 'display:flex;gap:6px;align-items:flex-end';
+  for (const z of (zoom ? [1, zoom] : [1])){
+    const cv = document.createElement('canvas');
+    cv.width = w1; cv.height = h1;
+    cv.style.cssText = `width:${w1*z/cs}px;height:${h1*z/cs}px`;
+    const cx = cv.getContext('2d');
+    cx.fillStyle = bg; cx.fillRect(0, 0, w1, h1);
+    blit(cx, key, 2, padT, cs, urgent, inCar);
+    strip.appendChild(cv);
+  }
+  wrap.appendChild(strip);
+  const n = document.createElement('div'); n.className = 'capk';
+  n.textContent = NAME[key] || key; wrap.appendChild(n);
+  const c2 = document.createElement('div'); c2.className = 'capn';
+  c2.textContent = key; wrap.appendChild(c2);
+  return wrap;
+}
+function fill(id, keys, opt){
+  const el = document.getElementById(id); el.innerHTML = '';
+  keys.forEach((k, i) => el.appendChild(card(k, Object.assign({ odd: i % 2 === 1 }, opt))));
+}
+
+// ---------------------------------------------------------------- 4 · 真的樓層
+function drawScene(id, fh){
+  const cv = document.getElementById(id), ctx = cv.getContext('2d');
+  const pal = P();
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  const y = 4;
+  ctx.fillStyle = floorBg(false); ctx.fillRect(0, y, cv.width, fh);
+  ctx.fillStyle = shade(OFFICE_COLOR, pal.stripe, 1);
+  ctx.fillRect(0, y, Math.min(10, Math.max(5, fh*0.6)), fh);
+  // 室內小景（照 interior.js 的辦公樓層）
+  const m = MOTIFS.office, ms = Math.max(1, Math.floor(fh / MOTIF_H));
+  if (ms >= 1){
+    const furn = shade(OFFICE_COLOR, pal.furn), acc = shadeHex(OFFICE_COLOR, pal.furnAcc);
+    for (let r = 0; r < MOTIF_H; r++) for (let c = 0; c < MOTIF_W; c++){
+      const ch = m[r][c]; if (ch === '.') continue;
+      ctx.fillStyle = ch === 'g' ? pal.winLit : (ch === 'o' ? acc : furn);
+      ctx.fillRect(12 + c*ms, y + fh - MOTIF_H*ms + r*ms, ms, ms);
+    }
+  }
+  const csF = Math.max(1, Math.min(3, Math.floor(fh / 11)));
+  const ds = fh >= 22 ? 2 : 1;
+  const step = SPRITE_W*csF + numWidth('88', ds) + 14;
+  // 由右往左排，前六個是新的，後面接既有的，看它們混在一起長什麼樣
+  const queue = ['repairman','client','laidoff','remote','office','nightowl','coffeegoer','tourist',
+                 'attendee','ceo','townhaller','courier','newhire','guard','interviewee','outager',
+                 'evacuee','cat','christ'].filter(k => PEOPLE[k]);
+  const shaftX = cv.width - 8;
+  queue.forEach((k, n) => {
+    const x = shaftX - 6 - step*(n + 1);
+    if (x < 12) return;
+    const urgent = n % 3 === 1;
+    blit(ctx, k, x, y + fh/2 + 6 - SPRITE_H*csF + 2, csF, urgent, false);
+    const txt = String(12 + n);
+    drawPlate(ctx, txt, x + SPRITE_W*csF + 4 + numWidth(txt, ds)/2,
+              y + (fh - GLYPH_H*ds)/2, ds, urgent ? pal.bad : pal.ink, pal.numPlate, 2);
+  });
+}
+
+// ---------------------------------------------------------------- 5 · 顏色
+function colorReport(){
+  const acc = k => PEOPLE[k].acc;
+  let minAll = [999, '', ''];
+  for (let i = 0; i < ALL.length; i++) for (let j = i+1; j < ALL.length; j++){
+    const d = dE(acc(ALL[i]), acc(ALL[j]));
+    if (d < minAll[0]) minAll = [d, ALL[i], ALL[j]];
+  }
+  let minNew = [999, '', ''];
+  for (const n of NEW) for (const o of ALL){
+    if (o === n) continue;
+    const d = dE(acc(n), acc(o));
+    if (d < minNew[0]) minNew = [d, n, o];
+  }
+  let minBad = [999, ''], minBody = [999, '', ''], minFloor = [999, '', ''];
+  for (const n of NEW){
+    const db = dE(acc(n), BODY.bad);
+    if (db < minBad[0]) minBad = [db, n];
+    for (const [bn, bc] of Object.entries(BODY)){
+      const d = dE(acc(n), bc);
+      if (d < minBody[0]) minBody = [d, n, bn];
+    }
+    for (const [fn, fc] of FLOORS){
+      const d = dE(acc(n), fc);
+      if (d < minFloor[0]) minFloor = [d, n, fn];
+    }
+  }
+  // 既有 26 個對樓層底色（第四條判準拿去掃既有的，看誰不過）
+  const oldFloor = OLD.map(k => {
+    let m = [999, ''];
+    for (const [fn, fc] of FLOORS){ const d = dE(acc(k), fc); if (d < m[0]) m = [d, fn]; }
+    return [m[0], k, m[1]];
+  }).sort((a, b) => a[0] - b[0]);
+
+  const ok = v => `<span class="ok">${v}</span>`, no = v => `<span class="no">${v}</span>`;
+  document.getElementById('verdict').innerHTML = `
+    <table style="width:100%;border-collapse:collapse">
+      <tr><th>判準</th><th>門檻</th><th>量到</th><th>結論</th></tr>
+      <tr><td>1 · 全套 38 色的兩兩最小 ΔE</td><td>≥ 12（檔頭那一條）</td>
+          <td><b>${minAll[0].toFixed(4)}</b>（${minAll[1]} / ${minAll[2]}）</td>
+          <td>${ok('沒有被拉低')}　—— 這一對<b>是既有的</b>，我這一趟一格都沒動它們，
+              改動前後<b>都是這個值</b>。<span class="warn">附帶回報：它其實是 11.9974，
+              不是 12.0000</span>——檔頭寫「≥ 12」是四捨五入之後才成立的，
+              <b>那不是這一趟造成的，我也沒有去修</b>。</td></tr>
+      <tr><td>1' · 新的 12 個對其它 37 個的最小 ΔE</td><td>（自訂 15）</td>
+          <td><b>${minNew[0].toFixed(2)}</b>（${minNew[1]} / ${minNew[2]}）</td>
+          <td>${minNew[0] >= 15 ? ok('過') : no('不過')}　—— 全色域搜尋過，16 就無解</td></tr>
+      <tr><td>2 · 新的 12 個對 <code>pal.bad</code> 的最小 ΔE</td><td>≥ 25</td>
+          <td><b>${minBad[0].toFixed(2)}</b>（${minBad[1]}）</td>
+          <td>${minBad[0] >= 25 ? ok('過') : no('不過')}　—— #31 觀光客相機那一課</td></tr>
+      <tr><td>2' · 新的 12 個對三種身體色的最小 ΔE</td><td>≥ 25</td>
+          <td><b>${minBody[0].toFixed(2)}</b>（${minBody[1]} vs ${minBody[2]}）</td>
+          <td>${minBody[0] >= 25 ? ok('過') : no('不過')}</td></tr>
+      <tr><td>4 · 新的 12 個對 28 種樓層底色的最小 ΔE</td><td>≥ 25（這一趟加的）</td>
+          <td><b>${minFloor[0].toFixed(2)}</b>（${minFloor[1]} vs ${minFloor[2]}）</td>
+          <td>${minFloor[0] >= 25 ? ok('過') : no('不過')}</td></tr>
+      <tr><td>4 · <b>既有 26 個</b>拿同一條掃</td><td>≥ 25</td>
+          <td><b>${oldFloor[0][0].toFixed(2)}</b>（${oldFloor[0][1]} vs ${oldFloor[0][2]}）</td>
+          <td>${no('不過')}　—— <b>${oldFloor.filter(r => r[0] < 25).length} 個不過</b>：
+              ${oldFloor.filter(r => r[0] < 25).map(r => `${r[1]} ${r[0].toFixed(1)}`).join('、')}。
+              <b>這一趟不動既有的圖</b>，只回報。</td></tr>
+    </table>`;
+
+  const sw = document.getElementById('swatch'); sw.innerHTML = '';
+  NEW.forEach((k, i) => {
+    const wrap = document.createElement('div'); wrap.className = 'cell';
+    const cv = document.createElement('canvas');
+    cv.width = 56; cv.height = 34; cv.style.cssText = 'width:56px;height:34px';
+    const cx = cv.getContext('2d');
+    cx.fillStyle = floorBg(i % 2 === 1); cx.fillRect(0, 0, 56, 34);
+    cx.fillStyle = PEOPLE[k].acc; cx.fillRect(8, 6, 40, 22);
+    wrap.appendChild(cv);
+    const a = document.createElement('div'); a.className = 'capk'; a.textContent = NAME[k];
+    const b = document.createElement('div'); b.className = 'capn'; b.textContent = PEOPLE[k].acc;
+    wrap.appendChild(a); wrap.appendChild(b);
+    sw.appendChild(wrap);
+  });
+
+  let rows = '<tr><th>新增</th><th>配件色</th><th>離最近的那一個</th><th>vs pal.bad</th><th>vs 樓層底色（最小）</th><th>是什麼</th></tr>';
+  for (const n of NEW){
+    let near = [999, ''];
+    for (const o of ALL){ if (o === n) continue; const d = dE(acc(n), acc(o)); if (d < near[0]) near = [d, o]; }
+    let mf = [999, ''];
+    for (const [fn, fc] of FLOORS){ const d = dE(acc(n), fc); if (d < mf[0]) mf = [d, fn]; }
+    rows += `<tr><td><b>${NAME[n]}</b><br><span style="color:#6b6f9e">${n} ${ISSUE[n]}</span></td>
+      <td><span style="display:inline-block;width:12px;height:12px;background:${acc(n)};vertical-align:-2px"></span>
+          <code>${acc(n)}</code></td>
+      <td>${near[0].toFixed(2)}　<span style="color:#6b6f9e">${NAME[near[1]]}</span></td>
+      <td>${dE(acc(n), BODY.bad).toFixed(1)}</td>
+      <td>${mf[0].toFixed(1)}　<span style="color:#6b6f9e">${mf[1]}</span></td>
+      <td>${MASS[n][1]}</td></tr>`;
+  }
+  document.getElementById('tblColor').innerHTML = rows;
+}
+
+// ---------------------------------------------------------------- 6 · 形狀
+function shapeReport(){
+  const masks = (k, pose) => {
+    const r = PEOPLE[k][pose], occ = new Set(), acc = new Set();
+    for (let y = 0; y < SPRITE_H; y++) for (let x = 0; x < SPRITE_W; x++){
+      const c = r[y][x];
+      if (c === '#') occ.add(x + ',' + y);
+      else if (c === 'o'){ occ.add(x + ',' + y); acc.add(x + ',' + y); }
+    }
+    return [occ, acc];
+  };
+  const sym = (a, b) => {
+    let n = 0;
+    for (const v of a) if (!b.has(v)) n++;
+    for (const v of b) if (!a.has(v)) n++;
+    return n;
+  };
+  const pairs = [];
+  for (let i = 0; i < ALL.length; i++) for (let j = i+1; j < ALL.length; j++){
+    const s = ['normal','urgent'].map(p => {
+      const [o1,a1] = masks(ALL[i], p), [o2,a2] = masks(ALL[j], p);
+      return [sym(o1,o2) + sym(a1,a2), sym(o1,o2), sym(a1,a2)];
+    });
+    const best = s[0][0] <= s[1][0] ? s[0] : s[1];
+    pairs.push({ sc: best[0], occ: best[1], acc: best[2], a: ALL[i], b: ALL[j],
+                 isNew: NEW.includes(ALL[i]) || NEW.includes(ALL[j]) });
+  }
+  pairs.sort((x, y) => x.sc - y.sc);
+  const worstOld = pairs.find(p => !p.isNew);
+  const worstNew = pairs.find(p => p.isNew);
+  // ⚠ 這句結論是**算出來的**，不是寫死的。寫死的話，種一個撞形進去它還是會說「沒事」——
+  //   而一個永遠說沒事的檢查不是檢查（跟檔頭那句「一個幾乎全紅的檢查不是檢查」是同一件事）。
+  const better = worstNew.sc >= worstOld.sc;
+  let rows = `<tr><th colspan="5" style="border:0;padding-bottom:10px">
+    既有 26 張自己最像的一對是 <b class="warn">${worstOld.a} / ${worstOld.b} = ${worstOld.sc}</b>；
+    有新圖參與的最像一對是 <b class="${better ? 'ok' : 'no'}">${worstNew.a} / ${worstNew.b} = ${worstNew.sc}</b>。
+    ${better
+      ? '<b class="ok">新的 12 張沒有讓「最像的一對」變得更像</b>（新的那一對 ≥ 既有的那一對）。'
+      : `<b class="no">不過：新圖造成了一對比既有最像的還像的組合</b>（${worstNew.sc} &lt; ${worstOld.sc}）。`}
+    </th></tr>
+    <tr><th>#</th><th>兩張</th><th>分數</th><th>輪廓格差 / 配件格差</th><th></th></tr>`;
+  pairs.slice(0, 16).forEach((p, i) => {
+    rows += `<tr><td>${i+1}</td>
+      <td><b>${NAME[p.a]}</b> / <b>${NAME[p.b]}</b><br>
+          <span style="color:#6b6f9e">${p.a} / ${p.b}</span></td>
+      <td><b>${p.sc}</b></td>
+      <td>${p.occ} / ${p.acc}</td>
+      <td>${p.isNew ? '<span class="warn">有新的</span>' : '<span style="color:#4a4f7a">都是既有的</span>'}</td></tr>`;
+  });
+  document.getElementById('tblShape').innerHTML = rows;
+
+  let mrows = '<tr><th>位置（量體長在哪）</th><th>誰</th><th>為什麼是這個位置</th><th>離最近的那一張多遠</th></tr>';
+  for (const n of NEW){
+    const near = pairs.filter(p => p.a === n || p.b === n)[0];
+    const other = near.a === n ? near.b : near.a;
+    mrows += `<tr><td><b>${MASS[n][0]}</b></td>
+      <td><b>${NAME[n]}</b><br><span style="color:#6b6f9e">${n} ${ISSUE[n]}</span></td>
+      <td>${MASS[n][1]}</td>
+      <td>${near.sc}　<span style="color:#6b6f9e">（最近：${NAME[other]}）</span></td></tr>`;
+  }
+  document.getElementById('tblMass').innerHTML = mrows;
+}
+
+// ---------------------------------------------------------------- 重畫
+let curLabel = '夜 0:00';
+function redraw(h, label){
+  setHour(h); curLabel = label;
+  document.getElementById('now').textContent = label;
+  drawSheet();
+  fill('g1old', OLD); fill('g1new', NEW);
+  fill('g2old', OLD, { urgent: true }); fill('g2new', NEW, { urgent: true });
+  fill('g3', NEW, { inCar: true });
+  drawScene('scene3', 34); drawScene('scene2', 24); drawScene('scene1', 17);
+  colorReport();
+}
+document.getElementById('bNight').onclick = () => redraw(0, '夜 0:00');
+document.getElementById('bDay').onclick   = () => redraw(12, '日 12:00');
+shapeReport();
+redraw(0, '夜 0:00');
+
+document.getElementById('notes').innerHTML = `
+  <b>這一趟沒有驗到的事，寫在這裡免得被當成已經驗過：</b><br>
+  · 這一頁畫的是<b>靜態的一格</b>。<code>drawPerson()</code> 在 urgent 時還有一個
+    <code>Math.sin(performance.now()/90)</code> 的左右抖動（±1px），我沒有在動態下看過整組。<br>
+  · <code>size</code> 只影響 sim 的載客量，<b>不影響畫面寬度</b>——repairman 的「佔三格」是我用剪影暗示的，
+    不是引擎畫出來的。它在轎廂裡跟別人一樣寬。<br>
+  · 既有 26 張<b>一格都沒動</b>。第 5 節那條「既有的不過第四條判準」是回報，不是修好了。<br>
+  · 這一頁不 import <code>content.js</code>（辦公帶的資料另外兩個 peer 正在改），
+    所以 <code>PASSENGERS</code> 的 fare／patience／size／note 是我讀過之後<b>抄成註解</b>的，不是連著的。`;
+</script>
+</x-dc>
+</body>
+</html>
