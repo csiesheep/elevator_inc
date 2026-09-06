@@ -7,6 +7,7 @@
 import { section, check, eq, near, ok, nonEmpty, R, summary } from './harness.js';
 import { CONFIG as C, BANDS, UPGRADES, PASSENGERS, ACHIEVEMENTS, SKILLS, EVENTS } from '../js/content.js';
 import { EN } from '../js/i18n-content.js';
+import { PEOPLE } from '../js/sprites.js';
 import * as S from '../js/state.js';
 import * as M from '../js/sim.js';
 
@@ -913,6 +914,136 @@ check('必須同車：一對永遠不會被拆到兩台車（端對端）', () =
   return ok(r.split === 0,
     `${r.seen} 次取樣裡有 ${r.split} 次「一半在車上、另一半不在同一台」`
     + `（把 openDoors 的 mate 釘成 null 會得到 246/2116；修好是 0/2050）`);
+});
+
+
+// ---------------------------------------------------------------- 13 改名之後，沒跟上的那三個地方
+// 一個 peer 做了一次改名（型別 id `bellhop` → `jamcart`，因為兩個 peer 撞在同一個 id 上），
+// 然後**自己去證偽第 8 組**：它把兩個 i18n key 退回舊名（等於孤兒 key、英文查不到）
+// 再跑 harness —— **48 pass / 0 fail / 1 todo，全綠**。
+//
+// 原因在第 8 組自己：`const en = EN.achievements[a.id] || {}` 之後 `if (!got.length) continue;`
+// ——**key 不存在就被 continue 跳過**。那條 guard 結構上抓不到「漏改 / 改錯 i18n key」，
+// 而那正是改名時最容易掉的東西。這一組補三個「改名之後沒跟上」的地方。
+//
+// 三個都是同一種安靜：英文安靜退回中文、圖案安靜退回上班族、兩個型別安靜同名。
+// **沒有一個會丟例外，沒有一個會讓畫面壞掉。**
+section('13 改名之後，沒跟上的那三個地方');
+
+const EN_SETS = {
+  passengers:   () => PASSENGERS,
+  events:       () => EVENTS,
+  achievements: () => ACHIEVEMENTS,
+  skills:       () => SKILLS,
+  bands:        () => BANDS,
+};
+
+check('每一個 id 都查得到英文，而且沒有孤兒 key', () => {
+  const bad = [];
+  let checked = 0;
+  for (const [k, get] of Object.entries(EN_SETS)){
+    const list = get() || [];
+    const ids = list.map(x => x.id || x.key).filter(Boolean);
+    const table = EN[k] || {};
+    const keys = Object.keys(table);
+    checked += ids.length + keys.length;
+    for (const id of ids) if (!table[id]) bad.push(`${k}.${id} 沒有英文（會安靜退回中文）`);
+    for (const key of keys) if (ids.indexOf(key) < 0)
+      bad.push(`${k}.${key} 是孤兒 key（內容表裡沒有這個 id —— 通常代表某次改名只改了一半）`);
+  }
+  const ne = nonEmpty(checked, '五張 EN 對照表全是空的，這條 guard 沒有試過任何東西');
+  if (ne !== true) return ne;
+  return ok(bad.length === 0, `比對了 ${checked} 個 id/key，${bad.length} 個對不上：` + bad.join('、'));
+});
+
+check('兩個型別不可以在畫面上顯示同一個名字', () => {
+  // #30 付過一次的學費：玩家沒有辦法分辨兩個叫同一個名字的東西，而 id 只有我們看得到。
+  // 中英各查一次——只查中文的話，一次「英文翻成一樣」的改名會整個溜過去。
+  const bad = [];
+  let checked = 0;
+  for (const [k, get] of Object.entries(EN_SETS)){
+    if (k === 'bands' || k === 'skills') continue;      // 這兩張不是玩家在畫面上並排看的
+    const list = get() || [];
+    for (const lang of ['zh', 'en']){
+      const seen = {};
+      for (const x of list){
+        const id = x.id || x.key;
+        const nm = lang === 'zh' ? x.name : (((EN[k] || {})[id] || {}).name);
+        if (!nm) continue;                              // 缺英文是上面那條的事
+        checked++;
+        if (seen[nm]) bad.push(`${k}(${lang}) 「${nm}」= ${seen[nm]} 與 ${id}`);
+        else seen[nm] = id;
+      }
+    }
+  }
+  const ne = nonEmpty(checked, '沒有任何有名字的內容，這條 guard 沒有試過任何東西');
+  if (ne !== true) return ne;
+  return ok(bad.length === 0, `比對了 ${checked} 個顯示名稱，${bad.length} 組撞名：` + bad.join('、'));
+});
+
+check('每一種乘客都有自己的圖，沒有安靜退回上班族', () => {
+  // sprites.js: `PEOPLE[typeId] || PEOPLE.office` —— 指不到就畫成上班族，不丟例外。
+  // 新型別剛加進來、圖還沒畫好是**尚未實作**，不是「做了但錯」：報 TODO 並列出是誰，
+  // 這樣它在摘要上看得見，又不會訓練大家忽略一片長期的紅。
+  const ids = PASSENGERS.map(p => p.id);
+  const ne = nonEmpty(ids.length, 'PASSENGERS 是空的');
+  if (ne !== true) return ne;
+  const missing = ids.filter(id => !PEOPLE[id]);
+  if (missing.length)
+    return `TODO: ${missing.length}/${ids.length} 種乘客還沒有自己的圖，`
+         + `現在全部畫成上班族：` + missing.join('、');
+  return true;
+});
+
+
+// 一個 peer 證實了一個比「第 8 組只比數字」更硬的洞：**整份 harness 從來沒有讀過
+// `EN.passengers` 或 `PASSENGERS[].note`。** 它把一條英文 note 換成一句胡話
+//（「一群在電梯井裡築巢的鴿子，佔 0 格，每三趟把車開回屋頂並把租金加倍」），
+// 重跑 48/0/1 全綠，而且同一次呼叫裡從伺服器 fetch 回檔案確認不是快取假象。
+//
+// **這條擋得住哪一半／擋不住哪一半**：它只比對「佔 N 格」與「卡 N 秒」這兩種宣稱
+// ——它們寫法一致、而且是最會漂移的兩個數字（佔位是飯店帶的整個主題）。
+// 它**擋不住**「這句話描述的機制存不存在」（鴿子那一句它照樣放過），也不比對
+// 事件的 `n`、`summon.n`、小費門檻那些「數字來自別的地方」的句子——
+// 我量過，把它們一起比會產生 9 個誤報，而**一條開張就要九個例外的 guard 是壞 guard**。
+check('乘客文案裡的「佔幾格 / 卡幾秒」要跟資料對得上', () => {
+  const W = { one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9, ten:10 };
+  const slots = t => {
+    const s = String(t || ''), out = [];
+    for (const m of s.matchAll(/佔\s*([0-9]+)\s*格/g)) out.push(+m[1]);
+    for (const m of s.matchAll(/([0-9]+|one|two|three|four|five|six|seven|eight|nine|ten)[\s-]+slots?/gi)){
+      const v = isNaN(+m[1]) ? W[m[1].toLowerCase()] : +m[1];
+      if (v) out.push(v);
+    }
+    return out;
+  };
+  const secs = t => {
+    const s = String(t || ''), out = [];
+    for (const m of s.matchAll(/([0-9]+(?:\.[0-9]+)?)\s*秒/g)) out.push(+m[1]);
+    for (const m of s.matchAll(/([0-9]+(?:\.[0-9]+)?)\s*seconds?/gi)) out.push(+m[1]);
+    return out;
+  };
+  const bad = [];
+  let checked = 0;
+  for (const p of PASSENGERS){
+    // 成對的人物講「一對要空出幾格」是對的，那是 2×size，不是例外而是規則。
+    const okSlots = p.pair ? [p.size, p.size * 2] : [p.size];
+    for (const [lang, note] of [['zh', p.note], ['en', ((EN.passengers || {})[p.id] || {}).note]]){
+      for (const v of slots(note)){
+        checked++;
+        if (okSlots.indexOf(v) < 0)
+          bad.push(`${p.id}(${lang}) 文案說佔 ${v} 格，size=${p.size}`);
+      }
+      for (const v of secs(note)){
+        checked++;
+        if (v !== p.doorPenalty)
+          bad.push(`${p.id}(${lang}) 文案說卡 ${v} 秒，doorPenalty=${p.doorPenalty}`);
+      }
+    }
+  }
+  const ne = nonEmpty(checked, '沒有任何乘客文案講到佔位或卡門秒數，這條 guard 沒有試過任何東西');
+  if (ne !== true) return ne;
+  return ok(bad.length === 0, `比對了 ${checked} 個宣稱，${bad.length} 個對不上：` + bad.join('、'));
 });
 
 
