@@ -1436,4 +1436,128 @@ check('配件色的背債表都還存在，理由都寫了，而且都還不及�
     '背債表 ' + Object.keys(FLOOR_DEBT).length + ' 筆，' + stale.length + ' 筆過期：' + stale.join('、'));
 });
 
+
+// ---------------------------------------------------------------- 17 兩個度量自己的斷崖
+// 這一組守的不是內容，是**前面兩條判準所依賴的度量本身**。
+//
+// **17-1 · CIEDE2000 在色相差 180° 有一個分支，而它會跳。**
+// 追一個「兩個 peer 對同一對顏色算出 55.04 和 48.80」的爭議時挖到的：
+// `tourist` 的相機對 `pal.bad` 的兩個色相角是 211.45 與 31.47，**相差 179.98**
+// ——離平均色相公式的 180° 分支邊界只有 **0.02 度**。我把分支手動翻到另一邊：
+//
+//     分支 A（|hp1-hp2| <= 180）→ ΔE **48.80**
+//     分支 B（翻過去）          → ΔE **63.06**
+//
+// **同一對顏色，同一條公式，差 14 個單位。** 那不是實作品質問題，是
+// **CIEDE2000 在那條線上本來就不連續**（Sharma 等人的論文明講平均色相那一段
+// 是分段定義的）。所以 #31 當初把 `tourist` 的相機錨在「對 pal.bad 55.0」上，
+// 錨的是一個**不穩定的量**。
+//
+// 我掃過現在 51 張 × 28 種樓層底色：**35 / 1428 個配對落在邊界 ±3 度以內**，
+// 但**沒有任何一張圖的「最小值」踩在那裡**（±5 度內 0 個），所以第 16 組今天的
+// 判定是穩的。這條 guard 是為了明天：**新加一張圖如果最小值落在邊界附近，
+// 它的及格與否就會隨實作而變**，那時要知道。
+//
+// **17-2 · 剪影完全相同，是一個絕對條件，不是一個門檻。**
+// 第 15 組用三態 Hamming（`.`/`#`/`o`），它把 `closing/sampler` 算成 9 ——
+// 看起來跟其他「有點像」的配對沒兩樣，**而它們其實是同一個剪影**（二態距離 0）。
+// 一個 peer 先前主張「二態丟掉配件位置」而放棄二態；它後來自己更正：
+// **那句話只證明了二態不能單獨當距離度量，不證明二態的零值沒有意義。**
+// 一句正確的話配上過大的適用範圍。
+//
+// 所以兩條並存：**三態 ≥ 12 管「像不像」，二態 == 0 管「是不是同一個」。**
+// 後者不會誤報一片，因為它不是門檻——它是「一模一樣」。
+section('17 兩個度量自己的斷崖');
+
+const HUE_BRANCH_MARGIN = 5;   // 離 180° 這麼近就算「踩在斷崖上」
+
+check('沒有任何一張圖的配件色距踩在 CIEDE2000 的 180° 分支邊界上', () => {
+  if (FLOOR_K == null || RENDER_SRC == null) return 'TODO: 讀不到 theme.js 或 render.js';
+  const P = Math.pow, deg = 180 / Math.PI;
+  // 兩個顏色在 CIEDE2000 裡的（G 修正後）色相角差
+  const hueGap = (h1, h2) => {
+    const [, a1, b1] = hexToLab(h1), [, a2, b2] = hexToLab(h2);
+    const C1 = Math.hypot(a1, b1), C2 = Math.hypot(a2, b2), Cb = (C1 + C2) / 2;
+    const G = 0.5 * (1 - Math.sqrt(P(Cb, 7) / (P(Cb, 7) + P(25, 7))));
+    const A1 = (1 + G) * a1, A2 = (1 + G) * a2;
+    const hh = (x, y) => { if (x === 0 && y === 0) return 0; const t = Math.atan2(y, x) * deg; return t < 0 ? t + 360 : t; };
+    return Math.abs(hh(A1, b1) - hh(A2, b2));
+  };
+  const risky = [];
+  let checked = 0, nearAny = 0;
+  for (const [id, sp] of Object.entries(PEOPLE)){
+    if (!sp.acc) continue;
+    checked++;
+    let min = Infinity, gapAtMin = 0, at = '';
+    for (const b of BANDS) for (const k of FLOOR_K){
+      const f = shadeHex(b.color, k);
+      const d = ciede2000(sp.acc, f);
+      const g = hueGap(sp.acc, f);
+      if (Math.abs(g - 180) < 3) nearAny++;
+      if (d < min){ min = d; gapAtMin = g; at = b.key + '@' + k; }
+    }
+    if (Math.abs(gapAtMin - 180) < HUE_BRANCH_MARGIN)
+      risky.push(id + ' 最小 ΔE ' + min.toFixed(4) + ' @ ' + at + '，色相差 ' + gapAtMin.toFixed(2)
+               + '（離 180° 只有 ' + Math.abs(gapAtMin - 180).toFixed(2) + ' 度）');
+  }
+  const ne = nonEmpty(checked, '沒有任何一張圖有 acc，這條 guard 沒有試過任何東西');
+  if (ne !== true) return ne;
+  return ok(risky.length === 0,
+    checked + ' 張圖，' + risky.length + ' 張的最小色距踩在 180° 分支邊界上：' + risky.join('、')
+    + '｜**踩在那裡的數字換一個 CIEDE2000 實作就會跳**（實測同一對顏色 48.80 對 63.06），'
+    + '所以它的及格與否不是一個事實。改那張圖的配件色，讓最小值落在別的地方。'
+    + '｜（全部配對裡有 ' + nearAny + ' 對落在邊界 ±3 度，但只有「最小值」那一對會決定判定）');
+});
+
+// 唯一一筆背債。**一筆，不是一份清單**——這條是絕對條件不是門檻，所以它本來就
+// 不該有幾十個例外；有一筆是因為它真的存在，而且有主。
+const SIL_DEBT = {
+  'closing|sampler': '零售帶既有的兩張，剪影逐格相同，只有配件色不同。'
+    + '是一個 peer 用二態剪影度量找到的（三態把它算成 9，跟其他「有點像」的沒有差別）。'
+    + '排在 #67 那一趟一起改——那一趟本來就要動既有的圖，而現在有另一個 artist 在畫住宅帶，'
+    + '兩個人同時編輯 js/sprites.js 是這個專案付過學費的形狀。',
+};
+
+check('沒有兩張同框的圖剪影完全相同', () => {
+  const bandOf = Object.fromEntries(PASSENGERS.map(p => [p.id, p.band]));
+  const ids = Object.keys(PEOPLE).filter(i => bandOf[i]).sort();
+  const ne = nonEmpty(ids.length >= 2 ? ids.length : 0, 'PEOPLE 少於兩張圖，沒有配對可以比');
+  if (ne !== true) return ne;
+  const sil = (a, b) => {
+    let d = 0;
+    for (let r = 0; r < 9; r++)
+      for (let c = 0; c < 7; c++)
+        if ((a[r][c] !== '.') !== (b[r][c] !== '.')) d++;
+    return d;
+  };
+  const dist = (x, y) => Math.min(sil(PEOPLE[x].normal, PEOPLE[y].normal),
+                                  sil(PEOPLE[x].urgent, PEOPLE[y].urgent));
+  // 儀器活著嗎？一張圖跟自己的剪影距離必須是 0——證明這個度量真的會回 0。
+  if (dist(ids[0], ids[0]) !== 0) return '儀器壞了：' + ids[0] + ' 跟自己的剪影距離不是 0';
+  const coFrame = (x, y) => bandOf[x] === 'any' || bandOf[y] === 'any' || bandOf[x] === bandOf[y];
+  const same = [], known = [];
+  let pairs = 0;
+  for (let i = 0; i < ids.length; i++)
+    for (let j = i + 1; j < ids.length; j++){
+      if (!coFrame(ids[i], ids[j])) continue;
+      pairs++;
+      if (dist(ids[i], ids[j]) !== 0) continue;
+      const key = ids[i] + '|' + ids[j];
+      if (SIL_DEBT[key]) known.push(key); else same.push(key);
+    }
+  // 表上的東西修好了就要移除，否則這張表會腐爛成一份沒有人讀的清單
+  for (const key of Object.keys(SIL_DEBT)){
+    const [x, y] = key.split('|');
+    if (!PEOPLE[x] || !PEOPLE[y] || dist(x, y) !== 0)
+      same.push(key + '（已經修好或圖不見了，該從 SIL_DEBT 移除）');
+  }
+  return ok(same.length === 0,
+    '比對了 ' + pairs + ' 組同框配對，' + same.length + ' 組**新的剪影一模一樣**：' + same.join('、')
+    + (known.length ? '｜已知背債：' + known.join('、') : '')
+    + '｜這不是「太像」，是「同一個形狀」——玩家只剩顏色可以分辨，'
+    + '而在 cs=1（17 層以上，一張圖 7×9 個實體像素）配件只有 1–2 個像素。'
+    + '**第 15 組的三態度量看不到這一格**：它把剪影相同的一對算成 9，'
+    + '跟其他「有點像」的配對沒有差別。');
+});
+
 export { summary };
