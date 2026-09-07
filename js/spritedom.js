@@ -113,6 +113,26 @@ export function spriteSVG(typeId, opts = {}){
        + `${opts.extra || ''}>${ttl}${body}</svg>`;
 }
 
+// ---------------------------------------------------------------- 圖鑑卡片的小人
+//
+// 兩個圖鑑（遊戲頁的 tab、獨立的圖鑑頁）共用這一格，所以它住在這裡而不是 ui.js
+// ——不然圖鑑頁就得為了一格小人去 import 整個面板模組。
+//
+// **`known` 是假的時候不畫圖。** 遊戲頁的圖鑑本來就刻意藏（`unknown` class +
+// `t('unknownName')`），而 sprites.js 檔頭說識別「主要靠輪廓」——把剪影畫出來
+// 等於把它藏的東西從另一個孔漏出去。改成同尺寸的空盤，78 格對齊成一面牆，
+// 那面牆本身就是進度條。
+//
+// ⚠ 獨立圖鑑頁要不要照樣藏，是 #149 上還沒回答的裁決（甲／乙／丙）。
+// 這支只提供「藏」與「不藏」兩種呼叫方式，**不替裁決做選擇**。
+//
+// cell = 4 → 28×36 px，是 sprites.js 檔頭聲明的 14×18 下限的兩倍；
+// 窄螢幕由 CSS 縮到 21×27，仍在下限之上。
+export function codexTile(id, known, opts = {}){
+  if (!known) return `<div class="pxTile pxLocked" aria-hidden="true"></div>`;
+  return `<div class="pxTile">${spriteSVG(id, { cell: opts.cell || 4, ...opts })}</div>`;
+}
+
 // ---------------------------------------------------------------- favicon
 //
 // 16×16 的排版問題（#149）：`sprites.js` 檔頭聲明剪影下限 14×18，而 favicon 是
