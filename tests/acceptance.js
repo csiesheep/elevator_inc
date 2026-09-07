@@ -2793,9 +2793,16 @@ function excRun({ shafts = 6, days = 12, seed = 1, deep = false } = {}){
   });
 }
 
+// ⚠ **每一場之間讓出主執行緒**（`check()` 是同步的，所以重活要在模組頂層先跑完）。
+// 這一組要跑好幾百個遊戲日，一口氣同步跑完會讓 renderer 被瀏覽器當成當掉的分頁**殺掉**
+// ——實測在 Electron 的預覽窗裡穩定復現：整張 harness 連一個數字都印不出來。
+// 慢不是問題，**不讓出去才是**。
+const excTick = () => new Promise(r => setTimeout(r, 0));
+
 // 第 1、2 條共用同一場（同種子、同設定）：兩條問的是同一批封車趟次的兩件事。
 const EXC_SEEDS = [1, 7, 13], EXC_DAYS = 12;
-const excDeep = EXC_SEEDS.map(s => excRun({ shafts: 6, days: EXC_DAYS, seed: s, deep: true }));
+const excDeep = [];
+for (const sd of EXC_SEEDS){ excDeep.push(excRun({ shafts: 6, days: EXC_DAYS, seed: sd, deep: true })); await excTick(); }
 const excAgg = k => excDeep.reduce((a, r) => a + (typeof r[k] === 'number' ? r[k] : r[k].length), 0);
 
 section('24 包場真的吃掉一台車嗎（#147）');
@@ -2848,20 +2855,26 @@ check('空車調度真的在跑：soloCalls 有回傳、而且包場的人上的
 const EXC_DOSE = [3, 6, 12];
 const EXC_DOSE_SEEDS = [1, 7, 13, 21, 29, 37, 43, 51, 2, 3, 5, 11], EXC_DOSE_DAYS = 15;
 
+// 重活在模組頂層跑完（同上：一場一場讓出主執行緒），check() 只讀結果。
+const excDoseRows = [];
+{
+  const w0 = excCrate.w;
+  try {
+    for (const w of EXC_DOSE){
+      excCrate.w = w;
+      const runs = [];
+      for (const sd of EXC_DOSE_SEEDS){ runs.push(excRun({ shafts: 6, days: EXC_DOSE_DAYS, seed: sd })); await excTick(); }
+      const add = k => runs.reduce((a, r) => a + (typeof r[k] === 'number' ? r[k] : r[k].length), 0);
+      excDoseRows.push({ w, pool: add('poolRides'), evt: add('evtRides'),
+                         all: add('sealedRides'), ridealong: add('ridealong') });
+    }
+  } finally { excCrate.w = w0; }      // **一定要還原**：後面的 check 讀的是同一個物件
+}
+
 check('劑量反應是單調的：crate.w 3/6/12，封車趟數嚴格遞增', () => {
   if (excCrate.exclusive !== true)
     return 'TODO: `crate` 還沒有 exclusive:true——旋鈕的另一端不存在，量不出劑量反應';
-  const w0 = excCrate.w;
-  let rows;
-  try {
-    rows = EXC_DOSE.map(w => {
-      excCrate.w = w;
-      const runs = EXC_DOSE_SEEDS.map(s => excRun({ shafts: 6, days: EXC_DOSE_DAYS, seed: s }));
-      const add = k => runs.reduce((a, r) => a + (typeof r[k] === 'number' ? r[k] : r[k].length), 0);
-      return { w, pool: add('poolRides'), evt: add('evtRides'),
-               all: add('sealedRides'), ridealong: add('ridealong') };
-    });
-  } finally { excCrate.w = w0; }      // **一定要還原**：下一組 check 讀的是同一個物件
+  const rows = excDoseRows;
   const line = rows.map(r => `w=${r.w} → 池子 ${r.pool} 趟（事件 ${r.evt}、合計 ${r.all}）`).join('、');
   // 前提：量到的「封車」要真的是封車。搭便車的話這個計數器量的是別的東西，
   // 它單調不單調都證明不了旋鈕接上了。
