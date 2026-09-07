@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>#146 掃描：RATE_EXP × 樓層帶 pop</title>
+<style>
+  body{margin:0;background:#0f1116;color:#e8eaf0;font:12px/1.55 ui-monospace,monospace;padding:18px 22px}
+  h1{font:600 16px/1.4 system-ui;color:#ffd23f;margin:0 0 10px}
+  pre{white-space:pre-wrap;margin:0}
+  .ok{color:#5ddc9a} .bad{color:#e2645a}
+</style>
+</head>
+<body>
+<h1>#146 掃描器</h1>
+<pre id="out">載入中…（`window.__SCAN` 是結果，`window.G` 是模組）</pre>
+<script type="module">
+import * as G from './simscan_grid.js';
+window.G = G;
+const out = document.getElementById('out');
+const log = s => { out.textContent += s + '\n'; };
+out.textContent = '';
+// 頁面自己不會跑整張網格（那要幾分鐘）。用 console / javascript_tool 驅動：
+//   await G.selfTest()   → 儀器自檢
+//   await G.runCell(0.50, 0) → 控制組
+//   await G.runGrid(c => console.log(G.fmtCell(c)))
+log(`模組已載入。RATE_EXP 基準 ${G.BASE_EXP}，pop 基準 ${JSON.stringify(G.BASE_POP)}`);
+log(`網格 ${G.EXPS.length}×${G.KS.length}，每格 ${G.CONFIGS.length} 組態 × ${G.SEEDS.length} 種子 × ${G.DAYS} 遊戲日`);
+window.__SCAN = null;
+window.runAll = async () => {
+  const t0 = performance.now();
+  window.__SCAN = await G.runGrid(c => log(G.fmtCell(c)));
+  log(`完成，${((performance.now()-t0)/1000).toFixed(1)}s`);
+  return window.__SCAN;
+};
+</script>
+</body>
+</html>
