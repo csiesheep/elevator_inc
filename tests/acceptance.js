@@ -2721,3 +2721,164 @@ check('整棵樹的總額落在裁決的量級上', () => {
   }
   return ok(bad.length === 0, rows.join('｜') + '｜超出容差：' + (bad.join('、') || '無'));
 });
+
+
+// ================================================================ 24 包場真的吃掉一台車嗎（#147）
+// owner 裁決（#36 的第四個方法）：**提高高樓包場乘客的頻率或停留時間，直接消耗運力。**
+// 這一組**先於任何平衡數字寫成**：它斷言的是**機制**（包場排他、空車會為它跑一趟、
+// 旋鈕接得上），不是某一個 w 或 doorPenalty 的值。所以它在現行 main 上就必須是綠的——
+// 要等數字改完才會綠的東西不是驗收，是事後補的合理化。
+//
+// ⚠ **`isExcl` 在這裡是抄寫的，不是 import 的**（`js/sim.js:834` 的邏輯照抄一份）。
+// 理由跟 harness 開頭第 1 點一樣：從產品讀定義的話，「把 `isExcl` 注成恆 false」
+// 這個證偽會同時把驗收的眼睛弄瞎，三條會一起維持綠色。
+// **唯一從產品 import 的是 `soloCalls`**，而那是刻意的——第 2 條要問的正是
+// 「產品自己那一支有沒有在跑」，抄一份就等於沒問。
+const excCrate = PASSENGERS.find(p => p.id === 'crate');
+const excIsExcl = p => !!(p.exclusive || (p.t && p.t.exclusive));
+const EXC_BAND = BANDS.find(b => b.key === 'exp');    // 實驗帶 86–99 → 索引 85–98
+
+// 場景 = #147 量測欄位的同一組設定：100 樓、滿級現金升級、9 個自動化全開、評價 5。
+// ⚠ **井數要靠技能墊**：現金升級的 `shaft` 滿級只有 5，而 `derived()` 是
+// 1 + up.shaft + o_shaft，所以「滿級現金升級」= **6 座**，8 座要 o_shaft:2、7 座要 1。
+function excRun({ shafts = 6, days = 12, seed = 1, deep = false } = {}){
+  return withSeed(seed, () => {
+    const st = S.newGame({ skills: { o_shaft: shafts - 6 } });
+    st.floors = SPEC.maxFloors;
+    st.cash = 1e9;
+    st.up.speed = 15; st.up.accel = 15; st.up.cap = 15; st.up.door = 15;
+    st.up.cooling = 12; st.up.shaft = 5;
+    for (const a of AUTOMATION) st.auto[a.id] = true;
+    st.rating = C.RATING_MAX;
+    const sim = M.createSim(st);
+    M.syncShafts(st, sim);
+
+    const prevSealed = new Array(sim.shafts.length).fill(false);
+    let sealedRides = 0, poolRides = 0, evtRides = 0, sealedTicks = 0, soloHits = 0;
+    const ridealong = [];      // 規則 1 被破壞：封車的車上還有別人
+    const notEmpty = [];       // 規則 2 被破壞：包場的人上的不是一台空車
+    const n = Math.round(days * SPEC.daySeconds / C.STEP);
+    for (let i = 0; i < n; i++){
+      M.step(st, sim, C.STEP);
+      for (let k = 0; k < sim.shafts.length; k++){
+        const s = sim.shafts[k];
+        // 「封車」的定義只有一個：車上有人 `isExcl`。**不是**「車上剛好一個人」——
+        // 拿結論當定義的話，第 1 條就永遠不會紅（它要驗的正是那個結論）。
+        let nExcl = 0, first = -1;
+        for (let j = 0; j < s.riders.length; j++)
+          if (excIsExcl(s.riders[j])){ nExcl++; if (first < 0) first = j; }
+        if (nExcl > 0){
+          sealedTicks++;
+          if (s.riders.length !== 1 || nExcl !== 1)
+            ridealong.push(`井${k} t=${st.t.toFixed(1)} 車上 ${s.riders.length} 人、其中包場 ${nExcl}`);
+          if (!prevSealed[k]){
+            sealedRides++;
+            const p = s.riders[first];
+            // 這一趟的包場者是**隨機池抽出來的貨箱**（起點在實驗帶，受 `crate.w` 控制），
+            // 還是**事件生的**（`cratehaul` 與 `satellite` 都從大廳出發，w 完全不受影響）？
+            if (p.type === 'crate' && p.origin >= EXC_BAND.from - 1) poolRides++; else evtRides++;
+            // 「上車前那一刻 `riders.length === 0`」的**可觀測等價說法**：下客在上客
+            // 之前跑完，而 push 只往後接，所以他在這個 tick 結束時位於索引 0，
+            // 等於他被 push 進去的時候陣列是空的。
+            if (first !== 0 || s.riders.length !== 1)
+              notEmpty.push(`井${k} t=${st.t.toFixed(1)} 包場者在索引 ${first}／共 ${s.riders.length} 人`);
+          }
+        }
+        prevSealed[k] = nExcl > 0;
+        if (deep && M.soloCalls(st, sim, s) !== null) soloHits++;
+      }
+    }
+    return { sealedRides, poolRides, evtRides, sealedTicks, soloHits, ridealong, notEmpty,
+             served: st.stats.served, abandoned: st.stats.abandoned };
+  });
+}
+
+// 第 1、2 條共用同一場（同種子、同設定）：兩條問的是同一批封車趟次的兩件事。
+const EXC_SEEDS = [1, 7, 13], EXC_DAYS = 12;
+const excDeep = EXC_SEEDS.map(s => excRun({ shafts: 6, days: EXC_DAYS, seed: s, deep: true }));
+const excAgg = k => excDeep.reduce((a, r) => a + (typeof r[k] === 'number' ? r[k] : r[k].length), 0);
+
+section('24 包場真的吃掉一台車嗎（#147）');
+
+check('封車是排他的：封住的車上恰好一個人，而且是他', () => {
+  if (excCrate.exclusive !== true)
+    return 'TODO: `crate` 還沒有 exclusive:true——包場機制在資料上不存在，這條沒有母體';
+  // 母體非空：一次封車都沒發生的話，「沒有人搭便車」是一個充滿自信的零。
+  const ne = nonEmpty(excAgg('sealedTicks'), '整場沒有任何一台車被封過——這條 guard 沒有試過');
+  if (ne !== true) return ne;
+  const bad = excDeep.flatMap(r => r.ridealong);
+  return ok(bad.length === 0,
+    `${EXC_SEEDS.length} 顆種子 × ${EXC_DAYS} 遊戲日 / 6 井 / 100 樓：`
+    + `封車 ${excAgg('sealedRides')} 趟、封車車時 ${excAgg('sealedTicks')} tick，`
+    + `搭便車 ${bad.length} 次` + (bad.length ? `：${bad.slice(0, 3).join('｜')}` : '')
+    + `｜這條擋的是「包場悄悄變成一個只佔一格的貴乘客」。`);
+});
+
+check('空車調度真的在跑：soloCalls 有回傳、而且包場的人上的是空車', () => {
+  if (excCrate.exclusive !== true)
+    return 'TODO: `crate` 還沒有 exclusive:true——沒有包場的乘客，soloCalls 永遠回 null';
+  const ne = nonEmpty(excAgg('sealedRides'), '整場沒有任何一次包場上車——沒有母體可以問「他上的是不是空車」');
+  if (ne !== true) return ne;
+  const solo = excAgg('soloHits');
+  const bad = excDeep.flatMap(r => r.notEmpty);
+  if (solo <= 0)
+    return 'soloCalls() 一次都沒有回傳非 null——**空車不會為包場的乘客跑那一趟**，'
+         + '而那是這個機制能不能運作的關鍵（sim.js:850 的實測：沒有它中位等待 856 秒、8 場有 6 場結束時還卡著一個）';
+  return ok(bad.length === 0,
+    `soloCalls() 回傳非 null ${solo} 次（每 tick 每井問一次）、包場上車 ${excAgg('sealedRides')} 趟，`
+    + `其中上到「不是空車」的 ${bad.length} 次` + (bad.length ? `：${bad.slice(0, 3).join('｜')}` : '')
+    + `｜⚠ soloCalls 是唯一從 sim.js import 的東西：抄一份的話，把 isExcl 注成 false 的證偽碰不到它。`);
+});
+
+// ---------------------------------------------------------------- 第 3 條：劑量反應
+// **這是儀器的自我證明**，不是平衡目標——它不管封車趟數是多少，只管 `crate.w`
+// 往上調的時候它有沒有跟著漲。不成立 = 旋鈕沒接上 = #147 那 12 格量測全部作廢。
+//
+// ⚠ **它數的是「隨機池抽出來的貨箱」那一半的封車趟數，不是全部的封車趟數**，而這
+// 一點是量完之後才知道非改不可的（#147 的留言有完整數字）：封車有**三個來源**，
+// 只有一個歸 `crate.w` 管——
+//     隨機池的 `crate`（band:'exp'）      ∝ w      實測 w:3 → 0.089 趟／遊戲日
+//     事件 `cratehaul`（w:5，大廳→實驗）  與 w 無關 實測 0.089 趟／遊戲日
+//     事件 `satellite`（w:5，大廳→屋頂）  與 w 無關 實測 0.104 趟／遊戲日
+// 也就是說 `crate.w` 從 3 調到 6 的時候，**總封車趟數只漲 31%**（0.28 → 0.37），
+// 而那個增量埋在一個與它同樣大的常數底下。要讓「總數嚴格遞增」有 3 個標準差的
+// 把握，需要每個 w 跑 **749 個遊戲日**（Poisson：0.0885·D ≥ 3√(0.652·D)）；
+// 數與 w 有關的那一半只要 305 個。**所以這裡數的是後者**——擋的是同一件事
+// （旋鈕沒接上就是 0/0/0），成本差 2.5 倍。總數也印出來，讓稀釋看得見。
+const EXC_DOSE = [3, 6, 12];
+const EXC_DOSE_SEEDS = [1, 7, 13, 21, 29, 37, 43, 51, 2, 3, 5, 11], EXC_DOSE_DAYS = 15;
+
+check('劑量反應是單調的：crate.w 3/6/12，封車趟數嚴格遞增', () => {
+  if (excCrate.exclusive !== true)
+    return 'TODO: `crate` 還沒有 exclusive:true——旋鈕的另一端不存在，量不出劑量反應';
+  const w0 = excCrate.w;
+  let rows;
+  try {
+    rows = EXC_DOSE.map(w => {
+      excCrate.w = w;
+      const runs = EXC_DOSE_SEEDS.map(s => excRun({ shafts: 6, days: EXC_DOSE_DAYS, seed: s }));
+      const add = k => runs.reduce((a, r) => a + (typeof r[k] === 'number' ? r[k] : r[k].length), 0);
+      return { w, pool: add('poolRides'), evt: add('evtRides'),
+               all: add('sealedRides'), ridealong: add('ridealong') };
+    });
+  } finally { excCrate.w = w0; }      // **一定要還原**：下一組 check 讀的是同一個物件
+  const line = rows.map(r => `w=${r.w} → 池子 ${r.pool} 趟（事件 ${r.evt}、合計 ${r.all}）`).join('、');
+  // 前提：量到的「封車」要真的是封車。搭便車的話這個計數器量的是別的東西，
+  // 它單調不單調都證明不了旋鈕接上了。
+  const ride = rows.reduce((a, r) => a + r.ridealong, 0);
+  if (ride > 0)
+    return `量到 ${ride} 次「封車的車上還有別人」——這個計數器量的不是封車，`
+         + `所以它單調也沒有意義（先看第 1 條）｜${line}`;
+  const ne = nonEmpty(rows[0].pool, 'w=3 就抽不出半個貨箱——旋鈕的起點是空的');
+  if (ne !== true) return ne;
+  const bad = [];
+  for (let i = 1; i < rows.length; i++)
+    if (!(rows[i].pool > rows[i - 1].pool))
+      bad.push(`w=${rows[i - 1].w}(${rows[i - 1].pool}) → w=${rows[i].w}(${rows[i].pool}) 沒有變多`);
+  return ok(bad.length === 0,
+    `${EXC_DOSE_SEEDS.length} 顆種子 × ${EXC_DOSE_DAYS} 遊戲日 / 6 井 / 100 樓：${line}`
+    + (bad.length ? `｜**${bad.join('、')}**` : '')
+    + `｜這條是儀器的自我證明：它紅了，#147 的 12 格量測全部不能信。`
+    + `｜⚠ 事件那一欄（cratehaul + satellite）**不隨 w 動**——`
+    + `這就是為什麼「總封車趟數」是一支鈍的儀器。`);
+});
