@@ -2404,7 +2404,7 @@ const THR_CONFIGS = [
   ['healthy 3井cap8 45層',        45,      2,     2,  [],            80],
   ['100層 欠配 3井cap8',         100,      2,     2,  [],            40],
   ['100層 中配 4井cap14 +group', 100,      3,     6,  ['group'],     75],
-  ['100層 高配 滿級 +dest+group',100,      5,    16,  ['dest','group'], 90],
+  ['100層 高配 滿級 +dest+group',100,      5,    15,  ['dest','group'], 90],   // cap 16 → 15：#142 之後 cap 的上限就是 15
   ['look+group 3井cap6 45層',     45,      2,     1,  ['group'],     75],
   ['dest+group 3井cap6 45層',     45,      2,     1,  ['dest','group'], 70],
 ];
@@ -2422,7 +2422,16 @@ check('七種調度配置下，電梯的送達率不可以崩掉', () => {
     st.auto.autodoor = st.auto.fifo = st.auto.look = true;
     for (const a of autos) st.auto[a] = true;      // group / dest 那兩條路
     st.up.shaft = shaft; st.up.cap = capUp;
-    st.up.speed = 8; st.up.accel = 8; st.up.door = 4;
+    // **#142 之後重訂。** 這一組的劇本是用**升級等級**寫死的，而 #142 改變了
+    // 「一級」代表多少（速度 +0.15 → +0.40／秒，加速度 +0.08 → +0.21333，門 −0.12 → −0.10）。
+    // 照舊寫 8/8/4 的話，同一列劇本會突然變成一台快很多的電梯——**遊戲沒有變簡單，是尺變鬆了**。
+    // 實測：100 層欠配那一列從 50.3% 跳到 70.7%，而 owner 裁決「欠配該被罰這麼重」時看的是 50.3%。
+    // 所以換成**衍生值相同**的新等級，不是換成相同的等級數字：
+    //   速度   8 → 3   cruise 1.0 + 0.40×3 = 2.20（舊：1.0 + 0.15×8 = 2.20）
+    //   加速度 8 → 3   accel  0.5 + 0.21333×3 = 1.14（舊：0.5 + 0.08×8 = 1.14）
+    //   門     4 → 5   door   max(0.5, 2.0 − 0.10×5) = 1.50（舊：max(0.6, 2.0 − 0.12×4) = 1.52）
+    //                  ——門差 0.02 秒，那是整數級數能到的最近點，記在這裡不要當成漂移。
+    st.up.speed = 3; st.up.accel = 3; st.up.door = 5;
     const sim = M.createSim(st);
     M.syncShafts(st, sim);
     const n = Math.round(THR_DAYS * C.DAY_SECONDS / C.STEP);
