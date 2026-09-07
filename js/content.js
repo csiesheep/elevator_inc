@@ -8,7 +8,7 @@ export const CONFIG = {
   ACC_START:      0.5,    // 樓/秒^2
   CAP_START:      4,
   DOOR_START:     2.0,    // 秒（開 0.4 + 停 + 關 0.4）
-  DOOR_MIN:       0.6,
+  DOOR_MIN:       0.5,
   SPAWN_START:    6.5,    // 秒/人（10 樓時）
   FARE_BASE:      1,      // $ / 樓層差
   STEP:           1/60,
@@ -61,13 +61,13 @@ export const WEEKDAYS = ['週一', '週二', '週三', '週四', '週五', '週�
 // ---------------------------------------------------------------- 現金升級
 // 五個屬性互相牽制，沒有一個是「全面更好」的（設計 4.6）
 export const UPGRADES = [
-  { id:'speed',   name:'巡航速度',   icon:'⬆',  base:60,    growth:1.12, max:40,
+  { id:'speed',   name:'巡航速度',   icon:'⬆',  base:60,    growth:1.4838, max:15,
     detail:'+0.15 樓/秒', hint:'長程變快，短程幾乎沒感覺' },
-  { id:'accel',   name:'加速度',     icon:'⚡', base:70,    growth:1.12, max:40,
+  { id:'accel',   name:'加速度',     icon:'⚡', base:70,    growth:1.4838, max:15,
     detail:'+0.08 樓/秒²', hint:'短程變快，長程幾乎沒感覺' },
-  { id:'cap',     name:'載客量',     icon:'👥', base:50,    growth:1.14, max:16,
+  { id:'cap',     name:'載客量',     icon:'👥', base:50,    growth:1.4890, max:15,
     detail:'+2 人',        hint:'一趟載更多，但上下客時間變長' },
-  { id:'door',    name:'開關門',     icon:'🚪', base:80,    growth:1.13, max:12,
+  { id:'door',    name:'開關門',     icon:'🚪', base:80,    growth:1.4312, max:15,
     detail:'-0.12 秒',     hint:'站數多才划算' },
   { id:'cooling', name:'散熱',       icon:'❄',  base:150,   growth:1.16, max:12,
     detail:'+2 熱容量 / 冷卻加快', hint:'讓超速撐更久' },
