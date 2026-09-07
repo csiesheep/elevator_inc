@@ -471,6 +471,10 @@ function fireEvent(st, sim){
     // 留著是因為它便宜且防呆：byTenant 的列沒有 hours，少了這道關 inHourWindow()
     // 會拿到 undefined。真正該擋住「加了一列卻沒有路走得到它」的是可達性 guard。
     if (e.byTenant) return false;
+    // 一輪只發生一次（#134 最後升空）。記在 `st.fired`（state.js），**不是 sim**——
+    // sim 每次讀檔都重建，記在那裡等於「關掉再打開就能再看一次結局前的最後一批人」。
+    // 拆樓會重置，因為 `doPrestige` 明列 carry、沒列到的就是新的一輪。
+    if (e.once && st.fired && st.fired[e.id]) return false;
     if (!inHourWindow(h, e.hours)) return false;
     return floorInBand(st, e.at, simTopAll) >= 0 && floorInBand(st, e.to, simTopAll) >= 0;
   });
@@ -496,6 +500,18 @@ function runEvent(st, sim, ev, band, tenant, simTopAll, scale){
   // 所有乘客**共用的同一個物件**，所以兩個清潔工只會封一次，而第二個人晚一點才
   // 下車也不會在解封之後又封一次。
   // 沒寫 blockOn 的事件走原本那一行：發生的瞬間就封。
+  // 倒數計時（#128）：一段時間內全棟票價乘上一個倍率。跟封鎖同一種形狀——
+  // **它是這一趟第二種「不生人也真的發生了」的事件**，所以下面那個提前 return
+  // 要放它過去，否則玩家永遠看不到倒數開始的提示。
+  let boostSecs = 0;
+  if (ev.fareBoost){
+    boostSecs = ev.fareBoost[1] + Math.random() * (ev.fareBoost[2] - ev.fareBoost[1]);
+    const until = st.t + boostSecs;
+    // 已經在加倍中就延長，不疊乘：兩次 ×2 疊成 ×4 會讓「剛好連續抽到兩次」變成
+    // 一個玩家無法預期、也無法重現的暴利。
+    if (!sim.fareBoost || sim.fareBoost.until < until)
+      sim.fareBoost = { mult: ev.fareBoost[0], until };
+  }
   let blockSecs = 0, arm = null;
   if (ev.block){
     const secs = ev.block[0] + Math.random() * (ev.block[1] - ev.block[0]);
@@ -540,6 +556,7 @@ function runEvent(st, sim, ev, band, tenant, simTopAll, scale){
     p.surge = d.surgeMult;                       // B 尖峰加給
     p.fromEvent = true;
     p.evId = ev.id;                              // 是哪一列事件生的（成就的計數器要用）
+    if (ev.exclusive) p.exclusive = true;        // 這一趟包場（#122）。⚠ 同伴拿不到，見 isExcl 的 #136
     if (arm) p.blockArm = arm;                   // 送達時才真的封鎖
     made++;
     // pair:true 的型別在 makePassenger **裡面**就把同伴生好了，所以上面那四項只蓋得到
@@ -552,6 +569,7 @@ function runEvent(st, sim, ev, band, tenant, simTopAll, scale){
       mate.surge = p.surge;
       mate.fromEvent = true;
       mate.evId = p.evId;                        // ⚠ 下面那條規則的第一個新欄位，逐字補上
+      if (ev.exclusive) mate.exclusive = true;   // ⚠ 同一條規則，第二個（summon 那一半仍是 #136）
       if (arm) mate.blockArm = arm;
       made++;
     }
@@ -561,11 +579,16 @@ function runEvent(st, sim, ev, band, tenant, simTopAll, scale){
   // 事件在沒有人可送的時候什麼都不會發生，那就跟沒發生一樣，要靜靜結束。
   // **停機是第二種「不生人也真的發生了」的事件**（第一種是立刻封鎖），所以它跟
   // blockSecs 一起放行。送達才封鎖的那一種仍然要靜靜結束。
-  if (!made && (arm || (!blockSecs && !stallSecs))) return;
+  // **倒數計時（#128）是第三種**：它只把票價乘上一段時間，同樣一個人都不生。
+  // 三個都放行，而 `{s}` 取其中不為 0 的那一個——一列事件不會同時是這三種。
+  if (!made && (arm || (!blockSecs && !stallSecs && !boostSecs))) return;
+  // 走到這裡才算「真的發生了」，所以 `once`（#134 最後升空）在這裡才劃掉——
+  // 放在函式開頭的話，一次抽中但一個人都沒生出來的靜默 return 會把這一輪唯一的機會吃掉。
+  if (ev.once && st.fired) st.fired[ev.id] = true;
   const label = tenant ? `${L(tenant,'name','tenants')}：` : '';
   sim.toasts.push({ txt: label + L(ev,'text','events')
     .replace('{n}', made).replace('{f}', from + 1)
-    .replace('{s}', Math.round(blockSecs || stallSecs)), life: 4 });
+    .replace('{s}', Math.round(blockSecs || stallSecs || boostSecs)), life: 4 });
   sim.lastEvent = { name: L(ev,'name','events'), t: st.t, floor: from, n: made,
                     block: blockSecs, armed: !!arm };
   // B 疏散模式的目標。封鎖那層沒有人可疏散（電梯根本不能停），指過去只會讓玩家
@@ -626,14 +649,24 @@ function stairsUp(st, sim){
 }
 
 // ------------------------------------------------------------ 票價
-function fareOf(st, d, p){
+// 倒數計時（#128）：一段時間內全棟票價乘上一個倍率。
+// **跟 `p.surge` 不是同一件事**：`surge` 在乘客**生出來的那一刻**蓋在他身上，
+// 所以它是「這一批人比較值錢」；這個是讀**收錢的那一刻**的時鐘，所以它是
+// 「這一段時間比較值錢」——倒數期間你多跑一趟就多賺一趟，那才是玩家的決定。
+function fareBoostMult(st, sim){
+  const b = sim && sim.fareBoost;
+  if (!b || b.until <= st.t) return 1;
+  return b.mult;
+}
+
+function fareOf(st, d, p, sim){
   const dist = Math.abs(p.dest - p.origin);
   // 樓層越高 = 租戶等級越高 = 同樣的距離值更多錢
   const tier = Math.max(tierAt(p.origin + 1), tierAt(p.dest + 1));
   const mix = Math.max(tenantMix(st, bandOf(p.origin + 1)).fare,
                        tenantMix(st, bandOf(p.dest + 1)).fare);   // A 租戶決定單價
   const surge = p.surge || 1;                                     // B 尖峰加給
-  return C.FARE_BASE * dist * p.t.fare * tier * mix * d.fareMult * surge;
+  return C.FARE_BASE * dist * p.t.fare * tier * mix * d.fareMult * surge * fareBoostMult(st, sim);
 }
 
 // ------------------------------------------------------------ 玩家點樓層
@@ -687,9 +720,24 @@ function startMove(st, sim, s, f){
 // 不是一個佔位數字**——用 `size:6` 表達「佔滿整台」在起始載客量 4 是「永遠上不了車」、
 // 在載客量 16 是「只佔 3/8」，兩端都壞。
 //
+// **載客量是可以升級的**（`CAP_START` 4，`cap` 滿級 16 段 → 4 + 2×16 = **36**），
+// 所以任何寫死的 size 都只在其中一個升級階段剛好等於「整台車」；上車規則在
+// 4 到 36 之間每一個值都成立。（#122 衛星送件那一支各自實作過一次「把它算成
+// 整個 cap」，合併時撤掉——**兩支為同一個機制各造一個輪子，而三張 id 表都看不到**。）
+//
+// ⚠ **`exclusive` 可以是型別的，也可以是事件蓋在乘客身上的。**
+//   型別那一種是「這個東西本來就要包場」（#117 機密貨箱）；乘客那一種是
+//   「這一列事件生出來的這一個要包場」（#122 衛星送件借既有的送貨員當押運，
+//   而送貨員平常當然不包場）。兩種在這支檔案裡是同一件事，所以只有一個判斷式。
+//   ⚠ 事件那一半有 **#136** 那個洞：`runEvent` 在 `makePassenger()` **回傳之後**
+//   才蓋 `p.exclusive`，而 `makeMate()` / `summonCompanions()` 在它**裡面**跑，
+//   所以**同伴拿不到**（`runEvent` 已經逐字補了 `p.mate`，但補不到 summon 那一批）。
+//   `satellite` 是 n:1 又不 summon，今天量不出來——**下一個寫「包場 ＋ summon」的人會踩到。**
+const isExcl = p => !!(p.exclusive || p.t.exclusive);
+
 // 這支只回答一個問題：這台車現在被包場了嗎。三個呼叫點共用它，因為
 // 「車上有沒有包場的乘客」在這支檔案裡只能有一個定義。
-const isSealed = s => s.riders.some(r => r.t.exclusive);
+const isSealed = s => s.riders.some(isExcl);
 
 // **空車優先去接包場的乘客。這一條不是優化，是這個機制能不能運作的關鍵。**
 // 包場的乘客只上空車，而一台空車在高人流下幾乎立刻就會載到別人——所以
@@ -705,7 +753,7 @@ function soloCalls(st, sim, s){
   if (s.riders.length) return null;
   const out = [];
   for (const p of sim.waiting){
-    if (!p.t.exclusive) continue;
+    if (!isExcl(p)) continue;
     if (p.origin < s.from || p.origin > s.to) continue;
     if (isFloorBlocked(st, sim, p.origin)) continue;
     out.push({ f: p.origin, since: p.born });
@@ -733,7 +781,7 @@ function candidates(st, sim, s){
     // 沒有這一行）：貨箱上車前的等待中位 **449 秒**、最長 **998 秒**，場上最久的一個
     // 等了 **1950 秒（10.8 個遊戲日）**，而且**每一場結束時都還有一個卡在佇列裡**。
     // 加上這一行之後的數字寫在 content.js 的 `crate` 那一列。
-    if (p.t.exclusive && s.riders.length) continue;
+    if (isExcl(p) && s.riders.length) continue;
 
     if (st.auto.group && p.assigned != null && p.assigned !== s.id){ spare.push({ f: p.origin, since: p.born }); continue; }
     out.push({ f: p.origin, since: p.born });
@@ -795,7 +843,7 @@ function chooseTarget(st, sim, s){
     if (!isSealed(s)) for (const p of sim.waiting){
       if (p.origin < s.from || p.origin > s.to) continue;
       if (isFloorBlocked(st, sim, p.origin)) continue;
-      if (p.t.exclusive && s.riders.length) continue;   // 載不了他，理由見 candidates()
+      if (isExcl(p) && s.riders.length) continue;   // 載不了他，理由見 candidates()
       if (st.auto.group && p.assigned != null && p.assigned !== s.id) continue;
       add(p.origin, 1 + (1 - p.left / p.patience));   // 快沒耐性的權重更高
     }
@@ -857,7 +905,7 @@ function openDoors(st, sim, s, f){
       // 「夠快」在這支檔案裡只能有一個定義（#25）。
       const wait = st.t - p.born;
       const sat = 1 - Math.min(1, wait / Math.max(1, p.patience));
-      const fare = fareOf(st, d, p);
+      const fare = fareOf(st, d, p, sim);
       // 送得夠快的小費（#25 大包小包購物客）。**資料寫了 tip:{sat,mult} 才會發生**，
       // 沒寫的人物走的還是原本那一行、一個位元組都沒變。
       // 走跟車資完全一樣的帳（現金／本輪／終身／離線速率窗），因為它就是收入的一部分，
@@ -954,7 +1002,22 @@ function openDoors(st, sim, s, f){
         if (p.evId === 'fireworks')   st.codex.fireworksUp = (st.codex.fireworksUp || 0) + 1;
         if (p.evId === 'vertigo')     st.codex.vertigoDown = (st.codex.vertigoDown || 0) + 1;
         if (p.evId === 'droneshow')   st.codex.droneHop    = (st.codex.droneHop    || 0) + 1;
+        // 屋頂帶（#120–#134）。同一個理由：五個型別的 codex 鍵各自被一條「人物」的
+        // 成就佔著，事件那十條要自己的計數器。字面 `st.codex.xxx`，第 11 組靜態掃得到。
+        if (p.evId === 'launchwindow') st.codex.launchUp    = (st.codex.launchUp    || 0) + 1;
+        if (p.evId === 'cablecheck')  st.codex.cableUp     = (st.codex.cableUp     || 0) + 1;
+        if (p.evId === 'satellite')   st.codex.satelliteUp = (st.codex.satelliteUp || 0) + 1;
+        if (p.evId === 'vipview')     st.codex.vipUp       = (st.codex.vipUp       || 0) + 1;
+        if (p.evId === 'stormwarn')   st.codex.stormDown   = (st.codex.stormDown   || 0) + 1;
+        if (p.evId === 'boarding')    st.codex.boardingUp  = (st.codex.boardingUp  || 0) + 1;
+        if (p.evId === 'presscon')    st.codex.pressUp     = (st.codex.pressUp     || 0) + 1;
+        if (p.evId === 'zerog')       st.codex.zerogUp     = (st.codex.zerogUp     || 0) + 1;
+        if (p.evId === 'liftoff')     st.codex.liftoffUp   = (st.codex.liftoffUp   || 0) + 1;
       }
+      // 倒數計時（#128）那一條成就數的**不是「你遇到過幾次倒數」**，是「倒數期間你
+      // 送了幾個人」——那才是玩家為了那個乘數多跑的幾趟。讀的是收錢那一刻的時鐘，
+      // 跟 `fareOf()` 用同一個判斷（`fareBoostMult` > 1）。
+      if (fareBoostMult(st, sim) > 1) st.codex.boostRides = (st.codex.boostRides || 0) + 1;
       if (p.t.ghost){
         const bonus = 50 * st.floors;
         st.cash += bonus; st.runRevenue += bonus; sim.rateAcc += bonus;
@@ -1022,6 +1085,7 @@ function openDoors(st, sim, s, f){
   //      所以「貨箱下車了」的那一次開門會照常收人。
   //   2. **包場的乘客只上空車。** 車上還有別人就跳過他，他繼續等下一台空的。
   // 沒有任何一列資料寫 `exclusive` 的時候 `sealed` 恆為 false，這一段等於不存在。
+  //
   let sealed = isSealed(s);
   for (const ff of boardFloors){
     if (sealed) break;
@@ -1031,7 +1095,7 @@ function openDoors(st, sim, s, f){
       if (p.origin !== ff) continue;
       // 規則 2。**用 riders.length 不是 used()**：一個 size 0 的幽靈也算「車上有人」，
       // 而「包場」講的是誰都不能一起搭，不是還剩幾格。
-      if (p.t.exclusive && s.riders.length) continue;
+      if (isExcl(p) && s.riders.length) continue;
       // 必須同車（#63）：兩個人要嘛一起上，要嘛都不上。**位子要一次留兩份**——
       // 這一行就是這個機制的全部成本，也是它唯一會失敗的地方。
       let mate = (p.mate && p.mate.mate === p) ? p.mate : null;
@@ -1052,7 +1116,7 @@ function openDoors(st, sim, s, f){
       p.board = st.t;
       s.riders.push(p); sim.waiting.splice(i, 1); i--;
       boarded++;
-      if (p.t.exclusive) sealed = true;    // 規則 1 從這一刻起生效（兩層轎廂的第二層也擋掉）
+      if (isExcl(p)) sealed = true;    // 規則 1 從這一刻起生效（兩層轎廂的第二層也擋掉）
       if (p.t.doorPenalty) extra += p.t.doorPenalty;
       if (mate){
         // 另一半一定跟他同一層（同 origin）而且還在等（同 patience → 同一個 tick
