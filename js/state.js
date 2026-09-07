@@ -65,10 +65,10 @@ export function tenantMix(st, b){
 export function derived(st){
   const sk = st.skills, up = st.up;
   const d = {
-    cruise:   C.CRUISE_START + 0.15 * up.speed + 0.10 * (sk.m_speed || 0),
-    accel:    C.ACC_START    + 0.08 * up.accel + 0.06 * (sk.m_accel || 0),
+    cruise:   C.CRUISE_START + 0.40 * up.speed + 0.10 * (sk.m_speed || 0),
+    accel:    C.ACC_START    + 0.21333 * up.accel + 0.06 * (sk.m_accel || 0),
     capacity: C.CAP_START    + 2 * up.cap      + 2 * (sk.m_cap || 0),
-    door:     Math.max(C.DOOR_MIN, C.DOOR_START - 0.12 * up.door),
+    door:     Math.max(C.DOOR_MIN, C.DOOR_START - 0.10 * up.door),
     shafts:   1 + up.shaft + (sk.o_shaft || 0),
     heatMax:  6 + 2 * up.cooling + 4 * (sk.m_cool || 0),
     heatCool: 1 + 0.35 * up.cooling + 0.4 * (sk.m_cool || 0),
