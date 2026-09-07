@@ -2445,3 +2445,97 @@ check('五種調度配置下，電梯的送達率不可以崩掉', () => {
     + `要看漂移請比對上面這幾個數字——它們每次跑都會更新。`
     + `｜它擋不到的：耐性平衡、單一事件的難度、玩家覺不覺得好玩。`);
 });
+
+// ================================================================ 22 事件事後蓋的欄位（#136）
+section('22 事件事後蓋的欄位，整批人都要拿到');
+
+// runEvent() 在 makePassenger() **回傳之後**才把 panic / surge / fromEvent / evId /
+// exclusive / blockArm 蓋到 p 上，而 pair 的同伴（makeMate）與 summon 的同伴
+// （summonCompanions）都是在 makePassenger **裡面**生的。mate 那一半 58c055e 逐字補過，
+// summon 那一半是 #136。
+//
+// **這條界證明得了什麼／不再證明什麼**：它只看「同一次 runEvent 生出來的那一批」六個
+// 欄位是否一致，用的是一列只為測試存在的事件（不進 content.js，跑完就拆掉）。它不看
+// made 的計數（summon 生的人今天刻意不算進 {n}，見 content.js #61 那段）、不看 toast、
+// 不看送達。三態：六個欄位一個都沒蓋到 → 尚未實作（#136）；蓋了一部分 → 失敗；全部 → 通過。
+//
+// 母體非空寫在裡面：同伴少於 4 個（deckguide 招 4–6）就不下結論——WAIT_CAP 或抽不到
+// 樓層都會讓「一致」在空集合上恆真。
+const STAMP_FIELDS = ['panic', 'surge', 'fromEvent', 'evId', 'exclusive', 'blockArm'];
+const stampOf = (q, ev) => ({
+  panic:     q.patience / q.t.patience,        // far 相同 → 只剩 ev.panic 那個倍率
+  surge:     q.surge,
+  fromEvent: q.fromEvent === true,
+  evId:      q.evId === ev.id,
+  exclusive: q.exclusive === true,
+  blockArm:  q.blockArm,
+});
+// 讓測試事件真的發生：把 sim.eventT 推到門檻，每一步都檢查一次（EVENT_CHANCE 0.55）。
+// 事件帶 block + blockOn:'deliver'，所以 eventFloor 會避開大廳、arm 是一個真的物件。
+// 先確認 EVENTS 裡沒有殘留（清理要寫成下一次使用前的前置檢查，不只寫在 finally）。
+function fireTestEvent(ev, seed){
+  if (EVENTS.some(e => e.id === ev.id)) throw new Error(`EVENTS 裡已經有 ${ev.id}——上一次沒拆乾淨`);
+  EVENTS.push(ev);
+  try {
+    return withSeed(seed, () => {
+      const st = S.newGame();
+      st.floors = 20;
+      const sim = M.createSim(st); M.syncShafts(st, sim);
+      for (let i = 0; i < 400; i++){
+        sim.eventT = C.EVENT_EVERY;
+        M.step(st, sim, C.STEP);
+        const p = sim.waiting.find(q => q.evId === ev.id && !q.summoned);
+        if (p) return { st, sim, p };
+      }
+      return null;
+    });
+  } finally {
+    const i = EVENTS.findIndex(e => e.id === ev.id);
+    if (i >= 0) EVENTS.splice(i, 1);
+  }
+}
+function compareStamps(p, others, ev){
+  const want = stampOf(p, ev);
+  const missing = [];
+  for (const f of STAMP_FIELDS){
+    const bad = others.filter(q => {
+      const v = stampOf(q, ev)[f];
+      return f === 'panic' ? Math.abs(v - want[f]) > 1e-9 : v !== want[f];
+    });
+    if (bad.length) missing.push(f);
+  }
+  return { want, missing };
+}
+
+check('summon 招來的同伴，也要拿到事件事後蓋的六個欄位（#136）', () => {
+  const ev = { id:'__t136s', name:'t136s', w:1e12, n:[1,1], at:'any', to:'lobby',
+               type:'deckguide', panic:0.5, exclusive:true, block:[5,5], blockOn:'deliver', text:'' };
+  const r = fireTestEvent(ev, 0x136136);
+  if (!r) return '測試事件 400 步內沒有生出本尊——儀器壞了，不是產品';
+  const { sim, p } = r;
+  const crew = sim.waiting.filter(q => q !== p && q.summoned && q.type === 'observer'
+    && q.born === p.born && q.origin === p.origin && q.dest === p.dest);
+  const ne = nonEmpty(crew.length >= 4 ? crew.length : 0,
+    `deckguide 該招 4–6 個 observer，只找到 ${crew.length} 個（WAIT_CAP？抽不到樓層？）`);
+  if (ne !== true) return ne;
+  const { want, missing } = compareStamps(p, crew, ev);
+  const q0 = crew[0];
+  const nums = `本尊 patience/base ${want.panic.toFixed(4)}、同伴 ${(q0.patience / q0.t.patience).toFixed(4)}`;
+  if (missing.length === STAMP_FIELDS.length)
+    return `TODO: #136 尚未實作——${crew.length} 個 summon 同伴六個欄位一個都沒拿到（${nums}）`;
+  return ok(missing.length === 0,
+    `${crew.length} 個 summon 同伴，${missing.length} 個欄位跟本尊不一致：${missing.join('、') || '無'}（${nums}）`);
+});
+
+check('pair 的同伴拿到事件事後蓋的六個欄位（58c055e 的那一半，不可以退回去）', () => {
+  const ev = { id:'__t136p', name:'t136p', w:1e12, n:[1,1], at:'any', to:'lobby',
+               type:'proposer', panic:0.5, exclusive:true, block:[5,5], blockOn:'deliver', text:'' };
+  const r = fireTestEvent(ev, 0x136137);
+  if (!r) return '測試事件 400 步內沒有生出本尊——儀器壞了，不是產品';
+  const { p } = r;
+  if (!p.mate) return 'proposer 沒有成對（WAIT_CAP？）——母體是空的，這條沒有試過';
+  const { want, missing } = compareStamps(p, [p.mate], ev);
+  return ok(missing.length === 0,
+    `mate 六個欄位跟本尊比對，${missing.length} 個不一致：${missing.join('、') || '無'}`
+    + `（本尊 patience/base ${want.panic.toFixed(4)}、mate ${(p.mate.patience / p.mate.t.patience).toFixed(4)}）`);
+});
