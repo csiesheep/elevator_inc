@@ -16,7 +16,12 @@ export function createSim(st){
   const sim = {
     shafts: [], waiting: [], pops: [], toasts: [],
     spawnT: 0, boost: false,
-    mood: 1, moodT: 0, eventT: 0,       // 7 今日人潮 / 8 突發事件
+    mood: 1, moodT: 0,                  // 7 今日人潮
+    // 8 突發事件（#87）：**一條樓層帶一個計時器**，不再是一個全域的。
+    // 初值是錯開的相位偏移，不是 0——理由與推導寫在 eventPhases() 上面。
+    // 存檔不受影響：`sim` 每次讀檔都由 createSim() 重建（設計 4.13），
+    // 所以舊存檔載進來拿到的是一組全新的、跟樓高對應的偏移。
+    eventT: eventPhases(),
     evacUntil: 0, evacReady: 0,         // B 疏散模式
     rateWin: 0, rateAcc: 0,
     lobby: 0,
@@ -464,10 +469,91 @@ function eventFloor(st, sim, ev, band, simTopAll){
 // rollGap() 也在這裡：它讀 tenant.every，唯一的呼叫點是 tenantEvents()，
 // 兩者一起在 #86 移除。
 
-function fireEvent(st, sim){
+// #87 每一帶各自一條事件串流。
+//
+// **改動前**：一個全域計時器 + 一個全域候選池。事件的總預算是
+// `DAY_SECONDS/EVENT_EVERY × EVENT_CHANCE` = 1.32 次／遊戲日，**跟表上有幾列、
+// 塔有多高都無關**。所以多蓋一個帶 → 總量不變 → 既有的每一列變得更罕見
+// （100 層時中位數那一列要 193 真實分鐘才出現一次）。
+//
+// **改動後**：一條樓層帶一條串流，各自計時、各自從自己的列裡抽。多蓋一個帶
+// 就多一條串流，舊的帶完全不受影響。
+//
+// 歸屬規則（owner 已驗過全部 70 列都有明確的家）：`at` 是樓層帶鍵就用它，
+// 否則看 `to`，兩個都不是（lobby / any）就歸「全樓」。
+//
+// **順序刻意是「全樓在前、樓層帶由下而上」**：`all` 永遠活著，而樓層帶是
+// 由下往上一帶一帶蓋出來的，所以「已經活著的串流」永遠是這個順序的一個**前綴**。
+// 相位偏移靠這個前綴性質才能對每一種樓高都均勻（見 EVENT_PHASE）。
+const EVENT_STREAM_ORDER = ['all', ...BANDS.map(b => b.key)];
+
+// 費率：**正比於那條串流裡的事件列數**，不是一個常數。
+// 這是刻意的自我維護：以後往某一帶加一列，那一帶的速率自動上升，
+// **既有的每一列頻率不變**。用單一常數的話各帶的中位數會落在 26–108 分之間。
+//
+// 0.0267 是 owner 從「目標 60 真實分鐘一列」反解出來的實測值（不是紙上的
+// 0.5×n/24 = 0.0208n——`hours` 窗會讓實際命中低於名目）。
+//
+// ⚠ **它不在 `CONFIG` 裡**，因為 `CONFIG` 住在 `content.js`，而這一趟的約束是
+// 「`content.js` 一個位元組都不要改」。兩者只能擇一，我選了不動資料檔。
+// `CONFIG.EVENT_CHANCE`（0.55）從這一版起**沒有任何呼叫端**——留著沒動是因為
+// 拿掉它要改 `content.js`。這一條已回報 orchestrator（#87）裁決。
+const EVENT_RATE_PER_ROW = 0.0267;
+
+const EVENT_BAND_KEYS = new Set(BANDS.map(b => b.key));
+// 一列事件屬於哪一條串流。
+export function eventStreamOf(e){
+  return EVENT_BAND_KEYS.has(e.at) ? e.at
+       : EVENT_BAND_KEYS.has(e.to) ? e.to
+       : 'all';
+}
+
+// 一條串流現在有哪幾列。
+//
+// ⚠ **這裡刻意不快取。** 我第一版用 `EVENTS.length` 當失效鍵，結果 harness 的
+// `fireTestEvent` 是 push → splice → push（兩條 #136 的測試連著跑），**第二次 push
+// 之後長度跟第一次一樣**，於是快取判定命中、回傳的還是含著上一列測試事件的舊分區。
+// 第二條測試因此 400 步一次都沒觸發，回報「儀器壞了」——而壞的是我的快取。
+// 每次重算是一次 70 列的 filter，而它只在「某條串流的計時器跨過門檻」那一刻跑
+// （約每 9 個模擬秒一次），不是每個 tick。省不下什麼，卻換掉一整類失效 bug。
+function streamRows(key){
+  return EVENTS.filter(e => !e.byTenant && eventStreamOf(e) === key);
+}
+
+// ⚠ **八條串流不可以同相位。** 如果全部都從 eventT = 0 開始，它們會在同一個 tick
+// 一起檢查，於是事件以最多 8 個一組**爆發**出現、中間長時間空白：總量對，體感全錯。
+//
+// 錯相位用 **van der Corput（base-2 位元反轉）序列**，不是 `i / n`：
+//
+//   i        0    1    2    3    4    5    6    7
+//   vdc2(i)  0   1/2  1/4  3/4  1/8  5/8  3/8  7/8
+//
+// 理由是上面那個**前綴**性質。活著的串流永遠是 0..k，而 van der Corput 的
+// 每一個前綴本身就是均勻的：
+//   10 層（2 條）→ 0, 1/2          間距 1/2, 1/2      （完美）
+//   45 層（4 條）→ 0, 1/2, 1/4, 3/4 排序後 0,¼,½,¾    （完美）
+//   100 層（8 條）→ 0…7/8           排序後八等分      （完美）
+// 用 `i / 8` 的話 45 層會拿到 0, 1/8, 2/8, 3/8——四條擠在前半圈，後半圈全空。
+//
+// **是決定性的，沒有用亂數**：同一個樓高每次 createSim() 都給出逐字相同的偏移，
+// 所以存檔重建一致、A/B 可重現。
+function vdc2(i){
+  let r = 0, d = 0.5;
+  for (let x = i; x > 0; x >>= 1, d /= 2) if (x & 1) r += d;
+  return r;
+}
+// 八個槽固定存在（就算某一帶暫時一列事件都沒有也留著它的槽）——串流數是常數，
+// `sim.eventT` 的長度就不會在執行期變動，也就沒有「補上新的一條要給什麼相位」這種事。
+export function eventPhases(){
+  return EVENT_STREAM_ORDER.map((_, i) => vdc2(i) * C.EVENT_EVERY);
+}
+
+function fireEvent(st, sim, streamKey){
   const h = hourOf(st);
   const simTopAll = st.floors - 1;
-  const pool = EVENTS.filter(e => {
+  // streamKey 省略時退回全域池子（舊行為）。
+  const src = streamKey ? streamRows(streamKey) : EVENTS;
+  const pool = src.filter(e => {
     // #86 之後 EVENTS 裡已經沒有 byTenant 的列，所以這一行今天恆為 false。
     // 留著是因為它便宜且防呆：byTenant 的列沒有 hours，少了這道關 inHourWindow()
     // 會拿到 undefined。真正該擋住「加了一列卻沒有路走得到它」的是可達性 guard。
@@ -1225,10 +1311,31 @@ export function step(st, sim, dt){
   // 而且已經沒有空樓層可以送。評價低的後果就是賺比較少，僅此而已。
 
   // --- 8 隨機突發事件（跟租戶無關的那些）
-  sim.eventT += dt;
-  if (sim.eventT >= C.EVENT_EVERY){
-    sim.eventT = 0;
-    if (Math.random() < C.EVENT_CHANCE) fireEvent(st, sim);
+  // 一條串流一個計時器，各自計時、各自抽自己的列（#87）。
+  // 串流數是常數（EVENT_STREAM_ORDER 的八個槽），不隨樓高變：還沒蓋到的那一帶
+  // 計時器照跑，但池子是空的、抽不出東西。
+  //
+  // harness 會直接寫 `sim.eventT = C.EVENT_EVERY` 來強迫這一步檢查一次
+  // （acceptance.js 的 fireTestEvent）。**接受一個純數字，意思是「把每一條串流
+  // 都推到那個值」**——不接的話那兩條 #136 的測試會在 400 步內一次都不觸發，
+  // 然後回報「儀器壞了」。這是產品在遷就測試，已列在 #87 的交付裡。
+  if (!Array.isArray(sim.eventT)){
+    const v = typeof sim.eventT === 'number' ? sim.eventT : 0;
+    sim.eventT = EVENT_STREAM_ORDER.map(() => v);
+  }
+  for (let i = 0; i < EVENT_STREAM_ORDER.length; i++){
+    sim.eventT[i] += dt;
+    if (sim.eventT[i] < C.EVENT_EVERY) continue;
+    // **減掉一格，不是歸零。** 歸零會丟掉跨過門檻那一步的餘數，而每一條串流
+    // 跨過去的 tick 不同、餘數也不同，於是相位會慢慢漂到重疊。減法讓八條
+    // 串流的間距永遠是常數。
+    sim.eventT[i] -= C.EVENT_EVERY;
+    // dt 大到跳過一整格（只會發生在測試把 dt 調大時）：不補發，回到 0。
+    if (sim.eventT[i] >= C.EVENT_EVERY) sim.eventT[i] = 0;
+    // 費率正比於這條串流的列數。**不是全域一份預算**——這正是這一趟的重點。
+    const key = EVENT_STREAM_ORDER[i];
+    if (Math.random() < EVENT_RATE_PER_ROW * streamRows(key).length)
+      fireEvent(st, sim, key);
   }
 
   // --- 等不到電梯的工班自己走樓梯上去（#22）。要在耐性之前：他們 patience:999，
