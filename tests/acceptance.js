@@ -2567,3 +2567,111 @@ check('pair 的同伴拿到事件事後蓋的六個欄位（58c055e 的那一半
     `mate 六個欄位跟本尊比對，${missing.length} 個不一致：${missing.join('、') || '無'}`
     + `（本尊 patience/base ${want.panic.toFixed(4)}、mate ${(p.mate.patience / p.mate.t.patience).toFixed(4)}）`);
 });
+
+
+// ================================================================ 23 升級樹的價格曲線（#142）
+// **這一組寫在實作之前。** 常數從 owner 的裁決逐字抄，不從 content.js 讀——
+// 否則「改產品裡的數字讓測試通過」會安靜地成功（harness.js 開頭第 1 點）。
+//
+// owner 裁決（2026-09-07，逐字）：
+//   「加速度，巡航速度：改成級數 15級，總額不變，最終效果不變」
+//   「載客量 就15 級，沒關係」（= 每級維持 +2，滿級從 36 掉到 34）
+//   「開關門，改成每級 -$0.1」（單位是秒）
+//   「DOOR_MIN 改成 0.5」
+//
+// growth 是我用二分搜尋解出來的（`ceil(base × growth^n)` 逐級加總逼到目標），
+// 不是設計文件裡原本就有的數字，所以 **totalTol 給得寬**——要擋的是「級數與效果對不對」，
+// 不是小數點後第四位。
+section('23 升級樹的價格曲線（#142）');
+
+const TREE = {
+  speed:   { max: 15, per: 0.40,    startKey: 'CRUISE_START', finalStat: 'cruise',   final: 7.00,  total: 46044 },
+  accel:   { max: 15, per: 0.21333, startKey: 'ACC_START',    finalStat: 'accel',    final: 3.70,  total: 53717 },
+  cap:     { max: 15, per: 2,       startKey: 'CAP_START',    finalStat: 'capacity', final: 34,    total: 40000 },
+  door:    { max: 15, per: -0.10,   startKey: 'DOOR_START',   finalStat: 'door',     final: 0.50,  total: 40000 },
+};
+const DOOR_MIN_WANT = 0.5;
+// **「還沒做」與「做了但錯」要分得開。**（harness.js 開頭第 2 點）
+// 級數是唯一分得出來的訊號：speed / accel 的**最終效果與總額本來就不變**
+// （裁決逐字是「總額不變，最終效果不變」），所以拿它們當判斷會把未實作誤判成失敗。
+// 我第一版就是這樣寫的，跑出來兩條紅——**那兩條紅描述的是現況，不是缺陷。**
+const treeStarted = () => (UPGRADES.find(u => u.id === 'speed') || {}).max !== 40;
+const treeTotal = id => {
+  const st = S.newGame(); st.cash = 1e15;
+  let t = 0, n = 0;
+  while (!S.upgradeMaxed(st, id) && n++ < 600){ t += S.upgradeCost(st, id); S.buyUpgrade(st, id); }
+  return t;
+};
+
+check('四條軌都是 15 級', () => {
+  const rows = Object.entries(TREE).map(([id, w]) => [id, (UPGRADES.find(u => u.id === id) || {}).max, w.max]);
+  const bad = rows.filter(([, got, want]) => got !== want);
+  if (bad.length === rows.length)
+    return 'TODO: #142 尚未實作——四條軌的級數還是 ' + rows.map(r => r[0] + ':' + r[1]).join('、');
+  return ok(bad.length === 0,
+    rows.map(r => r[0] + ' ' + r[1] + '/' + r[2]).join('、') + '｜不符：' + bad.map(b => b[0]).join('、'));
+});
+
+check('滿級的實際效果跟裁決一致（每級效果 × 級數）', () => {
+  if (!treeStarted()) return 'TODO: #142 尚未實作——級數還是 40/40/16/12，效果自然還是舊的';
+  const st = S.newGame();
+  for (const id of Object.keys(TREE)) st.up[id] = (UPGRADES.find(u => u.id === id) || {}).max || 0;
+  const d = S.derived(st);
+  const rows = [], bad = [];
+  for (const [id, w] of Object.entries(TREE)){
+    const got = d[w.finalStat];
+    rows.push(id + ' ' + w.finalStat + '=' + got.toFixed(4) + '（要 ' + w.final + '）');
+    if (Math.abs(got - w.final) > 0.005) bad.push(id);
+  }
+  return ok(bad.length === 0, rows.join('｜') + '｜不符：' + (bad.join('、') || '無'));
+});
+
+check('DOOR_MIN 是 0.5，而且滿級剛好落在它上面', () => {
+  if (C.DOOR_MIN !== DOOR_MIN_WANT)
+    return 'TODO: #142 尚未實作——DOOR_MIN 還是 ' + C.DOOR_MIN + '（要 ' + DOOR_MIN_WANT + '）';
+  const st = S.newGame(); st.up.door = (UPGRADES.find(u => u.id === 'door') || {}).max || 0;
+  return ok(Math.abs(S.derived(st).door - DOOR_MIN_WANT) < 1e-9,
+    'DOOR_MIN=' + C.DOOR_MIN + '、滿級 door=' + S.derived(st).door.toFixed(4));
+});
+
+// **這一條現在就是活的**（不是 TODO），而且它擋的正是 #142 差點踩到的那個洞：
+// door 的公式有 Math.max(DOOR_MIN, …) 夾限，級數往上加而 DOOR_MIN 不動的話，
+// **最貴的那幾級買到的是 0**——15 級 × 每級 −0.12 會讓第 13/14/15 級完全沒有效果，
+// 而那三級佔整條軌成本的六成以上。玩家付了錢，數值一動也不動。
+check('每一級都要真的買到東西——沒有一級的效果是 0', () => {
+  const STAT = { speed:'cruise', accel:'accel', cap:'capacity', door:'door', cooling:'heatMax', shaft:'shafts' };
+  const dead = [], rows = [];
+  let checked = 0;
+  for (const u of UPGRADES){
+    const stat = STAT[u.id];
+    if (!stat) continue;                       // floor 走的是 st.floors，不在 derived 上
+    let prev = null, deadHere = [];
+    for (let lv = 0; lv <= u.max; lv++){
+      const st = S.newGame(); st.up[u.id] = lv;
+      const v = S.derived(st)[stat];
+      if (prev !== null && Math.abs(v - prev) < 1e-9) deadHere.push(lv);
+      prev = v; checked++;
+    }
+    rows.push(u.id + '(' + u.max + '級' + (deadHere.length ? '，第 ' + deadHere.join('/') + ' 級買到 0' : '') + ')');
+    if (deadHere.length) dead.push(u.id + ' 第 ' + deadHere.join('/') + ' 級');
+  }
+  const ne = nonEmpty(checked, '一級都沒有掃到——這條 guard 在量一棵空的升級樹');
+  if (ne !== true) return ne;
+  return ok(dead.length === 0,
+    '掃了 ' + checked + ' 個等級：' + rows.join('、')
+    + '｜買到 0 的：' + (dead.join('、') || '無')
+    + '｜⚠ 這條擋的是「級數往上加但夾限沒跟著動」——'
+    + 'door 有 Math.max(DOOR_MIN, …)，capacity/cruise/accel 沒有夾限但以後可能會有。');
+});
+
+check('整棵樹的總額落在裁決的量級上', () => {
+  if (!treeStarted()) return 'TODO: #142 尚未實作——級數還是 40/40/16/12，總額自然還是舊的';
+  const rows = [], bad = [];
+  for (const [id, w] of Object.entries(TREE)){
+    const got = treeTotal(id);
+    const tol = Math.max(2000, w.total * 0.05);
+    rows.push(id + ' $' + Math.round(got).toLocaleString() + '（要 ~$' + w.total.toLocaleString() + '）');
+    if (Math.abs(got - w.total) > tol) bad.push(id);
+  }
+  return ok(bad.length === 0, rows.join('｜') + '｜超出容差：' + (bad.join('、') || '無'));
+});
