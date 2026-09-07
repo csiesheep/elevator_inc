@@ -9,3 +9,7 @@ tools/_obs_picked.json
 # orchestrator 的工作樹標記與探針（tools/orch.sh 的慣例）
 __MARKER_ORCH.txt
 __orch_*
+
+# artroof 掃描器的中間檔（artroof_scan.py 產生，約 30MB，重跑就有）
+tools/_artroof_*.npy
+tools/_artroof_*.npz
