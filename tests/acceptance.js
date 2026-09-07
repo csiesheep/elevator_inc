@@ -777,31 +777,68 @@ const CLIFF_OK = {
         + '是全表最低的一列。要不要調是 owner 的決定（orchestrator 實測 59.1%，配置較寬鬆）。',
 };
 
+// ⚠ **這條 guard 曾經對屋頂帶完全是瞑的，而且只讀 `type` 不讀 `types`。**
+// 兩個洞都是做屋頂帶的 peer 回報的，我複驗了，兩個都是真的。
+//
+// **一、far 算錯了 35 倍。** `BANDS.roof` 是 `from:100, to:9999`（上界寫成一個
+// 大數字當「沒有上限」），而 `MAX_FLOORS` 是 **100**。舊的 `mid()` 直接取
+// `((from-1)+(to-1))/2`：
+//
+//     retail  far    4.5 (×1.10)      obs   far   77.0 (×2.71)
+//     office  far   14.5 (×1.32)      exp   far   91.5 (×3.03)
+//     hotel   far   32.0 (×1.71)      **roof  far 5048.5 (×113.2)**  ← 實際應該是 99.0 (×3.20)
+//     resid   far   57.0 (×2.27)
+//
+// 所以任何一列屋頂事件的場上耐性都會被算成實際值的 **35 倍**，
+// **這一帶的懸崖它一條都擋不到**。夾限到 `MAX_FLOORS - 1` 之後，
+// **其他六帶的數字逐位元相同**——修正只碰到壞的那一帶。
+//
+// **二、`types:` 的事件整列跳過。** 舊的第一行是 `if (!e.type || !e.n) continue;`，
+// 而事件可以寫 `types:{ id: 權重 }` 混幾種人。既有的 `closetime` 就是這樣繞過去的。
+// 現在 `types:` 的每一種都算，**取最差的那一種**（整批人裡只要有一種掉下懸崖，
+// 那一種就是必死的）。
+const cliffMid = k => {
+  if (k === 'lobby') return 0;
+  if (k === 'any') return null;
+  const b = BANDS.find(x => x.key === k);
+  if (!b) return null;
+  // 夾限：`to` 可以寫一個大數字當「沒有上限」，但樓真的蓋不到那裡
+  const lo = Math.min(b.from - 1, C.MAX_FLOORS - 1);
+  const hi = Math.min(b.to - 1, C.MAX_FLOORS - 1);
+  return (lo + hi) / 2;
+};
+
 check('成批事件的場上耐性不可以掉到結構懸崖以下', () => {
   const byId = Object.fromEntries(PASSENGERS.map(p => [p.id, p]));
   const bad = [], checked = [];
+  // 儀器活著嗎？屋頂帶的 far 必須落在樓高上限之內。
+  const roofFar = cliffMid('roof');
+  if (roofFar != null && !(roofFar < C.MAX_FLOORS))
+    return `儀器壞了：roof 帶算出來的 far 是 ${roofFar}，比 MAX_FLOORS ${C.MAX_FLOORS} 還大`;
   for (const e of EVENTS){
-    if (!e.type || !e.n) continue;
+    if (!e.n) continue;
+    // `type` 或 `types` 都要算——舊版只讀 `type`，`types:` 的整列跳過
+    const ids = e.types ? Object.keys(e.types) : (e.type ? [e.type] : []);
+    if (!ids.length) continue;
     const batch = e.n[1] || e.n[0] || 0;
     if (batch < 6) continue;                        // 一兩個人不算「整批」
-    const t = byId[e.type];
-    if (!t) continue;                               // 指不到型別是上面那條的事
-    // far 的中位：'lobby' 是 0，樓層帶取它索引範圍的中點，'any' 界不出來所以跳過
-    const mid = k => {
-      if (k === 'lobby') return 0;
-      if (k === 'any') return null;
-      const b = BANDS.find(x => x.key === k);
-      return b ? ((b.from - 1) + (b.to - 1)) / 2 : null;
-    };
-    const a = mid(e.at), z = mid(e.to);
+    const a = cliffMid(e.at), z = cliffMid(e.to);
     if (a == null || z == null) continue;           // 'any'：跳過，理由見上面註解
     const far = Math.max(a, z);
-    const onStage = t.patience * (1 + far / 45) * (e.panic != null ? e.panic : 1);
+    let worst = Infinity, worstId = '';
+    for (const id of ids){
+      const t = byId[id];
+      if (!t) continue;                             // 指不到型別是上面那條的事
+      const v = t.patience * (1 + far / 45) * (e.panic != null ? e.panic : 1);
+      if (v < worst){ worst = v; worstId = id; }
+    }
+    if (worst === Infinity) continue;
     checked.push(e.id);
-    if (onStage >= CLIFF) continue;
+    if (worst >= CLIFF) continue;
     if (CLIFF_OK[e.id]) continue;
-    bad.push(`${e.id}（${e.type} ${t.patience}`
-      + (e.panic != null ? ` × panic ${e.panic}` : '') + ` = 場上 ${onStage.toFixed(0)} 秒）`);
+    const t = byId[worstId];
+    bad.push(`${e.id}（${worstId} ${t.patience}`
+      + (e.panic != null ? ` × panic ${e.panic}` : '') + ` = 場上 ${worst.toFixed(0)} 秒）`);
   }
   const ne = nonEmpty(checked.length, '沒有任何成批事件指定 type，這條 guard 沒有試過任何東西');
   if (ne !== true) return ne;
