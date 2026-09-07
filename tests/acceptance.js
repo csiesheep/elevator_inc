@@ -2333,3 +2333,80 @@ check('身體色的背債表都還存在、寫了理由、而且都還不及格'
 });
 
 export { summary };
+
+// ---------------------------------------------------------------- 21 電梯到底有沒有在送人
+// **這一整組是因為一個 peer 證明了它不存在才有的。**
+//
+// 它在修 #68 的時候，做了一版**刻意過度積極**的錯誤修法
+// （「只要車上有人就誰都不接」），然後跑驗收：**72 pass / 0 fail / 2 todo，全綠。**
+// 我複驗了，而且量了它的代價：
+//
+//                          main      正確的修法    過度積極的錯誤版
+//     tight 2井cap6        59.26%  →  75.32%      58.86%
+//     healthy 3井cap8      80.94%  →  89.09%      **73.21%**  ← 比不修還糟 7.7pp
+//     100層 3井cap8        47.35%  →  67.72%      45.61%
+//
+// **七十二條檢查，沒有一條看得到核心迴圈的吞吐量崩掉。**
+// 前二十組守的是內容資料、顏色、形狀、i18n、提示、事件池——
+// **沒有一條在問「這台電梯有沒有在送人」**，而那是這個遊戲唯一的動詞。
+//
+// 這是 skill 5.15 的極端版：不是「那條 guard 逃過了證偽」，是**那條 guard 從來不存在**，
+// 而它不存在的地方正好是所有人都假設有人在看的地方。
+//
+// ## 這條是「煙霧測試」不是「配平測試」
+//
+// 門檻取得很鬆（實測值的 10 個百分點以下），**因為它要抓的是崩塌不是漂移**。
+// 內容一直在加，吞吐量本來就會動；把門檻貼著實測值會讓它變成一條每次加內容就紅的
+// guard，那種 guard 最後會被人註解掉。**要抓漂移請看訊息裡印出來的數字**——
+// 那些數字每次跑都會更新，而且現在真的看得見（`ok()` 通過時會帶訊息）。
+const THR_CONFIGS = [
+  // 名稱                  樓層 up.shaft up.cap  送達率下限（實測值寫在訊息裡）
+  ['tight 2井cap6 45層',    45,      1,     1,   65],
+  ['healthy 3井cap8 45層',  45,      2,     2,   80],
+  ['100層 3井cap8',        100,      2,     2,   55],
+];
+const THR_SEEDS = [1, 7, 13];
+const THR_DAYS = 15;
+section('21 電梯到底有沒有在送人');
+
+check('三種配置下，電梯的送達率不可以崩掉', () => {
+  const runOne = (floors, shaft, capUp, seed) => withSeed(seed, () => {
+    const st = S.newGame();
+    st.floors = floors;
+    st.cash = 1e9;
+    // **自動化要真的開起來。** 我第一次寫這種探針時忘了開，`served` 全是 0——
+    // 那是在量一棟沒有人被送到的樓，而「一致」在那種情況下什麼都不證明（5.16）。
+    st.auto.autodoor = st.auto.fifo = st.auto.look = true;
+    st.up.shaft = shaft; st.up.cap = capUp;
+    st.up.speed = 8; st.up.accel = 8; st.up.door = 4;
+    const sim = M.createSim(st);
+    M.syncShafts(st, sim);
+    const n = Math.round(THR_DAYS * C.DAY_SECONDS / C.STEP);
+    for (let i = 0; i < n; i++) M.step(st, sim, C.STEP);
+    return { served: st.stats.served, abandoned: st.stats.abandoned };
+  });
+
+  const bad = [], rows = [];
+  let totalServed = 0;
+  for (const [name, floors, shaft, capUp, floor] of THR_CONFIGS){
+    let served = 0, abandoned = 0;
+    for (const seed of THR_SEEDS){
+      const r = runOne(floors, shaft, capUp, seed);
+      served += r.served; abandoned += r.abandoned;
+    }
+    totalServed += served;
+    const rate = 100 * served / (served + abandoned || 1);
+    rows.push(`${name} ${rate.toFixed(1)}%（送達 ${served}／放棄 ${abandoned}，下限 ${floor}）`);
+    if (rate < floor) bad.push(`**${name} 只有 ${rate.toFixed(1)}%，低於下限 ${floor}**`);
+  }
+  // 儀器活著嗎？一個人都沒送到的話，這條 guard 是在量一棟空樓。
+  const ne = nonEmpty(totalServed, '三種配置一個人都沒送到——這條 guard 在量一棟空樓');
+  if (ne !== true) return ne;
+  return ok(bad.length === 0,
+    `${THR_CONFIGS.length} 種配置 × ${THR_SEEDS.length} 顆種子 × ${THR_DAYS} 遊戲日，`
+    + `${bad.length} 個崩掉：` + bad.join('、')
+    + `｜` + rows.join('｜')
+    + `｜**這是煙霧測試不是配平測試**：門檻鬆，抓的是崩塌不是漂移。`
+    + `要看漂移請比對上面這幾個數字——它們每次跑都會更新。`
+    + `｜它擋不到的：耐性平衡、單一事件的難度、玩家覺不覺得好玩。`);
+});
