@@ -761,8 +761,43 @@ function soloCalls(st, sim, s){
   return out.length ? out : null;
 }
 
+// ------------------------------------------------------------ #68 的一般情形
+// 「不要瞄準一個這台車載不了的乘客」——包場那一行（`isExcl(p) && s.riders.length`）
+// 是這件事的特例，這一支是一般情形。
+//
+// ⚠ **判準是「現在裝不裝得下」，不是「他的 size 大不大」。** issue 寫的是
+//   `p.t.size > cap`（永遠裝不下），而那在今天的資料上**恆為 false**：最小載客量是
+//   `CAP_START` **4**，而全表最大的 size 也是 **4**（`mover` / `roomcart`）。
+//   照字面實作會得到一條永遠不執行的修正——**它會通過所有測試，因為它什麼都沒做。**
+//
+// ⚠ **空車永遠不跳過**（`s.riders.length` 那一項）。空車是他唯一的機會，
+//   在那裡跳過他就不是「不再為他空跑」而是「把他餓死」。這兩件事的差別就是
+//   這一個條件，證偽也是對著它做的：**載著人的車要跳過他，空車不可以。**
+//
+// 被跳過的人**仍然在 `sim.waiting` 裡、仍然佔著 WAIT_CAP、耐性照樣在掉**。
+// 這一支解的是「電梯不再為他空跑」，**不是**「他一定等得到」——`patience:999`
+// 的人在這裡仍然可能永遠等下去。那是另一件事，回報 orchestrator，沒有在這裡解。
+//
+// ⚠ **`s.riders.length` 那一項今天量不出來，它是防禦性的。** 空車時 `used` 是 0，
+//   而全表最大的 size（4）等於最小的載客量（4），`0 + 4 > 4` 是 false——所以就算
+//   拿掉那一項，今天每一個空車的判定都不會變（實測：拿掉之後空車照樣瞄準他）。
+//   它擋的是「哪天有人加一列 size 5 的資料」或「載客量被改小」那一天，
+//   而那一天沒有它就是把那個人餓死。**留著，但不要說它驗過了。**
+//
+// 同伴（`pair`）一起算：兩個人要嘛一起上要嘛都不上，所以要留的是兩份位子。
+// 這裡刻意不做 `sim.waiting.indexOf(mate)` 那道檢查（`openDoors` 有做）——
+// 成對的兩個人耐性逐字相同、一定同一個 tick 一起放棄，而多估的後果只是
+// 「早一點不去接他們」，比每一次候選都掃一遍 `sim.waiting` 便宜。
+function cantFitNow(sim, s, p, cap){
+  if (!s.riders.length) return false;                       // 空車：永遠是候選
+  const used = s.riders.reduce((a, r) => a + r.t.size, 0);
+  const mate = (p.mate && p.mate.mate === p) ? p.mate : null;
+  return used + p.t.size + (mate ? mate.t.size : 0) > cap;
+}
+
 function candidates(st, sim, s){
   const out = [], spare = [];
+  const cap = derived(st).capacity;
   // 封鎖中的樓層不是候選：車上要去那層的人先留在車上，等解封再送。
   for (const r of s.riders) if (!isFloorBlocked(st, sim, r.dest)) out.push({ f: r.dest, since: r.born });
   // 包場中：這一趟一個人都上不了，所以候選只剩「把他送到」。
@@ -782,6 +817,7 @@ function candidates(st, sim, s){
     // 等了 **1950 秒（10.8 個遊戲日）**，而且**每一場結束時都還有一個卡在佇列裡**。
     // 加上這一行之後的數字寫在 content.js 的 `crate` 那一列。
     if (isExcl(p) && s.riders.length) continue;
+    if (cantFitNow(sim, s, p, cap)) continue;          // #68 的一般情形，說明在 cantFitNow 上面
 
     if (st.auto.group && p.assigned != null && p.assigned !== s.id){ spare.push({ f: p.origin, since: p.born }); continue; }
     out.push({ f: p.origin, since: p.born });
@@ -835,6 +871,7 @@ function chooseTarget(st, sim, s){
 
   // 目的地控制：系統知道每個人要去哪，所以會挑「最多人受益」的那一站
   if (st.auto.dest){
+    const dcap = derived(st).capacity;
     const weight = new Map();
     const add = (f, w) => weight.set(f, (weight.get(f) || 0) + w);
     for (const r of s.riders) if (!isFloorBlocked(st, sim, r.dest)) add(r.dest, 1.4);   // 車上的人優先送到
@@ -844,6 +881,7 @@ function chooseTarget(st, sim, s){
       if (p.origin < s.from || p.origin > s.to) continue;
       if (isFloorBlocked(st, sim, p.origin)) continue;
       if (isExcl(p) && s.riders.length) continue;   // 載不了他，理由見 candidates()
+      if (cantFitNow(sim, s, p, dcap)) continue;     // #68 的一般情形。**這條路要單獨擋一次**
       if (st.auto.group && p.assigned != null && p.assigned !== s.id) continue;
       add(p.origin, 1 + (1 - p.left / p.patience));   // 快沒耐性的權重更高
     }
