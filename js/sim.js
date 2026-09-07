@@ -1011,6 +1011,7 @@ function openDoors(st, sim, s, f){
         if (p.evId === 'stormwarn')   st.codex.stormDown   = (st.codex.stormDown   || 0) + 1;
         if (p.evId === 'boarding')    st.codex.boardingUp  = (st.codex.boardingUp  || 0) + 1;
         if (p.evId === 'presscon')    st.codex.pressUp     = (st.codex.pressUp     || 0) + 1;
+        if (p.evId === 'zerog')       st.codex.zerogUp     = (st.codex.zerogUp     || 0) + 1;
         if (p.evId === 'liftoff')     st.codex.liftoffUp   = (st.codex.liftoffUp   || 0) + 1;
       }
       // 倒數計時（#128）那一條成就數的**不是「你遇到過幾次倒數」**，是「倒數期間你

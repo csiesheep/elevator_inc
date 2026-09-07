@@ -286,21 +286,22 @@ export const EN = {
     fogbound:    { name:'After the fog',   note:'Ride out 4 fogs without a single person giving up on the closed floor.' },
     frontrow:    { name:'Best seats',      note:'Deliver 16 people to the deck on fireworks night — one night brings 24 to 36, so catching one is enough.' },
     straightdown:{ name:'Straight back down', note:'Deliver 4 people down from the vertigo event — this lot will not wait for you.' },
-    // 屋頂帶（#120–#134）。十四條——E9 無重力測試那一列沒有做（屋頂帶只有一層），
-    // 所以它的成就也不在這裡。門檻的數字要跟中文那一列逐字對得上（第 8 組）。
-    windowopen:  { name:'Window open',     note:'Send 35 astronauts up to the roof during a launch window.' },
-    suitedup:    { name:'Suited up',       note:'Deliver 36 astronauts — they only ever go up, and each one takes three slots.' },
+    // 屋頂帶（#120–#134），十五條。門檻的數字要跟中文那一列逐字對得上（第 8 組），
+    // 而這一批數字是實驗樓層帶合併之後重量的（理由寫在 content.js）。
+    windowopen:  { name:'Window open',     note:'Send 28 astronauts up to the roof during a launch window.' },
+    suitedup:    { name:'Suited up',       note:'Deliver 29 astronauts — they only ever go up, and each one takes three slots.' },
     tighten:     { name:'All bolts tight', note:'Get 4 engineers up to the roof on a cable inspection.' },
-    cablecrew:   { name:'On the cables',   note:'Deliver 11 cable engineers, whether they came up on their own or were sent.' },
+    cablecrew:   { name:'On the cables',   note:'Deliver 7 cable engineers, whether they came up on their own or were sent.' },
     payload:     { name:'Payload delivered', note:'Send 4 satellite containers up to the roof — each one needs a car to itself.' },
-    vipbox:      { name:'The VIP box',     note:'Get 9 VIPs up to the roof for the viewing without losing one to the wait.' },
-    stormdown:   { name:'Everybody down',  note:'Clear 25 people off the roof to the lobby during storm warnings.' },
-    fullflight:  { name:'Full flight',     note:'Send 40 people up to the roof for orbital boarding.' },
-    boardingpass:{ name:'Boarding pass',   note:'Deliver 51 orbit passengers, luggage and all — two slots each.' },
-    frontpage:   { name:'Front page',      note:'Get 18 reporters up to the roof for a press conference.' },
-    deadline:    { name:'Filed on deadline', note:'Deliver 27 members of the press pack — they turn up in a crowd.' },
-    clearance:   { name:'Cleared for launch', note:'Send 5 tower controllers up to the roof, each one nudging the building rating up.' },
-    doubletime:  { name:'Double time',     note:'Deliver 70 rides while the countdown has every fare doubled.' },
+    vipbox:      { name:'The VIP box',     note:'Get 10 VIPs up to the roof for the viewing without losing one to the wait.' },
+    stormdown:   { name:'Everybody down',  note:'Clear 10 people off the roof to the lobby during storm warnings.' },
+    fullflight:  { name:'Full flight',     note:'Send 29 people up to the roof for orbital boarding.' },
+    boardingpass:{ name:'Boarding pass',   note:'Deliver 36 orbit passengers, luggage and all — two slots each.' },
+    frontpage:   { name:'Front page',      note:'Get 11 reporters up to the roof for a press conference.' },
+    deadline:    { name:'Filed on deadline', note:'Deliver 15 members of the press pack — they turn up in a crowd.' },
+    clearance:   { name:'Cleared for launch', note:'Send 4 tower controllers up to the roof, each one nudging the building rating up.' },
+    doubletime:  { name:'Double time',     note:'Deliver 77 rides while the countdown has every fare doubled.' },
+    weightless:  { name:'Weightless',     note:'Send 12 researchers up from the experimental floors to the roof for a zero-g test.' },
     lastup:      { name:'The last ride up', note:'Take all 20 of the final liftoff up to the roof — it only happens once in a run.' },
     dronenight:  { name:'The night of the drones', note:'Move 6 people to a different deck floor during the drone show.' },
     // 實驗樓層帶的十四條（#106–#119）。**門檻的數字要跟中文那一邊一致**，
@@ -411,7 +412,7 @@ export const EN = {
     vertigo:     { name:'Vertigo',        text:'😰 Vertigo: {n} on floor {f} took one look over the edge and went straight back to the down button' },
     // 屋頂帶（#120–#129）。⚠ `countdown` 的英文名不能叫 'Countdown'——既有的
     //   `newyear`（跨年倒數）已經是那個名字了。用 'T-minus'。
-    //   ⚠ E9 無重力測試不在這裡：屋頂帶只有一層，屋頂→屋頂永遠生不出人，等 orchestrator 裁決。
+    //   ⚠ E9 無重力測試的 at 是 'exp' 不是 'roof'（orchestrator 裁決 #129），理由寫在 content.js。
     launchwindow:{ name:'Launch window',  text:'🚀 The launch window is open: {n} astronauts in the lobby, all bound for the roof' },
     cablecheck:  { name:'Cable inspection', text:'🔧 Cable inspection: {n} engineers heading up to the roof, two slots each for the tools' },
     satellite:   { name:'Satellite delivery', text:'🛰 Satellite delivery: a container in the lobby bound for the roof — it fills a car on its own' },
@@ -420,6 +421,7 @@ export const EN = {
     boarding:    { name:'Orbital boarding', text:'🛫 Orbital boarding: {n} people in the lobby for the roof — the flight will not wait' },
     presscon:    { name:'Press conference', text:'📰 Press conference: {n} reporters in the lobby heading up to the roof' },
     countdown:   { name:'T-minus',        text:'⏱ The countdown starts: every fare in the building is doubled for {s} seconds' },
+    zerog:       { name:'Zero-g test',    text:'🌌 Zero-g test: {n} researchers on floor {f} are heading up to the roof' },
     liftoff:     { name:'Final liftoff',  text:'🚀 Final liftoff: {n} people in the lobby for the roof, and this is the last of them' },
     droneshow:   { name:'Drone show',     text:'🚁 Drone show: {n} people on floor {f} are moving to another deck for a better angle' },
     // 實驗樓層帶的九個事件（#106–#114）。
