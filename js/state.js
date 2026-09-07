@@ -29,6 +29,11 @@ export function newGame(carry){
     lastSave: Date.now(),
     // 跨 Prestige 保留的永久解鎖（自動化的藍圖階段）
     autoPerm: (carry && carry.autoPerm) || {},
+    // 「一輪只發生一次」的事件記在這裡（`EVENTS` 的 `once:true`，#134 最後升空第一個用）。
+    // **刻意不在 `doPrestige` 的 carry 裡**：那支函式明列要帶走什麼，沒列到的就重置，
+    // 而「一輪一次」的意思就是拆樓之後可以再遇到一次。放在 `st` 而不是 `sim`，
+    // 因為 `sim` 每次讀檔都重建——放在那裡的話關掉遊戲再打開它就會再發生一次。
+    fired: {},
   };
   for (const u of UPGRADES) st.up[u.id] = 0;
   for (const a of AUTOMATION) st.auto[a.id] = !!st.autoPerm[a.id];

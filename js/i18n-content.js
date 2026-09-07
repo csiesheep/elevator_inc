@@ -112,6 +112,13 @@ export const EN = {
     //   而「N 秒」會拿去對 `doorPenalty`，這四列都沒有 doorPenalty，**所以英文
     //   一個「second」都不可以出現**（`sat:0.55` 那件事寫成「patience」不寫成秒）。
     proposer:  { name:'Proposal couple',  note:'Observation deck only. The two of them must ride together — delivered apart does not count, so a couple needs four slots free. Get them up before the nerve goes (waiting under 45% of their patience) and the rating jumps.' },
+    // 屋頂帶（#130–#134）。⚠ `presspack` 的英文不能叫 'Reporter'——既有的 `reporter`
+    //   （飯店帶、celeb 招來的）已經佔了那個名字，中文的「記者」也一樣。第 13 組中英各查一次。
+    astronaut: { name:'Astronaut',        note:'Roof only, and only ever upward — they never come back down. The biggest fare in the building, and three slots each.' },
+    cableeng:  { name:'Cable engineer',   note:'Up to the roof to work on the cables. Tools take two slots. Far more common before dawn.' },
+    orbitpax:  { name:'Orbit passenger',  note:'Catching an orbital flight. Enormous fare, luggage takes two slots, and the flight will not wait.' },
+    presspack: { name:'Press pack',       note:'They arrive in a crowd. Low fare each, but there are a lot of them, and they are here to photograph somebody else.' },
+    towerctl:  { name:'Tower controller', note:'Pays nothing, but getting one up to the control tower nudges the whole building rating up.' },
     photocrew: { name:'Photo crew',       note:'Observation deck only. Tripods and kit take three slots, but they are here to wait for the light — this one costs you space, not time.' },
     acrophobe: { name:'Vertigo visitor',  note:'One look over the edge and they want straight back down. The least patient passenger in the building — but only one slot, and no hard feelings.' },
     deckguide: { name:'Deck guide',       note:'Observation deck only. Turns up with four to six sightseers in tow, so a party needs a whole row of slots. He barely pays a thing himself — the money is in the group.' },
@@ -279,6 +286,22 @@ export const EN = {
     fogbound:    { name:'After the fog',   note:'Ride out 4 fogs without a single person giving up on the closed floor.' },
     frontrow:    { name:'Best seats',      note:'Deliver 16 people to the deck on fireworks night — one night brings 24 to 36, so catching one is enough.' },
     straightdown:{ name:'Straight back down', note:'Deliver 4 people down from the vertigo event — this lot will not wait for you.' },
+    // 屋頂帶（#120–#134）。十四條——E9 無重力測試那一列沒有做（屋頂帶只有一層），
+    // 所以它的成就也不在這裡。門檻的數字要跟中文那一列逐字對得上（第 8 組）。
+    windowopen:  { name:'Window open',     note:'Send 35 astronauts up to the roof during a launch window.' },
+    suitedup:    { name:'Suited up',       note:'Deliver 36 astronauts — they only ever go up, and each one takes three slots.' },
+    tighten:     { name:'All bolts tight', note:'Get 4 engineers up to the roof on a cable inspection.' },
+    cablecrew:   { name:'On the cables',   note:'Deliver 11 cable engineers, whether they came up on their own or were sent.' },
+    payload:     { name:'Payload delivered', note:'Send 4 satellite containers up to the roof — each one needs a car to itself.' },
+    vipbox:      { name:'The VIP box',     note:'Get 9 VIPs up to the roof for the viewing without losing one to the wait.' },
+    stormdown:   { name:'Everybody down',  note:'Clear 25 people off the roof to the lobby during storm warnings.' },
+    fullflight:  { name:'Full flight',     note:'Send 40 people up to the roof for orbital boarding.' },
+    boardingpass:{ name:'Boarding pass',   note:'Deliver 51 orbit passengers, luggage and all — two slots each.' },
+    frontpage:   { name:'Front page',      note:'Get 18 reporters up to the roof for a press conference.' },
+    deadline:    { name:'Filed on deadline', note:'Deliver 27 members of the press pack — they turn up in a crowd.' },
+    clearance:   { name:'Cleared for launch', note:'Send 5 tower controllers up to the roof, each one nudging the building rating up.' },
+    doubletime:  { name:'Double time',     note:'Deliver 70 rides while the countdown has every fare doubled.' },
+    lastup:      { name:'The last ride up', note:'Take all 20 of the final liftoff up to the roof — it only happens once in a run.' },
     dronenight:  { name:'The night of the drones', note:'Move 6 people to a different deck floor during the drone show.' },
     // 實驗樓層帶的十四條（#106–#119）。**門檻的數字要跟中文那一邊一致**，
     // harness 第 8 組會逐條比對中英兩邊。十四條讀十四個互不相同的 codex 鍵。
@@ -386,6 +409,18 @@ export const EN = {
     //   'Vertigo: 1 people on floor 72 … want back down'。這一句刻意不用會隨單複數
     //   變形的名詞與動詞（中文那一行沒有這個問題，所以只有英文要繞）。
     vertigo:     { name:'Vertigo',        text:'😰 Vertigo: {n} on floor {f} took one look over the edge and went straight back to the down button' },
+    // 屋頂帶（#120–#129）。⚠ `countdown` 的英文名不能叫 'Countdown'——既有的
+    //   `newyear`（跨年倒數）已經是那個名字了。用 'T-minus'。
+    //   ⚠ E9 無重力測試不在這裡：屋頂帶只有一層，屋頂→屋頂永遠生不出人，等 orchestrator 裁決。
+    launchwindow:{ name:'Launch window',  text:'🚀 The launch window is open: {n} astronauts in the lobby, all bound for the roof' },
+    cablecheck:  { name:'Cable inspection', text:'🔧 Cable inspection: {n} engineers heading up to the roof, two slots each for the tools' },
+    satellite:   { name:'Satellite delivery', text:'🛰 Satellite delivery: a container in the lobby bound for the roof — it fills a car on its own' },
+    vipview:     { name:'VIP viewing',    text:'🎩 VIP viewing: {n} guests in the lobby heading for the roof, and not one of them will be kept waiting' },
+    stormwarn:   { name:'Storm warning',  text:'🌩 Storm warning: all {n} of them have to get off the roof, and none of them can wait' },
+    boarding:    { name:'Orbital boarding', text:'🛫 Orbital boarding: {n} people in the lobby for the roof — the flight will not wait' },
+    presscon:    { name:'Press conference', text:'📰 Press conference: {n} reporters in the lobby heading up to the roof' },
+    countdown:   { name:'T-minus',        text:'⏱ The countdown starts: every fare in the building is doubled for {s} seconds' },
+    liftoff:     { name:'Final liftoff',  text:'🚀 Final liftoff: {n} people in the lobby for the roof, and this is the last of them' },
     droneshow:   { name:'Drone show',     text:'🚁 Drone show: {n} people on floor {f} are moving to another deck for a better angle' },
     // 實驗樓層帶的九個事件（#106–#114）。
     // ⚠ `cratehaul` 的英文名刻意是 'Sealed crate escort' 而不是 'Sealed crate'：
