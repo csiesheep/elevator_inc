@@ -6,6 +6,13 @@
 <title>Elevator Inc.</title>
 <meta name="description" content="An incremental game about the vertical transport of a tower that keeps growing.">
 <meta name="theme-color" content="#bff0ff">
+<!-- favicon（#149）。7×9 的圖沒有整數倍剛好合 16×16：2× 是 14×18，高度爆 2px。
+     解法是挑「佔用列 ≤ 8」或「最後一列冗餘」的角色，2× 之後零裁切／無損裁切，
+     擺在一塊 #16183a 的底磚上（淺色剪影在亮色分頁列會消失，所以底磚是必要的）。
+     icon.svg 一個檔覆蓋所有尺寸；180 的 PNG 給 iOS 加到主畫面。
+     兩個檔由 tools/artfavicon.py 產生，**角色是暫定的，等 #149 的裁決**。 -->
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;600;700&family=Noto+Sans+TC:wght@500;700;900&display=swap">
