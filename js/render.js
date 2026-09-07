@@ -347,6 +347,20 @@ export function draw(ctx, st, sim){
     }
 
     const carH = Math.max(4, fh - 2), y = floorY(s.pos) + 1;
+
+    // 加速的雙噴口（#144）。畫在車「之前」，讓車身蓋住噴口的底邊，火才像從車底噴出來。
+    //
+    // 三個條件同時成立才畫：按住加速、這座井真的在動、而且沒被鎖住。
+    // 鎖住的時候車是停的，那時候畫火會說謊——過熱是懲罰，不是還在衝。
+    // d.noOverheat（m_cool 滿級）時 heat 恆為 0，heat01 自然落在最低那一檔：
+    // 顏色最暖、長度只有下限，但**還是要畫**，因為玩家仍然在加速。
+    if (sim.boost && s.mode === 'moving' && s.lock === 0){
+      const heat01 = d.heatMax > 0 ? Math.max(0, Math.min(1, s.heat / d.heatMax)) : 0;
+      // 方向用 target - pos 的正負。往上飛火在車底，往下降火在車頂。
+      const delta = s.target == null ? s.dir : s.target - s.pos;
+      drawJets(ctx, pal, x, y, w, carH, delta >= 0 ? 1 : -1, heat01);
+    }
+
     ctx.fillStyle = pal.car; ctx.fillRect(x + 1, y, w - 2, carH);
 
     // 門。畫在乘客「之前」——原本畫在之後，門一關就把整台車蓋住，
@@ -507,6 +521,58 @@ function drawPerson(ctx, x, y, label, inCar, p, maxW){
     ctx.fillStyle = ratio < 0.25 ? pal.bad : ratio < 0.6 ? pal.warn : pal.money;
     ctx.fillRect(x - bw/2, top - 4, bw * ratio, 2);
   }
+}
+
+// ---------------------------------------------------------------- 加速噴口
+//
+// 按住加速時，在行進方向的**反面**噴兩束火（往上飛火在車底，往下降火在車頂）。
+// 長度與顏色都跟著熱量走，所以這一個形狀同時講兩件事：「你在加速」與「你快燒了」。
+//
+// 為什麼顏色要順便把熱量講出來（#143）：散熱 0～2 級時，按住加速直到過熱
+// **比完全不按還慢**（0 級是 0.771×），而過熱的懲罰是那座井停機 8 秒。
+// 今天畫面上唯一的訊號是井道頂端一條 2px 的熱量條，離車子很遠——新手會讓自己
+// 變慢 23%，而畫面上沒有任何東西告訴他。
+//
+// 三個下限（長 3px、寬 2px、太窄就合併）是這一段的核心，不是保守：
+// 100 層時 carH 只有 4px，沒有下限的話兩束火會退化成兩個看不出來的點。
+// 原型的原樣（長度下限 1.5px、寬度 0.22w、不合併）實測就是那樣。
+//
+// 純視覺：不讀寫任何模擬狀態。抖動的相位用 performance.now()，不寫回去。
+function drawJets(ctx, pal, x, y, w, carH, dir, heat01){
+  const base = dir > 0 ? y + carH : y, sgn = dir > 0 ? 1 : -1;
+  const flick = 0.78 + 0.22 * Math.sin(performance.now() / 1000 * 26);
+  const len = Math.max(3, 3 + heat01 * carH * 1.4) * flick;   // ← 長度下限 3px
+
+  // 顏色：暖橘 → 金 → 紅。用 pal 裡既有的鍵，沒有新增。
+  // ⚠ pal 沒有 `gold`——那是 CSS 色表（CSS_NIGHT/CSS_DAY）的鍵，畫布拿不到。
+  // 畫布這邊的金色是 `carDoors` #f0c04a（日夜都一樣）。issue 給的另一個備案
+  // `pal.warn` 不能用：它跟 `heatWarm` 是同一個字串 #f0a04a，拿它當中點會讓
+  // heat01 0→0.5 整段完全不變色，等於把一半的訊號扔掉。
+  const col = heat01 < 0.5 ? mix(pal.heatWarm, pal.carDoors, heat01 * 2)
+                           : mix(pal.carDoors, pal.bad, (heat01 - 0.5) * 2);
+  const inner = mix(col, '#ffffff', 0.55);
+
+  const jw = Math.max(2, w * 0.26);                            // ← 寬度下限 2px
+  const merged = (w - 4) < (jw * 2 + 2);                       // ← 太窄就合成一束
+
+  const one = (jx, jwid, L) => {
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(jx, base); ctx.lineTo(jx + jwid, base);
+    ctx.lineTo(jx + jwid / 2, base + sgn * L);
+    ctx.closePath(); ctx.fill();
+    // 亮芯只在畫得下的時候加。再小就跟外焰糊成一團，反而看不出形狀。
+    if (jwid >= 3 && L >= 4){
+      ctx.fillStyle = inner;
+      ctx.beginPath();
+      ctx.moveTo(jx + jwid * 0.3, base); ctx.lineTo(jx + jwid * 0.7, base);
+      ctx.lineTo(jx + jwid / 2, base + sgn * L * 0.5);
+      ctx.closePath(); ctx.fill();
+    }
+  };
+
+  if (merged) one(x + 2, w - 4, len);
+  else { one(x + 2, jw, len); one(x + w - 2 - jw, jw, len); }
 }
 
 // 同樣的乘法，但回傳 hex，才能再拿去跟別的顏色混
