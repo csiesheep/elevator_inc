@@ -30,7 +30,7 @@ export const CONFIG = {
   OFFLINE_RATE:   0.5,
   PRESTIGE_DIV:   1e4,    // 藍圖 = floor(sqrt(本輪總收入 / 這個數))。收入不再有抽象層灌水，除數跟著降
   ENDING_FLOOR:   100,
-  ORBIT_CASH:     2e7,    // 結局的價碼。要在「單一輪」裡存到，拆樓會歸零，所以這個數字
+  ORBIT_CASH:     1e7,    // 結局的價碼。要在「單一輪」裡存到，拆樓會歸零，所以這個數字
                           // 必須對得上一輪實際存得到的現金：技能點滿的一輪大約 $15~20M。
   ORBIT_BP:       20,
 

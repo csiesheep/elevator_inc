@@ -5,7 +5,7 @@
 // 不是從 content.js 讀的。這是刻意的：見 harness.js 開頭第 1 點。
 
 import { section, check, eq, near, ok, nonEmpty, R, summary } from './harness.js';
-import { CONFIG as C, BANDS, UPGRADES, PASSENGERS, ACHIEVEMENTS, SKILLS, EVENTS, TENANTS } from '../js/content.js';
+import { CONFIG as C, BANDS, UPGRADES, PASSENGERS, ACHIEVEMENTS, SKILLS, EVENTS, TENANTS, AUTOMATION } from '../js/content.js';
 import { EN } from '../js/i18n-content.js';
 import { PEOPLE } from '../js/sprites.js';
 import * as S from '../js/state.js';
@@ -17,7 +17,16 @@ const SPEC = {
   cashStart: 200,          // §5.8
   maxFloors: 100,          // §5.7
   endingFloor: 100,        // §5.7
-  orbitCash: 2e7,          // §5.7
+  // **owner 裁決（2026-09-07，逐字）：「ORBIT_CASH 改成 $10M」。**
+  // 原本是 2e7，設計文件 §5.7 記著它是從 $5 億「下修」來的（$5 億是照 200 樓版訂的，
+  // 實測 16 輪峰值現金只有 $6M，所以那是死內容）。改成 2e7 之後實測「第 19 輪第 83 分」達成。
+  // **§5.7 那段校準紀錄在 obsidian，改成 1e7 之後它會過期——那是 owner 的檔案，我沒有動。**
+  //
+  // ⚠ **這個常數的 SPEC 與產品是同一個人（orchestrator）在同一個 commit 改的。**
+  // 第 0 組比對的是 `C.ORBIT_CASH === SPEC.orbitCash`，兩邊同時改的話這條就驗不到東西。
+  // 擋這件事的不是這條檢查，是**上面那句逐字的裁決**——授權來源在 owner 不在我。
+  // 下一個人要改這個數字，要找得到一句同等份量的原話，否則就是把兩邊一起搬。
+  orbitCash: 1e7,          // §5.7（已過期，見上）
   orbitBp: 20,             // §5.7
   daySeconds: 180,         // §4.x
   prestigeDiv: 1e4,        // §5.7
@@ -271,7 +280,7 @@ check('回穩不會把高評價往下拉', () => {
 // ---------------------------------------------------------------- 5 錢坑
 // §5.14 的決定：招商拿掉之後由加蓋接手。這一條盯住「總 sink 的量級」。
 section('5 錢坑');
-check('加蓋 + 升級的總額（招商移除後應接手 81.7% 的缺口）', () => {
+check('現金錢坑的分布：結局要是主要的那一筆', () => {
   const st = S.newGame(); st.cash = 1e12;
   let floorTotal = 0, g = 0;
   while (!S.upgradeMaxed(st, 'floor') && g++ < 500){
@@ -286,9 +295,37 @@ check('加蓋 + 升級的總額（招商移除後應接手 81.7% 的缺口）', 
       upTotal += S.upgradeCost(a, u.id); S.buyUpgrade(a, u.id);
     }
   }
-  R.pass.push({ label: '  ↳ 實測：加蓋 $' + Math.round(floorTotal).toLocaleString()
-                + ' / 其他升級 $' + Math.round(upTotal).toLocaleString() });
-  return 'TODO';   // 招商還在，目標值等移除後由 orchestrator 定
+  // 現金階自動化（藍圖階的 cost 是張數不是錢，要濾掉）
+  const autoCash = AUTOMATION.filter(x => x.cur === 'cash')
+                             .reduce((t, x) => t + (typeof x.cost === 'number' ? x.cost : 0), 0);
+  const tree = floorTotal + upTotal;
+  const all  = tree + autoCash + C.ORBIT_CASH;
+  const endingShare = C.ORBIT_CASH / all;
+
+  const rows = '加蓋 $' + Math.round(floorTotal).toLocaleString()
+             + '｜其他升級 $' + Math.round(upTotal).toLocaleString()
+             + '｜自動化 $' + autoCash.toLocaleString()
+             + '｜結局 $' + C.ORBIT_CASH.toLocaleString()
+             + '｜合計 $' + Math.round(all).toLocaleString()
+             + '｜結局佔 ' + (endingShare * 100).toFixed(1) + '%';
+
+  // **這條檢查的標題原本是「招商移除後應接手 81.7% 的缺口」，而那個 81.7% 的分母是錯的。**
+  // 它來自 #7 的背景段（$1,204,053 ÷ ($1,204,053 + $263,362 + $6,310)），
+  // **那個分母沒有把 ORBIT_CASH 算進去**，而結局才是全遊戲最大的一筆。
+  // 把結局放回去之後，招商從來就不是最大的錢坑。開 #142 時我沿用了那個數字沒有重算，
+  // 是後來才自己抓到的。
+  //
+  // 現在守的是 owner 實際裁決過的形狀，不是那個舊的百分比：
+  //   · 升級樹四條軌的級數與效果 → 第 23 組
+  //   · **結局要是主要的錢坑**    → 這裡
+  // 下限 85% 是煙霧門檻：要抓的是「有人把樹加到跟結局同一個量級」或
+  // 「結局被改小到不再是目標」，不是抓漂移。
+  const MIN_ENDING_SHARE = 0.85;
+  const ne = nonEmpty(all, '總錢坑是 0——這條檢查在量一個沒有東西可買的遊戲');
+  if (ne !== true) return ne;
+  return ok(endingShare >= MIN_ENDING_SHARE,
+    rows + '｜結局佔比要 ≥ ' + (MIN_ENDING_SHARE * 100) + '%'
+    + '｜⚠ 標題那個「81.7%」的分母是錯的（漏掉 ORBIT_CASH），理由寫在上面。');
 });
 
 // ---------------------------------------------------------------- 7 招商移除（尚未實作）
