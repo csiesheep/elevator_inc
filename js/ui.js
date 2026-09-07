@@ -5,6 +5,7 @@ import { derived, upgradeCost, upgradeMaxed, buyUpgrade, buyAutomation, skillCos
          prestigeGain, algoName, save } from './state.js';
 import { fmtShort, dayName, hourOf } from './sim.js';
 import { STYLES as ROOF_STYLES } from './roof.js';
+import { spriteSVG } from './spritedom.js';
 import { t, L } from './i18n.js';
 
 const $ = s => document.querySelector(s);
@@ -142,17 +143,32 @@ function tabSkills(){
   return h;
 }
 
+// 圖鑑卡片左邊那格小人。**沒載過的一律不畫圖**——不是偷懶，是這個 tab 本來就
+// 刻意藏（`unknown` class + `t('unknownName')`），把剪影畫出來等於把它藏的東西
+// 從另一個孔漏出去：外形差異正是 sprites.js 檔頭說的主要識別管道。
+// 沒載過就給一個同尺寸的空盤，讓 78 格對齊成一面牆——那面牆本身就是進度條。
+//
+// cell=4 → 28×36 px。sprites.js 檔頭聲明的下限是 14×18，這裡是它的兩倍，
+// 有很寬的餘裕；縮到 3（21×27）也還在下限之上，是 CSS 那邊的退路。
+export function codexTile(id, known){
+  if (!known) return `<div class="pxTile pxLocked" aria-hidden="true"></div>`;
+  return `<div class="pxTile">${spriteSVG(id, { cell: 4 })}</div>`;
+}
+
 function tabCodex(){
   const st = app.st;
   const seen = PASSENGERS.filter(p => st.codex[p.id]).length;
   let h = `<div class="note">${t('codexIntro', seen, PASSENGERS.length)}</div>`;
   for (const p of PASSENGERS){
     const n = st.codex[p.id] || 0;
-    h += `<div class="card ${n ? '' : 'unknown'}">
+    h += `<div class="card pxCard ${n ? '' : 'unknown'}">
+      ${codexTile(p.id, n)}
+      <div class="pxBody">
       <div class="cardTop"><span class="cName">${n ? L(p,'name','passengers') : t('unknownName')}</span>
         <span class="cCost">${n ? '×' + fmtShort(n) : t('notCarried')}</span></div>
       <div class="cDetail">${n ? L(p,'note','passengers') : t('notCarriedNote')}</div>
       ${n ? `<div class="cHint mono">${t('codexMeta', p.fare, p.patience > 500 ? '∞' : p.patience + 's', p.size)}</div>` : ''}
+      </div>
     </div>`;
   }
   h += `<div class="sect">${t('secFloorTypes')}</div>`;

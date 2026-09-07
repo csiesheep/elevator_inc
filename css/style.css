@@ -110,6 +110,24 @@ canvas{width:100%; height:100%; display:block; touch-action:manipulation; cursor
   font-size:13px; color:var(--gold); font-variant-numeric:tabular-nums; white-space:nowrap}
 .cDetail{font-size:12px; color:var(--text); opacity:.85; margin-top:3px}
 .cHint{font-size:11px; color:var(--dim); margin-top:2px}
+
+/* ---------------- 圖鑑的小人（#149）
+   `--sprite-ink` 是 spritedom.js 的身體色入口。**不寫死顏色**：這套 UI 的
+   --text 由 theme.js 每幀插值（日夜之間漂移），寫死會在半夜脫節。
+   小人畫在 --card 上，而卡片底色**不在 sprites.js 那 29 種被守的背景裡**——
+   量過：對 #191c3e 最小 28.42、對 #2a2e58 最小 24.75（client），見 #149。 */
+.pxCard{--sprite-ink:var(--text); display:flex; align-items:flex-start; gap:10px}
+.pxBody{flex:1; min-width:0}
+/* 盤子是固定尺寸的，圖不撐它：78 張的左邊界要對齊成一條線，
+   而 cat（6 列）跟 office（9 列）的圖高度本來就不同。 */
+.pxTile{flex:0 0 auto; width:34px; height:42px; display:flex;
+  align-items:center; justify-content:center;
+  background:var(--panel); border:2px solid var(--edge)}
+.pxTile svg{display:block; image-rendering:pixelated}
+/* 沒載過：同尺寸的空盤 + 斜線，形狀一個位元都不漏 */
+.pxLocked{background:
+  repeating-linear-gradient(-45deg, transparent 0 3px, var(--line) 3px 4px), var(--panel)}
+@media (max-width:520px){ .pxTile{width:27px; height:33px} .pxTile svg{width:21px; height:27px} }
 .warn{color:#f0a04a}
 #evac{position:fixed; right:14px; bottom:70px; z-index:30; padding:12px 16px; border-radius:0;
   background:#ff5c5c; border:4px solid var(--edge); color:#fff; font:inherit; font-size:13px;
