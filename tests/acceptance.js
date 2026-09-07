@@ -1064,6 +1064,100 @@ check('必須同車：一對永遠不會被拆到兩台車（端對端）', () =
 });
 
 
+// ---- 池子只剩一列的時候，`w` 完全不參與 ----------------------
+//
+// 第 18 組的訊息曾經寫著「權重 0 就永遠抽不到」，而一個 peer 實測它的 `w:0`
+// 事件觸發了 34 次。原因是 `fireEvent()` **先用 hours 與樓層帶濾池子、才加權抽樣**，
+// 而 `pickIndex` 在總權重為 0 時**刻意退回均勻抽樣**（#8 修過的 bug）：
+//
+//     pickIndex([0])      20000/20000 抽到它     ← 唯一候選 ⇒ **每次都中**
+//     pickIndex([0, 5])       0/20000            旁邊有 w>0 ⇒ 永遠不中
+//     pickIndex([3, 7])   30% / 70%              對照組，儀器活著
+//
+// **所以 `w` 描述的是「在一群候選之間怎麼分」，它完全不描述「這一群有多少人」。**
+// 池子只剩一列的時候，那一列的出現機率是 **1**。
+//
+// 這不是理論：`powersurge`（全表**唯一** `at:'any'` 而且沒有 `hours` 的一列）
+// 在 12 層的樓上是凌晨兩根梳齒的唯一候選，實測送達 **−8.5%** / 放棄 **+18.8%**。
+//
+// **池子大小 0 不是問題**（`if (!pool.length) return;`，那一刻沒有事件），
+// **1 才是**——那是「每一次落在這個時段的檢查都是同一列」。
+// 而梳齒以約 188 遊戲日／小時進動，**每一個鐘點最後都會被踩到**，
+// 所以這條掃的是整天而不是今天的那十二個落點。
+const POOL_FLOORS = [12, 30, 80];
+// 具名背債。每一筆要寫量測，修好了要從表上拿掉。
+const POOL_DEBT = {
+  powersurge: '全表唯一 `at:\'any\'` 且沒有 `hours` 的一列，所以在還沒蓋到其他樓層帶的'
+    + '矮樓裡，凌晨那幾個時段只剩它。實測 12 層送達 −8.5% / 放棄 +18.8%，'
+    + '十二根梳齒裡有兩根整根是它（30 層稀釋、80 層完全稀釋）。'
+    + '**調 `w` 沒有用**：池子只剩一個時權重不參與。'
+    + '修法是給它一個 `hours` 窗（動「什麼時候」，不動 owner 指定的 `at:任意`）。見 #138。',
+};
+
+check('沒有任何一個時段的候選池只剩一列事件', () => {
+  // 候選池的建法跟 `fireEvent()` 一致：byTenant 排除、hours 符合、at/to 兩邊都有樓層。
+  // `floorInBand` 沒有 export，所以這裡重现它的**拒絕條件**（回 -1 的那幾條），
+  // 而 `builtInBand` 是 export 的，直接用產品的那一支。
+  const avail = (st, key) => {
+    if (key == null || key === 'lobby' || key === 'any') return true;
+    const b = BANDS.find(x => x.key === key);
+    if (!b) return false;
+    const lo = Math.min(b.from - 1, st.floors - 1);
+    const hi = Math.min(b.to - 1, st.floors - 1);
+    if (hi < lo) return false;
+    return S.builtInBand(st, b) > 0;
+  };
+  const poolAt = (st, h) => EVENTS.filter(e =>
+    !e.byTenant && M.inHourWindow(h, e.hours) && avail(st, e.at) && avail(st, e.to));
+
+  const lone = [], debtSeen = [];
+  let sampled = 0, maxPool = 0;
+  for (const floors of POOL_FLOORS){
+    const st = S.newGame();
+    st.floors = floors;
+    const hit = {};
+    for (let i = 0; i < 96; i++){           // 整天每 0.25 小時一個點
+      const h = i / 4;
+      const p = poolAt(st, h);
+      sampled++;
+      if (p.length > maxPool) maxPool = p.length;
+      if (p.length === 1){
+        const id = p[0].id;
+        hit[id] = (hit[id] || 0) + 1;
+      }
+    }
+    for (const id in hit){
+      const row = `${floors} 層：${id} 在 ${(hit[id] / 96 * 100).toFixed(0)}% 的鐘點是唯一候選`;
+      if (POOL_DEBT[id]) debtSeen.push(row); else lone.push(row);
+    }
+  }
+  // 儀器活著嗎？高塔上必須看得到一個真正的池子，
+  // 否則「沒有唯一候選」可能只是因為每一個池子都是空的。
+  const ne = nonEmpty(sampled, '一個鐘點都沒有取樣');
+  if (ne !== true) return ne;
+  if (!(maxPool >= 5))
+    return `儀器壞了：三種樓高全部掃完，最大的候選池只有 ${maxPool} 列`;
+  return ok(lone.length === 0,
+    `掃了 ${sampled} 個（樓高 × 鐘點），${lone.length} 個新的只剩一列：` + lone.join('、')
+    + `｜既有背債：` + (debtSeen.join('、') || '無')
+    + '｜**池子只剩一列時 w 完全不參與**，那一列的出現機率是 1'
+    + `——所以這不是「調低一點 w」解得了的。池子為 0 不算（那一刻沒有事件）。`);
+});
+
+check('池子背債表上的都還存在、寫了理由、而且都還不及格', () => {
+  const ne = nonEmpty(Object.keys(POOL_DEBT).length, 'POOL_DEBT 是空的');
+  if (ne !== true) return ne;
+  const ids = new Set(EVENTS.map(e => e.id));
+  const stale = [];
+  for (const [id, why] of Object.entries(POOL_DEBT)){
+    if (!ids.has(id)){ stale.push(id + '（事件不見了）'); continue; }
+    if (!why || why.length < 30) stale.push(id + '（理由太短）');
+  }
+  return ok(stale.length === 0,
+    `背債表 ${Object.keys(POOL_DEBT).length} 筆，${stale.length} 筆過期：` + stale.join('、'));
+});
+
+
 // ---------------------------------------------------------------- 13 改名之後，沒跟上的那三個地方
 // 一個 peer 做了一次改名（型別 id `bellhop` → `jamcart`，因為兩個 peer 撞在同一個 id 上），
 // 然後**自己去證偽第 8 組**：它把兩個 i18n key 退回舊名（等於孤兒 key、英文查不到）
