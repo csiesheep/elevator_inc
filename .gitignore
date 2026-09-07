@@ -5,3 +5,7 @@ __pycache__/
 # art/obs（#135）的掃描中間檔（tools/artobs_scan.py 產生，約 5MB，重跑約 4 分鐘就有）
 tools/_obs_cand.npz
 tools/_obs_picked.json
+
+# orchestrator 的工作樹標記與探針（tools/orch.sh 的慣例）
+__MARKER_ORCH.txt
+__orch_*

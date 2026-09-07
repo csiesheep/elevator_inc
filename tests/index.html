@@ -36,6 +36,13 @@ import { R } from './harness.js';
 const s = summary();
 window.__acceptance = s;
 const esc = t => String(t).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+// ?json=1：給機器讀的（orchestrator 的驗證、瀏覽器工具的 get_page_text）。
+// **通過的那一列也帶訊息**——綠色的路徑要有人看得到，不然它只在失敗時被讀，
+// 而失敗路徑天天被證偽、成功路徑沒有人看。
+if (new URLSearchParams(location.search).get('json')){
+  document.getElementById('out').innerHTML =
+    `<pre id="json">${esc(JSON.stringify({ ...s, passes: R.pass }, null, 1))}</pre>`;
+} else
 document.getElementById('out').innerHTML =
   `<div class="tally">
      <div class="box p">通過 ${s.pass}</div>
