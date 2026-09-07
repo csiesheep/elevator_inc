@@ -2484,8 +2484,14 @@ function fireTestEvent(ev, seed){
       for (let i = 0; i < 400; i++){
         sim.eventT = C.EVENT_EVERY;
         M.step(st, sim, C.STEP);
-        const p = sim.waiting.find(q => q.evId === ev.id && !q.summoned);
-        if (p) return { st, sim, p };
+        // 用「事件真的發生了」（sim.lastEvent.t）＋ 型別 ＋ 出生 tick 認本尊，**不用 evId**：
+        // evId 正是被檢查的欄位之一——整批都漏掉時，它不可以把本尊也一起弄丟然後回報
+        // 「儀器壞了」（BE peer 在 #136 交付時抓到的）。deckguide / proposer 是觀景台
+        // 專屬，20 層樓不會自然生出來，所以型別就足以認人。
+        if (sim.lastEvent && sim.lastEvent.t === st.t && sim.lastEvent.n >= 1){
+          const p = sim.waiting.find(q => q.type === ev.type && !q.summoned && q.born === st.t);
+          if (p) return { st, sim, p };
+        }
       }
       return null;
     });
@@ -2494,8 +2500,19 @@ function fireTestEvent(ev, seed){
     if (i >= 0) EVENTS.splice(i, 1);
   }
 }
+// **先對本尊的絕對值**，再拿同伴跟本尊比。少了第一步，「整批一致」在整批都 undefined
+// 的時候恆真——helper 少寫一個欄位，本尊和同伴一起漏，這條會綠。
 function compareStamps(p, others, ev){
   const want = stampOf(p, ev);
+  const far = Math.max(p.origin, p.dest);
+  const self = [];
+  const wantPanic = ev.panic * (1 + far / 45);
+  if (Math.abs(want.panic - wantPanic) > 1e-9) self.push(`panic（本尊 ${want.panic.toFixed(4)}，事件列要求 ${wantPanic.toFixed(4)}）`);
+  if (typeof want.surge !== 'number') self.push('surge（本尊沒有）');
+  if (want.fromEvent !== true) self.push('fromEvent（本尊沒有）');
+  if (want.evId !== true) self.push(`evId（本尊 ${JSON.stringify(p.evId)}，事件列要求 ${JSON.stringify(ev.id)}）`);
+  if (want.exclusive !== true) self.push('exclusive（本尊沒有）');
+  if (!want.blockArm || typeof want.blockArm !== 'object') self.push('blockArm（本尊沒有）');
   const missing = [];
   for (const f of STAMP_FIELDS){
     const bad = others.filter(q => {
@@ -2504,7 +2521,7 @@ function compareStamps(p, others, ev){
     });
     if (bad.length) missing.push(f);
   }
-  return { want, missing };
+  return { want, missing, self };
 }
 
 check('summon 招來的同伴，也要拿到事件事後蓋的六個欄位（#136）', () => {
@@ -2518,7 +2535,8 @@ check('summon 招來的同伴，也要拿到事件事後蓋的六個欄位（#13
   const ne = nonEmpty(crew.length >= 4 ? crew.length : 0,
     `deckguide 該招 4–6 個 observer，只找到 ${crew.length} 個（WAIT_CAP？抽不到樓層？）`);
   if (ne !== true) return ne;
-  const { want, missing } = compareStamps(p, crew, ev);
+  const { want, missing, self } = compareStamps(p, crew, ev);
+  if (self.length) return `本尊自己就沒對上事件列（整批一起漏，不是同伴的問題）：${self.join('、')}`;
   const q0 = crew[0];
   const nums = `本尊 patience/base ${want.panic.toFixed(4)}、同伴 ${(q0.patience / q0.t.patience).toFixed(4)}`;
   if (missing.length === STAMP_FIELDS.length)
@@ -2534,7 +2552,8 @@ check('pair 的同伴拿到事件事後蓋的六個欄位（58c055e 的那一半
   if (!r) return '測試事件 400 步內沒有生出本尊——儀器壞了，不是產品';
   const { p } = r;
   if (!p.mate) return 'proposer 沒有成對（WAIT_CAP？）——母體是空的，這條沒有試過';
-  const { want, missing } = compareStamps(p, [p.mate], ev);
+  const { want, missing, self } = compareStamps(p, [p.mate], ev);
+  if (self.length) return `本尊自己就沒對上事件列（整批一起漏，不是同伴的問題）：${self.join('、')}`;
   return ok(missing.length === 0,
     `mate 六個欄位跟本尊比對，${missing.length} 個不一致：${missing.join('、') || '無'}`
     + `（本尊 patience/base ${want.panic.toFixed(4)}、mate ${(p.mate.patience / p.mate.t.patience).toFixed(4)}）`);
