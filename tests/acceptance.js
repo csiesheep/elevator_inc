@@ -49,6 +49,21 @@ const THEME_SRC = await fetch(new URL('../js/theme.js', import.meta.url) + '?pro
 // 招商在不在？第 3 組和第 7 組都要靠它決定「這條規則現在還存不存在」。
 const leasingGone = typeof S.buyLease !== 'function';
 
+// **背債表空了要是綠的。**
+//
+// 我最初在五張背債表上都寫了 `nonEmpty(表的大小)`——於是
+// **把最後一筆債還完的人會把 harness 弄紅**。五張表都一樣。
+//
+// 那是 skill 5.6 的誤用：那一條說的是「你**掃描的母體**不可以是空的」
+// （沒有牆可以撒的時候，「撒牆沒事」永遠通過），
+// **不是「你的例外清單不可以是空的」**。背債表空掉是**目標狀態**。
+//
+// 是一支 peer 在被我叫去刪 POOL_DEBT 最後一筆的時候發現的：
+// 「刪了一定會紅，不刪反而不會。」
+const DEBT_CLEARED = name =>
+  `${name} 是空的——**這一類背債已經全部還清了**。`
+  + `（空表要是綠的：紅的話等於在懲罰把債還完的人。）`;
+
 section('0 常數對照');
 check('FLOORS_START',   () => eq(C.FLOORS_START, SPEC.floorsStart, 'FLOORS_START'));
 check('CASH_START',     () => eq(C.CASH_START, SPEC.cashStart, 'CASH_START'));
@@ -849,8 +864,7 @@ check('成批事件的場上耐性不可以掉到結構懸崖以下', () => {
 
 check('懸崖的例外都寫了理由', () => {
   const ids = new Set(EVENTS.map(e => e.id));
-  const ne = nonEmpty(Object.keys(CLIFF_OK).length, 'CLIFF_OK 是空的，沒有東西可以檢查');
-  if (ne !== true) return ne;
+  if (Object.keys(CLIFF_OK).length === 0) return ok(true, DEBT_CLEARED('CLIFF_OK'));
   const bad = Object.keys(CLIFF_OK).filter(id =>
     !ids.has(id) || !CLIFF_OK[id] || CLIFF_OK[id].length < 30);
   return ok(bad.length === 0,
@@ -1122,6 +1136,27 @@ check('必須同車：一對永遠不會被拆到兩台車（端對端）', () =
 // 而梳齒以約 188 遊戲日／小時進動，**每一個鐘點最後都會被踩到**，
 // 所以這條掃的是整天而不是今天的那十二個落點。
 const POOL_FLOORS = [12, 30, 80];
+// **門檻是「佔比」不是「唯一候選」——第一版我取錯了。**
+//
+// 第一版查的是「任何鐘點的候選池不可以只剩一列」。一支 peer 拿它去修
+// `powersurge`，在 0.25 小時的格子上暴力掃過全部 **9,120** 個窗，發現：
+// 符合的只有 `[6,2)` 一個，**而那個解會讓 `cartjam` 在 30 層接手當唯一候選**。
+// 同一個形狀換一個 id——**這條判準會逬人去打地鼠。**
+//
+// 因為「唯一候選」本身不是缺陷。我量了一遍（對鐘點均勻平均，
+// 因為梳齒會掃過所有鐘點）：
+//
+//     現況        12/20 層 powersurge **20.2%**（次高 overtime 11.0%）、30 層 cartjam 10.1%
+//     加 [6,2)    12/20 層 overtime 13.2%、30 層 cartjam **13.8%**（且變成唯一候選）
+//     50–80–100 層  最高都在 4–8%
+//
+// **一棟 12 層的樓凌晨只有一列事件可以發生，是正常的。**
+// 有問題的是 `powersurge` 因此吃掉 **20.2%** 的事件——
+// 一列屬於 86–99 樓實驗室的事件，在一棟只有零售樓層的樓裡。
+//
+// 換成佔比之後，`[6,2)` 單獨就把最高值壼到 13.8%，**`cartjam` 一個字都不用改**。
+// 門檻 15%：今天只有 powersurge 的 20.2% 超過，修好之後最高 13.8%。
+const POOL_MAX_SHARE = 0.15;
 // 具名背債。每一筆要寫量測，修好了要從表上拿掉。
 const POOL_DEBT = {
   powersurge: '全表唯一 `at:\'any\'` 且沒有 `hours` 的一列，所以在還沒蓋到其他樓層帶的'
@@ -1131,9 +1166,9 @@ const POOL_DEBT = {
     + '修法是給它一個 `hours` 窗（動「什麼時候」，不動 owner 指定的 `at:任意`）。見 #138。',
 };
 
-check('沒有任何一個時段的候選池只剩一列事件', () => {
+check('沒有一列事件在某一種樓高上吞掉太大一塊事件預算', () => {
   // 候選池的建法跟 `fireEvent()` 一致：byTenant 排除、hours 符合、at/to 兩邊都有樓層。
-  // `floorInBand` 沒有 export，所以這裡重现它的**拒絕條件**（回 -1 的那幾條），
+  // `floorInBand` 沒有 export，所以這裡重現它的**拒絕條件**（回 -1 的那幾條），
   // 而 `builtInBand` 是 export 的，直接用產品的那一支。
   const avail = (st, key) => {
     if (key == null || key === 'lobby' || key === 'any') return true;
@@ -1147,43 +1182,53 @@ check('沒有任何一個時段的候選池只剩一列事件', () => {
   const poolAt = (st, h) => EVENTS.filter(e =>
     !e.byTenant && M.inHourWindow(h, e.hours) && avail(st, e.at) && avail(st, e.to));
 
-  const lone = [], debtSeen = [];
-  let sampled = 0, maxPool = 0;
+  const bad = [], debtSeen = [], perFloor = [];
+  let sampled = 0, maxPool = 0, sawLone = false;
   for (const floors of POOL_FLOORS){
     const st = S.newGame();
     st.floors = floors;
-    const hit = {};
-    for (let i = 0; i < 96; i++){           // 整天每 0.25 小時一個點
+    const share = {};
+    let hours = 0;
+    for (let i = 0; i < 96; i++){             // 整天每 0.25 小時一個點
       const h = i / 4;
-      const p = poolAt(st, h);
+      const pool = poolAt(st, h);
       sampled++;
-      if (p.length > maxPool) maxPool = p.length;
-      if (p.length === 1){
-        const id = p[0].id;
-        hit[id] = (hit[id] || 0) + 1;
-      }
+      if (pool.length > maxPool) maxPool = pool.length;
+      if (!pool.length) continue;             // 池子為 0 ：那一刻沒有事件，不算
+      if (pool.length === 1) sawLone = true;
+      hours++;
+      const tot = pool.reduce((a, e) => a + (e.w > 0 ? e.w : 0), 0);
+      // 總權重為 0 時 pickIndex 退回均勻——這裡照著算，不是照 w 算
+      for (const e of pool)
+        share[e.id] = (share[e.id] || 0) + (tot > 0 ? (e.w > 0 ? e.w : 0) / tot : 1 / pool.length);
     }
-    for (const id in hit){
-      const row = `${floors} 層：${id} 在 ${(hit[id] / 96 * 100).toFixed(0)}% 的鐘點是唯一候選`;
-      if (POOL_DEBT[id]) debtSeen.push(row); else lone.push(row);
+    if (!hours) continue;
+    const rows = Object.entries(share).map(([k, v]) => [k, v / hours]).sort((a, b) => b[1] - a[1]);
+    perFloor.push(`${floors} 層最高 ${rows[0][0]} ${(rows[0][1] * 100).toFixed(1)}%`);
+    for (const [id, frac] of rows){
+      if (frac < POOL_MAX_SHARE) break;       // 已經排序，下面都更小
+      const row = `${floors} 層：${id} 吃掉 ${(frac * 100).toFixed(1)}% 的事件`;
+      if (POOL_DEBT[id]) debtSeen.push(row); else bad.push(row);
     }
   }
   // 儀器活著嗎？高塔上必須看得到一個真正的池子，
-  // 否則「沒有唯一候選」可能只是因為每一個池子都是空的。
+  // 否則「沒有人吃太大塊」可能只是因為每一個池子都是空的。
   const ne = nonEmpty(sampled, '一個鐘點都沒有取樣');
   if (ne !== true) return ne;
   if (!(maxPool >= 5))
     return `儀器壞了：三種樓高全部掃完，最大的候選池只有 ${maxPool} 列`;
-  return ok(lone.length === 0,
-    `掃了 ${sampled} 個（樓高 × 鐘點），${lone.length} 個新的只剩一列：` + lone.join('、')
+  return ok(bad.length === 0,
+    `掃了 ${sampled} 個（樓高 × 鐘點），${bad.length} 列新的超過 ${(POOL_MAX_SHARE * 100).toFixed(0)}%：`
+    + bad.join('、')
     + `｜既有背債：` + (debtSeen.join('、') || '無')
-    + '｜**池子只剩一列時 w 完全不參與**，那一列的出現機率是 1'
-    + `——所以這不是「調低一點 w」解得了的。池子為 0 不算（那一刻沒有事件）。`);
+    + `｜目前：` + perFloor.join('、')
+    + (sawLone ? '｜（有時段的候選池只剩一列——那一刻 w 完全不參與，機率是 1。'
+              + '**但那本身不是缺陷**：一棟 12 層的樓凌晨只有一列事件可以發生是正常的，'
+              + '有問題的是它因此吃掉一大塊預算。）' : ''));
 });
 
 check('池子背債表上的都還存在、寫了理由、而且都還不及格', () => {
-  const ne = nonEmpty(Object.keys(POOL_DEBT).length, 'POOL_DEBT 是空的');
-  if (ne !== true) return ne;
+  if (Object.keys(POOL_DEBT).length === 0) return ok(true, DEBT_CLEARED('POOL_DEBT'));
   const ids = new Set(EVENTS.map(e => e.id));
   const stale = [];
   for (const [id, why] of Object.entries(POOL_DEBT)){
@@ -1191,7 +1236,10 @@ check('池子背債表上的都還存在、寫了理由、而且都還不及格'
     if (!why || why.length < 30) stale.push(id + '（理由太短）');
   }
   return ok(stale.length === 0,
-    `背債表 ${Object.keys(POOL_DEBT).length} 筆，${stale.length} 筆過期：` + stale.join('、'));
+    `背債表 ${Object.keys(POOL_DEBT).length} 筆，${stale.length} 筆過期：` + stale.join('、')
+    + `｜⚠ 這一條**沒有**查「還不及格」（不像形狀與顏色那幾張）——`
+    + `上面那一條本來就會把還在違規的列印在「既有背債」裡，`
+    + `修好之後那一欄會變空，這就是該把這一筆拿掉的信號。`);
 });
 
 
@@ -1538,8 +1586,7 @@ check('新加的圖不可以跟既有的圖形狀太像', () => {
 
 check('形狀背債表上的配對都還存在，而且都還在門檻以下', () => {
   const bandOf = Object.fromEntries(PASSENGERS.map(p => [p.id, p.band]));
-  const ne = nonEmpty(SHAPE_DEBT.size, 'SHAPE_DEBT 是空的，沒有東西可以檢查');
-  if (ne !== true) return ne;
+  if (SHAPE_DEBT.size === 0) return ok(true, DEBT_CLEARED('SHAPE_DEBT'));
   const stale = [];
   for (const key of SHAPE_DEBT){
     const [x, y] = key.split('|');
@@ -1756,8 +1803,7 @@ check('新加的圖，配件色對每一種樓層底色都要夠遠', () => {
 
 check('配件色的背債表都還存在，理由都寫了，而且都還不及格', () => {
   if (FLOOR_K == null || RENDER_SRC == null) return 'TODO: 讀不到 theme.js 或 render.js';
-  const ne = nonEmpty(Object.keys(FLOOR_DEBT).length, 'FLOOR_DEBT 是空的');
-  if (ne !== true) return ne;
+  if (Object.keys(FLOOR_DEBT).length === 0) return ok(true, DEBT_CLEARED('FLOOR_DEBT'));
   const stale = [];
   for (const [id, why] of Object.entries(FLOOR_DEBT)){
     if (!PEOPLE[id] || !PEOPLE[id].acc){ stale.push(id + '（圖或 acc 不見了）'); continue; }
@@ -2240,8 +2286,7 @@ check('配件色對它自己那個姿勢的身體色要夠遠', () => {
 
 check('身體色的背債表都還存在、寫了理由、而且都還不及格', () => {
   if (CANVAS_SRC == null) return 'TODO: 讀不到 theme.js';
-  const ne = nonEmpty(Object.keys(BODY_DEBT).length, 'BODY_DEBT 是空的');
-  if (ne !== true) return ne;
+  if (Object.keys(BODY_DEBT).length === 0) return ok(true, DEBT_CLEARED('BODY_DEBT'));
   const pick = k => {
     const m = CANVAS_SRC.match(new RegExp('\\b' + k + ":\\s*'(#[0-9a-fA-F]{6})'"));
     return m ? m[1] : null;
