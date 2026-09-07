@@ -2369,24 +2369,39 @@ export { summary };
 // 內容一直在加，吞吐量本來就會動；把門檻貼著實測值會讓它變成一條每次加內容就紅的
 // guard，那種 guard 最後會被人註解掉。**要抓漂移請看訊息裡印出來的數字**——
 // 那些數字每次跑都會更新，而且現在真的看得見（`ok()` 通過時會帶訊息）。
+// ⚠ **前三個配置全部是 `look`，所以群組控制與目的地控制那兩條路一條都沒有人看。**
+// `groupAssign()` 有自己的一份 `sim.waiting` 迴圈、不讀 `candidates()` 的結果——
+// 是修 #68 的 peer 在「我沒驗到什麼」裡點名的第三條路。它後來量了：
+// **健康配置下有 40% 的指派指向一台當下裝不下那個人的井**（壓力配置 60%），
+// 而**開群組控制的送達率仍然比不開高三個百分點**（86.8% vs 83.8%，我複驗過）。
+//
+// **所以那 40% 不是缺陷，是群組控制刻意用柔性估計換到的東西**——
+// peer 做了一行硬判斷把它降到 0.1%，健康配置的送達率反而掉 1.5pp，**它沒有交**。
+// 詳情與裁決在 #68。
+//
+// 但「不修」跟「不看」是兩件事：**那條路上一次崩塌不會有任何東西紅**，
+// 所以這裡把它加進取樣。門檻一樣鬆（抓崩塌不抓漂移）。
 const THR_CONFIGS = [
-  // 名稱                  樓層 up.shaft up.cap  送達率下限（實測值寫在訊息裡）
-  ['tight 2井cap6 45層',    45,      1,     1,   65],
-  ['healthy 3井cap8 45層',  45,      2,     2,   80],
-  ['100層 3井cap8',        100,      2,     2,   55],
+  // 名稱                        樓層 up.shaft up.cap  額外自動化   送達率下限
+  ['tight 2井cap6 45層',          45,      1,     1,  [],            65],
+  ['healthy 3井cap8 45層',        45,      2,     2,  [],            80],
+  ['100層 3井cap8',              100,      2,     2,  [],            55],
+  ['look+group 3井cap6 45層',     45,      2,     1,  ['group'],     75],
+  ['dest+group 3井cap6 45層',     45,      2,     1,  ['dest','group'], 70],
 ];
 const THR_SEEDS = [1, 7, 13];
 const THR_DAYS = 15;
 section('21 電梯到底有沒有在送人');
 
-check('三種配置下，電梯的送達率不可以崩掉', () => {
-  const runOne = (floors, shaft, capUp, seed) => withSeed(seed, () => {
+check('五種調度配置下，電梯的送達率不可以崩掉', () => {
+  const runOne = (floors, shaft, capUp, autos, seed) => withSeed(seed, () => {
     const st = S.newGame();
     st.floors = floors;
     st.cash = 1e9;
     // **自動化要真的開起來。** 我第一次寫這種探針時忘了開，`served` 全是 0——
     // 那是在量一棟沒有人被送到的樓，而「一致」在那種情況下什麼都不證明（5.16）。
     st.auto.autodoor = st.auto.fifo = st.auto.look = true;
+    for (const a of autos) st.auto[a] = true;      // group / dest 那兩條路
     st.up.shaft = shaft; st.up.cap = capUp;
     st.up.speed = 8; st.up.accel = 8; st.up.door = 4;
     const sim = M.createSim(st);
@@ -2398,10 +2413,10 @@ check('三種配置下，電梯的送達率不可以崩掉', () => {
 
   const bad = [], rows = [];
   let totalServed = 0;
-  for (const [name, floors, shaft, capUp, floor] of THR_CONFIGS){
+  for (const [name, floors, shaft, capUp, autos, floor] of THR_CONFIGS){
     let served = 0, abandoned = 0;
     for (const seed of THR_SEEDS){
-      const r = runOne(floors, shaft, capUp, seed);
+      const r = runOne(floors, shaft, capUp, autos, seed);
       served += r.served; abandoned += r.abandoned;
     }
     totalServed += served;
