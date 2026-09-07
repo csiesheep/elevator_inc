@@ -295,9 +295,10 @@ function makePassenger(st, sim, origin, dest, h, ev, out){
 //    所以那四項原本全部只蓋得到第一個人。後果依序是：同伴少一份尖峰加給、
 //    不算事件乘客、以及**兩個人的耐性分岔**——而規則 3（同一個 tick 一起放棄）
 //    正是靠「兩份 patience 逐字相同」成立的，分岔之後上客那邊就只剩一行止血。
-//    現在 runEvent 把四項逐字補到 `p.mate` 上，同伴也計入 made。
-//    ⚠ **以後在 runEvent 裡新增任何「事後蓋在 p 上」的欄位，都要同時蓋到 p.mate**，
-//    否則就會再長出一次同樣的分岔。
+//    現在（#136）runEvent 用 stampFromEvent 蓋**整批**（呼叫前後 sim.waiting 的差：本尊、
+//    mate、summon 的同伴），pair 的同伴也計入 made。
+//    ⚠ **以後在 runEvent 裡新增任何「事後蓋在 p 上」的欄位，加在 stampFromEvent 裡**，
+//    不要再回迴圈裡手抄一份——第三份手抄就是這個分岔第二次長出來的地方。
 let pairing = false;
 function makeMate(st, sim, p, out){
   if (pairing) return null;                                     // 規則 1
@@ -487,6 +488,27 @@ function fireEvent(st, sim){
 // fixedFloor 參數跟著 schedule() 一起拿掉了：它存在的唯一理由是「預警時先抽好樓層、
 // 到期再用同一層跑」，沒有第二個呼叫端。留著一個永遠是 null 的參數，下一個人會以為
 // 有個地方會傳它。
+// 事件蓋在乘客身上的欄位（#136）。**這是唯一的一份**：runEvent 對這一次事件生出來的
+// 每一個人（本尊、pair 的同伴、summon 的同伴）各呼叫一次。之前是三份手抄（p / p.mate /
+// 沒有的 summon 那一份），而 evId、exclusive 是在 mate 那一段補完**之後**才加的——
+// 三份會漂移，已經發生過一次。
+//   ⚠ **以後任何「事件事後蓋在乘客身上」的欄位都加在這裡**，不要再回 runEvent 的迴圈裡寫。
+//   ⚠ **只在 runEvent 這條路上呼叫。** spawn() → makePassenger() 生的一般乘客與他們的
+//     同伴一個位元組都不能變——這是主流量，送達率抓得到崩塌但抓不到細微漂移。
+//     所以 panic / surge 不搬進 makePassenger。
+//   · panic：left 與 patience 一起乘。pair 的兩個人 patience 逐字相同（makeMate 規則 3：
+//     同一個 tick 一起放棄）靠的就是這裡對兩個人做同一件事。
+//   · surge：生出來那一刻的 d.surgeMult（跟 fareBoost「收錢那一刻」不是同一件事）。
+//   · blockArm：同一次事件共用同一個物件（stairsUp 靠逐個比對抓同一批人）。
+function stampFromEvent(p, ev, surge, arm){
+  if (ev.panic) p.left = p.patience = p.patience * ev.panic;
+  p.surge = surge;                             // B 尖峰加給
+  p.fromEvent = true;
+  p.evId = ev.id;                              // 是哪一列事件生的（成就的計數器要用）
+  if (ev.exclusive) p.exclusive = true;        // 這一趟包場（#122）
+  if (arm) p.blockArm = arm;                   // 送達時才真的封鎖
+}
+
 function runEvent(st, sim, ev, band, tenant, simTopAll, scale){
   const h = hourOf(st);
   const d = derived(st);
@@ -551,28 +573,19 @@ function runEvent(st, sim, ev, band, tenant, simTopAll, scale){
     const to = ev.inbound ? here  : other;
     if (to === o || to < 0 || o < 0) continue;
     if (isFloorBlocked(st, sim, to)) continue;   // 跟 spawn() 同一條規則：終點不生，起點照常
+    // 這一批人（#136）：makePassenger 在**裡面**就把 pair 的同伴（makeMate）與 summon 的
+    // 同伴（summonCompanions）生好了，而事件蓋在乘客身上的六個欄位是在它**回傳之後**
+    // 才寫的。這裡沒有傳 out，所以本尊、mate、summon 的每一個同伴（含同伴的 mate）都
+    // 直接推進 sim.waiting，而且沒有別的路會在這一個同步呼叫裡動它——**呼叫前後的差
+    // 就是整批**，逐個蓋 stampFromEvent。用 sim.waiting 的差而不是 p / p.mate / 同伴
+    // 各列一次：summonCompanions 不回傳同伴，而「列出來的那一份會漂移」正是這張單。
+    const before = sim.waiting.length;
     const p = makePassenger(st, sim, o, to, h, ev);   // ev 決定人物型別（type / types）
-    if (ev.panic) p.left = p.patience = p.patience * ev.panic;
-    p.surge = d.surgeMult;                       // B 尖峰加給
-    p.fromEvent = true;
-    p.evId = ev.id;                              // 是哪一列事件生的（成就的計數器要用）
-    if (ev.exclusive) p.exclusive = true;        // 這一趟包場（#122）。⚠ 同伴拿不到，見 isExcl 的 #136
-    if (arm) p.blockArm = arm;                   // 送達時才真的封鎖
+    for (let k = before; k < sim.waiting.length; k++) stampFromEvent(sim.waiting[k], ev, d.surgeMult, arm);
     made++;
-    // pair:true 的型別在 makePassenger **裡面**就把同伴生好了，所以上面那四項只蓋得到
-    // 第一個人。四項逐字補到同伴身上——**`ev.panic` 尤其不能漏**：兩個人的耐性一旦
-    // 分岔，「同一個 tick 一起放棄」（makeMate 規則 3）的前提就沒了，而上客那邊只剩
-    // 一行防殭屍的止血。同伴也算一個「這次事件生出來的人」，所以 made 一起加。
-    const mate = p.mate;
-    if (mate){
-      if (ev.panic) mate.left = mate.patience = mate.patience * ev.panic;
-      mate.surge = p.surge;
-      mate.fromEvent = true;
-      mate.evId = p.evId;                        // ⚠ 下面那條規則的第一個新欄位，逐字補上
-      if (ev.exclusive) mate.exclusive = true;   // ⚠ 同一條規則，第二個（summon 那一半仍是 #136）
-      if (arm) mate.blockArm = arm;
-      made++;
-    }
+    // made 的計數**沒有改**：本尊算一個、pair 的同伴算一個（他是「這次事件生出來的人」），
+    // summon 生的仍然不算——toast 的 {n} 與第 11 組懸崖 guard 看的是 e.n，那是另一個決定。
+    if (p.mate) made++;
   }
   // 「一個人都沒生出來」原本就靜靜結束（免得跳出「0 個人」的提示）。**立刻封鎖**的
   // 事件是第一種不生人也真的發生了的事件，所以它要能走到下面；但**送達才封鎖**的
@@ -729,10 +742,9 @@ function startMove(st, sim, s, f){
 //   型別那一種是「這個東西本來就要包場」（#117 機密貨箱）；乘客那一種是
 //   「這一列事件生出來的這一個要包場」（#122 衛星送件借既有的送貨員當押運，
 //   而送貨員平常當然不包場）。兩種在這支檔案裡是同一件事，所以只有一個判斷式。
-//   ⚠ 事件那一半有 **#136** 那個洞：`runEvent` 在 `makePassenger()` **回傳之後**
-//   才蓋 `p.exclusive`，而 `makeMate()` / `summonCompanions()` 在它**裡面**跑，
-//   所以**同伴拿不到**（`runEvent` 已經逐字補了 `p.mate`，但補不到 summon 那一批）。
-//   `satellite` 是 n:1 又不 summon，今天量不出來——**下一個寫「包場 ＋ summon」的人會踩到。**
+//   事件那一半曾經有 **#136** 那個洞：`runEvent` 在 `makePassenger()` **回傳之後**
+//   才蓋 `p.exclusive`，而 `makeMate()` / `summonCompanions()` 在它**裡面**跑，所以
+//   summon 的同伴拿不到。現在 `runEvent` 用 `stampFromEvent` 蓋整批（含 summon 的同伴）。
 const isExcl = p => !!(p.exclusive || p.t.exclusive);
 
 // 這支只回答一個問題：這台車現在被包場了嗎。三個呼叫點共用它，因為
