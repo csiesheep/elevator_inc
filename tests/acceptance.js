@@ -1542,6 +1542,17 @@ check('一次丟出幾十則提示，整疊仍然裝得下', () => {
 // 也就是**一張圖 7×9 個實體像素**——那時「差 12 格」等於「差 12 個像素」。
 // **所以這條判準的效力集中在前期與桌機；後期真正在做事的是顏色。**
 // peer 的校準梯是在 14px/格上用眼睛看的（轉折在 8 與 12 之間），**不是真實尺寸**。
+// **配件色互斥的門檻（orchestrator 裁決 #105）。**
+// 宣告在這裡而不是第 19 組裡面，因為**第 17 組也要用它**，
+// 而第 17 組先跑（check() 是宣告的當下就執行，所以後面才宣告的 const 會落在 TDZ）。
+//
+// ⚠ **第 17 組本來寫死 12。** 那是 #105 之前的門檻，
+// 而第 19 組早就改成 9 了——於是第 17 組在檢查一個**已經不存在的門檻**
+// 附近的翻面穩定性，它自己的通過訊息也印「門檻 12」。
+// 是畫實驗帶九張圖的 artist 回報的（`tests/` 不是它的檔案，它沒有動）。
+// **同一個事實只能有一處定義。**
+const ACC_MIN = 9;
+
 section('15 形狀分得開嗎');
 
 const SHAPE_MIN = 12;
@@ -1983,7 +1994,7 @@ check('沒有任何一條色距判定的真假取決於 CIEDE2000 走了哪一�
 
   const axes = [
     ['配件×背景', 25, accs.flatMap(([id, sp]) => floors.map(f => [id, sp.acc, f]))],
-    ['配件×配件', 12, accs.flatMap(([id, sp], i) => accs.slice(i + 1).map(([id2, sp2]) => [id + '/' + id2, sp.acc, sp2.acc]))],
+    ['配件×配件', ACC_MIN, accs.flatMap(([id, sp], i) => accs.slice(i + 1).map(([id2, sp2]) => [id + '/' + id2, sp.acc, sp2.acc]))],
     ['配件×身體色', 25, accs.flatMap(([id, sp]) => bodyCols.map(c => [id, sp.acc, c]))],
   ];
   const ne = nonEmpty(bodyCols.length, 'theme.js 裡找不到 ink / inkCar / bad');
@@ -2188,7 +2199,6 @@ check('已經移除的租戶事件路徑，不可以用死資料的形式回來'
 // 而且它**不保證在 cs=1（7×9 個實體像素）上分得出來**——那是眼睛的事。
 section('19 配件色彼此分得開嗎');
 
-const ACC_MIN = 9;
 
 check('沒有兩個配件色靠得比門檻更近', () => {
   const withAcc = Object.entries(PEOPLE).filter(([, sp]) => sp.acc);
