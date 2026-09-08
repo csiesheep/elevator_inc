@@ -189,24 +189,38 @@ const DICT = {
   close:         ['關閉', 'Close'],
   back:          ['← 首頁', '← Home'],
 
-  // ---- 圖鑑頁（#149）
-  // ⚠ **這七個鍵是 FE 加的，字本身還沒有 writer 簽過。** TEAM.md 說玩家看得到的
+  // ---- 圖鑑頁（#149 加，#153 改）
+  // ⚠ **這些鍵是 FE 加的，字本身還沒有 writer 簽過。** TEAM.md 說玩家看得到的
   // 字是 writer 的所有權，我在 #149 上問過兩次「要 writer 加還是授權我加」，
   // 沒有拿到回答；擋著整個頁面不做比較糟，所以先照現有格式加上，交付時點名。
   // **譯文以 writer 的為準，改掉不用問我。**
   //
-  // 這一頁**永遠不顯示名字與數值**（owner 裁決 #149 甲乙丙 → 丙，
-  // orchestrator 的解讀是「公開頁永遠不解鎖」），所以下面沒有任何一個鍵是
-  // 「未知名稱」之類的佔位——藏名字就是藏名字，不放假的名字或編號。
+  // ⚠⚠ **#153 換掉了這一頁的規則，所以這一段的舊註解已經作廢，不要照它寫字。**
+  // 舊的（#149 的丙）：「這一頁永遠不顯示名字與數值」。
+  // 現在（#153，owner 修訂）：**圖鑑頁 = 圖鑑 tab 的網頁版**——載過的人
+  // 名字＋說明＋數值全給，**沒載過的連圖都不給，換成一個 7×9 的問號**。
+  // 所以「沒載過」那一格的字**沿用 tab 已經在用的三個鍵**
+  //（`unknownName` / `notCarried` / `notCarriedNote`，都在上面的「圖鑑」那一段），
+  // 不另立一套平行的字——兩份字就是兩份真相。
+  //
+  // 仍然成立的一條：**不放假的名字或編號當佔位。** 沒有存檔的訪客會看到
+  // 78 個問號，owner 逐字裁決過那是可以的（「圖鑑就是要蒐集的」）。
   btnCodex:      ['乘客圖鑑', 'Codex'],
   codexTitle:    ['乘客圖鑑', 'Passenger Codex'],
-  codexLead:     ['這棟樓裡會搭電梯的每一種人，一個都不少。名字、票價與耐性要在遊戲裡載過才看得到。',
-                  'Everyone who rides this tower. Names, fares and patience unlock by carrying them in-game.'],
+  // #153 改寫。舊句是「這棟樓裡會搭電梯的每一種人，一個都不少。名字、票價與耐性
+  // 要在遊戲裡載過才看得到。」——新規則下**圖也看不到了**，那句話不再描述這一頁。
+  codexLead:     ['載過的人有名字、說明與數值；沒載過的只有一個問號。這一頁跟遊戲裡的圖鑑是同一份。',
+                  'Carried them? Name, note and numbers. Not yet? A question mark. Same codex as the one in the game.'],
+  // #153 新增。問號是純 SVG，沒有文字；`<title>` 空著的話，78 個問號對讀螢幕的人
+  // 是 78 個沉默的方塊。**這句話不可以帶任何一個人的資訊**，它是常數。
+  codexUnknownAlt:['還沒載過的乘客', 'A passenger you have not carried'],
   codexSeen:     ['你的存檔裡見過 {0} / {1}', 'Your save has met {0} of {1}'],
   codexNoSave:   ['你還沒有存檔——先玩一輪，這些人就會有名字。',
                   'No save yet — play a round and these people get names.'],
-  codexPose:     ['點一格換成「快沒耐性」的姿勢；右上角那顆整頁一起換。',
-                  'Tap a figure for its out-of-patience pose; the button above switches the whole page.'],
+  // #153 改：換姿勢現在**只有載過的卡**做得到（沒載過的是一個問號，
+  // 而問號沒有「快沒耐性」的樣子）。舊句寫「點一格」，會讓人去點問號。
+  codexPose:     ['點一張載過的卡，換成「快沒耐性」的姿勢；右上角那顆整頁一起換。',
+                  'Tap a card you have carried for its out-of-patience pose; the button above switches the whole page.'],
   codexBandN:    ['{0} 種', '{0} kinds'],
   codexAnyBand:  ['每一層都有', 'On every floor'],
   codexOneFloor: ['只有 {0} 樓', 'Floor {0} only'],
