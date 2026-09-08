@@ -1,0 +1,394 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;600;700&family=Noto+Sans+TC:wght@500;700;900&display=swap">
+  <style>
+    body { margin: 0; }
+    x-dc { display: block; }
+    .px  { font-family: "Press Start 2P", "Courier New", monospace; }
+    .pxs { font-family: "Pixelify Sans", "Courier New", monospace; }
+    .han { font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; }
+    svg { shape-rendering: crispEdges; }
+
+    .night { --bg:#0f1116; --panel:#16183a; --card:#1d2046; --line:#4a4f86;
+             --text:#e8eaf0; --dim:#8f95d6; --money:#5ddc9a; --gold:#ffd23f;
+             --hi:#7dd8f7; --bad:#ff8a8a; --edge:#4a4f86; --drop:#0b0d20; --chipBg:#23264f; }
+    .day   { --bg:#dceeff; --panel:#fff8ea; --card:#ffffff; --line:#16183a;
+             --text:#16183a; --dim:#6b6f9e; --money:#12915f; --gold:#c08a1a;
+             --hi:#2f6fd0; --bad:#d63b3b; --edge:#16183a; --drop:#16183a; --chipBg:#ffffff; }
+    .night, .day { --heatCool:#6d7690; --heatWarm:#f0a04a; }
+
+    .chip { background:var(--chipBg); border:3px solid var(--edge); color:var(--text);
+            min-width:40px; height:38px; border-radius:0; font-size:16px;
+            box-shadow:3px 3px 0 var(--drop); font-family:inherit;
+            display:inline-flex; align-items:center; justify-content:center; padding:0 8px; }
+
+    /* 方向 B 的鈕：**盒子本身就是儀表**。
+       靜止的時候它跟工具鈕的差別不是顏色，是**構造**——它有一個空的槽、
+       一排井的燈號。那兩樣東西工具鈕永遠不會有，所以不必等按下去。 */
+    .gauge { background:var(--chipBg); border:3px solid var(--gold); color:var(--text);
+             width:126px; height:58px; border-radius:0; box-shadow:4px 4px 0 var(--drop);
+             display:inline-flex; flex-direction:column; justify-content:center;
+             gap:4px; padding:0 7px; }
+    .gauge.held { background:var(--gold); border-color:var(--gold); color:#16183a;
+                  transform:translate(4px,4px); box-shadow:0 0 0 var(--drop); }
+    /* 槽：2px 硬框 + 8 格。格數固定 8，代表 heat / heatMax 的**比例**，不是秒數
+       ── heatMax = 6 + 2×散熱 + 4×超導馬達，範圍 6 到 50，秒數釘不住。 */
+    .trough { display:flex; gap:1px; height:9px; border:2px solid var(--edge); padding:1px;
+              background:var(--card); }
+    .trough i { flex:1; display:block; background:transparent; }
+    .gauge.held .trough { border-color:#16183a; background:rgba(22,24,58,.22); }
+    /* 井的燈號：一座井一顆，最多 9 顆（1 + 井升級 5 + 預留井道 3）。 */
+    .pips { display:flex; gap:3px; align-items:center; height:9px; }
+    .pips i { width:6px; height:6px; display:block; border:1px solid var(--dim); background:transparent; }
+    .pips i.lock { border-color:var(--bad); background:var(--bad); }
+    .gauge.held .pips i { border-color:rgba(22,24,58,.55); }
+
+    .lbl { font-size:11px; letter-spacing:.12em; color:#6b6f9e; margin-bottom:7px; }
+    .box { border:3px solid #16183a; background:#ffffff; box-shadow:4px 4px 0 #16183a; padding:11px 13px; }
+  </style>
+</helmet>
+
+<!-- ==========================================================================
+     #156 方向 B ──「鈕本身帶熱量計」
+     軸上的位置：這顆鈕自己承載的狀態 = 全部
+     （最熱那座井的 heat/heatMax、每座井鎖不鎖、最長的鎖還剩幾秒、有沒有 noOverheat）。
+     ========================================================================== -->
+<div class="han" style="position: relative; width: 1440px; height: 1440px; overflow: hidden; background: #eef1f8;">
+
+  <div style="position: absolute; left: 40px; top: 30px; width: 1360px;">
+    <h1 class="px" style="margin: 0 0 10px; font-size: 20px; line-height: 1.4; color: #16183a;">
+      B ── 鈕就是熱量計
+    </h1>
+    <div class="pxs" style="display: inline-block; padding: 5px 10px; background: #16183a; color: #ffe9a8;
+         font-size: 13px; font-weight: 700; letter-spacing: .06em;">
+      軸：這顆鈕自己承載的狀態 ＝ <b style="color:#ffd23f">全部</b>　·　最熱的井、每座井鎖不鎖、剩幾秒、有沒有 noOverheat
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 14px;">
+      <div class="box" style="border-color:#12915f; box-shadow:4px 4px 0 #12915f;">
+        <div class="pxs" style="font-size: 11px; letter-spacing: .12em; color: #12915f; margin-bottom: 5px;">動機</div>
+        <div style="font-size: 13.5px; line-height: 1.7; color: #16183a;">
+          三個方向裡<b>只有這個會教會玩家這個機制</b>。
+          「還能按多久」現在只寫在井頂那條 2px 的線上，而你按住的時候眼睛在車上、手在鈕上，
+          兩個都不在那條線上。把槽放進鈕裡，代價與動作在同一個地方，
+          而且<b>靜止時它跟工具鈕的差別是構造不是顏色</b>——空的槽與一排井燈號，工具鈕永遠不會有。
+        </div>
+      </div>
+      <div class="box" style="border-color:#d63b3b; box-shadow:4px 4px 0 #d63b3b;">
+        <div class="pxs" style="font-size: 11px; letter-spacing: .12em; color: #d63b3b; margin-bottom: 5px;">主要缺點</div>
+        <div style="font-size: 13.5px; line-height: 1.7; color: #16183a;">
+          它是唯一需要<b>每幀寫頂欄 DOM</b> 的方向（今天只有 `#evac` 的冷卻字在做這件事），
+          而且它把整個版面最擠的一條帶子的資訊量變成三倍：鈕從 40×38 長到 126×58，
+          頂欄跟著高 20px。
+          再加上<b>「最熱的那座井」是一個有損的摘要</b>——九座井的時候，
+          槽上那個數字不是你正在看的那座。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------------------------------------------------------- 畫框一：桌機 -->
+  <div class="pxs lbl" style="position: absolute; left: 40px; top: 250px;">畫框 1 ── 桌機 1280 寬 · 夜（按住中，熱量 5/8，兩座井都還活著）</div>
+
+  <div class="night" style="position: absolute; left: 40px; top: 274px; width: 1280px; height: 300px;
+       overflow: hidden; border: 3px solid #16183a; box-shadow: 6px 6px 0 rgba(22,24,58,.35); background: var(--bg);">
+
+    <div style="display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px 6px;
+         background: var(--panel); border-bottom: 3px solid var(--edge);">
+      <div>
+        <div class="pxs" style="font-size: 28px; font-weight: 700; color: var(--money); line-height: 1.1;">$12.4K</div>
+        <div class="pxs" style="font-size: 12px; color: var(--dim);">$84/秒</div>
+      </div>
+      <div style="margin-left: auto; text-align: right;">
+        <div class="pxs" style="font-size: 12px; color: var(--hi);">📐 3</div>
+        <div class="pxs" style="font-size: 12px; color: var(--text);">★ 3.42</div>
+        <div class="pxs" style="font-size: 10.5px; color: var(--dim);">×1.86 票價 · ×1.27 人流</div>
+      </div>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 6px;">
+        <div class="chip">🏠</div>
+        <div class="chip pxs" style="font-size: 12px; font-weight: 700;">EN</div>
+        <div class="chip">🔈</div>
+        <div style="width: 3px; height: 58px; background: var(--edge); margin: 0 6px;"></div>
+        <!-- 按住中：熱量 5/8，門檻 0.7 之下所以是 --heatCool（跟 render.js:436 同一條判斷） -->
+        <div class="gauge held pxs">
+          <div style="display: flex; align-items: center; gap: 5px; line-height: 1;">
+            <span style="font-size: 14px;">🔥</span>
+            <span class="han" style="font-size: 12.5px; font-weight: 900; color: #16183a;">超速</span>
+            <span style="margin-left: auto; font-size: 9px; letter-spacing: .1em; color: #16183a; opacity: .75;">放開停止</span>
+          </div>
+          <div class="trough">
+            <i style="background:#6d7690"></i><i style="background:#6d7690"></i><i style="background:#6d7690"></i>
+            <i style="background:#6d7690"></i><i style="background:#6d7690"></i><i></i><i></i><i></i>
+          </div>
+          <div class="pips">
+            <i></i><i></i>
+            <span style="margin-left:auto; font-size:9.5px; color:#16183a; opacity:.75;">2 井</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pxs" style="padding: 5px 12px; font-size: 12px; color: var(--dim);
+         background: var(--panel); border-bottom: 3px solid var(--edge);">
+      25 樓 · 2 井 · FIFO · 等待 5 · 週三 09:12
+    </div>
+
+    <div style="padding: 0 8px 8px; height: 198px;">
+      <svg width="1264" height="190" viewBox="0 0 1264 190">
+        <rect x="0" y="0" width="1264" height="190" fill="#0f1116"/>
+        <rect x="0" y="0" width="1264" height="42" fill="#141834"/>
+        <rect x="0" y="42" width="1264" height="36" fill="#171b3c"/>
+        <rect x="62" y="18" width="1140" height="161" fill="#1a1d3f"/>
+        <rect x="68" y="22" width="1128" height="157" fill="#1d2046"/>
+        <g>
+          <rect x="68" y="158" width="1074" height="21" fill="#222650"/>
+          <rect x="68" y="137" width="1074" height="21" fill="#1d2046"/>
+          <rect x="68" y="116" width="1074" height="21" fill="#222650"/>
+          <rect x="68" y="95"  width="1074" height="21" fill="#1d2046"/>
+          <rect x="68" y="74"  width="1074" height="21" fill="#222650"/>
+          <rect x="68" y="53"  width="1074" height="21" fill="#1d2046"/>
+        </g>
+        <g fill="#8f95d6" font-family="Pixelify Sans, monospace" font-size="11">
+          <text x="80" y="173">1</text><text x="80" y="152">2</text><text x="80" y="131">3</text>
+          <text x="80" y="110">4</text><text x="80" y="89">5</text></g>
+        <rect x="1142" y="18" width="70" height="161" fill="#12142e"/>
+        <rect x="1142" y="18" width="1" height="161" fill="#4a4f86"/>
+        <rect x="1177" y="18" width="1" height="161" fill="#4a4f86"/>
+        <g>
+          <rect x="1146" y="95" width="27" height="19" fill="#ffd23f"/>
+          <rect x="1152" y="114" width="6" height="15" fill="#f0a04a"/>
+          <rect x="1162" y="114" width="6" height="12" fill="#f0a04a"/>
+        </g>
+        <rect x="1181" y="137" width="27" height="19" fill="#ffd23f"/>
+        <!-- 井頂的熱量條：**跟鈕上的槽是同一個數字、同一組顏色** -->
+        <rect x="1143" y="20" width="21" height="2" fill="#6d7690"/>
+        <rect x="1178" y="20" width="9" height="2" fill="#6d7690"/>
+        <rect x="0" y="179" width="1264" height="11" fill="#191c3e"/>
+        <rect x="0" y="179" width="1264" height="2" fill="#4a4f86"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ---------------------------------------------------------- 畫框二：手機 -->
+  <div class="pxs lbl" style="position: absolute; left: 40px; top: 604px;">畫框 2 ── 手機 375 寬 · 日（一座井過熱中，倒數 5s）</div>
+
+  <div class="day" style="position: absolute; left: 40px; top: 628px; width: 375px; height: 640px;
+       overflow: hidden; border: 3px solid #16183a; box-shadow: 6px 6px 0 rgba(22,24,58,.35); background: var(--bg);">
+
+    <div style="background: var(--panel); border-bottom: 3px solid var(--edge); padding: 8px 12px 6px;">
+      <div style="display: flex; align-items: flex-start; gap: 10px;">
+        <div>
+          <div class="pxs" style="font-size: 28px; font-weight: 700; color: var(--money); line-height: 1.1;">$12.4K</div>
+          <div class="pxs" style="font-size: 12px; color: var(--dim);">$84/秒</div>
+        </div>
+        <div style="margin-left: auto; text-align: right;">
+          <div class="pxs" style="font-size: 12px; color: var(--hi);">📐 3</div>
+          <div class="pxs" style="font-size: 12px; color: var(--text);">★ 3.42</div>
+        </div>
+      </div>
+      <!-- 126 + 3 + 3×40 + gap ≈ 260，351 的行寬還剩約 90px。擠得下，但沒有第二顆的餘裕。 -->
+      <div style="display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 8px;">
+        <div class="chip">🏠</div>
+        <div class="chip pxs" style="font-size: 12px; font-weight: 700;">EN</div>
+        <div class="chip">🔈</div>
+        <div style="width: 3px; height: 58px; background: var(--edge); margin-left: auto;"></div>
+        <div class="gauge pxs" style="margin-left: 6px;">
+          <div style="display: flex; align-items: center; gap: 5px; line-height: 1;">
+            <span style="font-size: 14px;">🔥</span>
+            <span class="han" style="font-size: 12.5px; font-weight: 900; color: var(--gold);">超速</span>
+            <span style="margin-left: auto; font-size: 9px; letter-spacing: .1em; color: var(--dim);">按住</span>
+          </div>
+          <!-- 一座井鎖住：那一格的槽整條 --bad（跟 render.js「s.lock>0 → pal.bad」同一條） -->
+          <div class="trough">
+            <i style="background:#d63b3b"></i><i style="background:#d63b3b"></i><i style="background:#d63b3b"></i>
+            <i style="background:#d63b3b"></i><i style="background:#d63b3b"></i><i style="background:#d63b3b"></i>
+            <i style="background:#d63b3b"></i><i style="background:#d63b3b"></i>
+          </div>
+          <div class="pips">
+            <i class="lock"></i><i></i>
+            <span style="margin-left:auto; font-size:9.5px; font-weight:700; color:#d63b3b;">5s</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pxs" style="padding: 5px 12px; font-size: 12px; color: var(--dim);
+         background: var(--panel); border-bottom: 3px solid var(--edge);">25 樓 · 2 井 · 等待 5</div>
+
+    <div style="padding: 0 8px 52px; height: 400px;">
+      <svg width="359" height="390" viewBox="0 0 359 390">
+        <rect x="0" y="0" width="359" height="390" fill="#dceeff"/>
+        <rect x="0" y="0" width="359" height="44" fill="#cfe7ff"/>
+        <rect x="32" y="24" width="295" height="344" fill="#16183a"/>
+        <rect x="35" y="27" width="289" height="338" fill="#fff8ea"/>
+        <g>
+          <rect x="35" y="327" width="222" height="38" fill="#f4ecd9"/>
+          <rect x="35" y="289" width="222" height="38" fill="#fff8ea"/>
+          <rect x="35" y="251" width="222" height="38" fill="#f4ecd9"/>
+          <rect x="35" y="213" width="222" height="38" fill="#fff8ea"/>
+          <rect x="35" y="175" width="222" height="38" fill="#f4ecd9"/>
+          <rect x="35" y="137" width="222" height="38" fill="#fff8ea"/>
+          <rect x="35" y="99"  width="222" height="38" fill="#f4ecd9"/>
+          <rect x="35" y="61"  width="222" height="38" fill="#fff8ea"/>
+        </g>
+        <g fill="#8a8299" font-family="Pixelify Sans, monospace" font-size="12">
+          <text x="41" y="353">1</text><text x="41" y="315">2</text><text x="41" y="277">3</text>
+          <text x="41" y="239">4</text><text x="41" y="201">5</text></g>
+        <g fill="#16183a">
+          <rect x="240" y="334" width="7" height="7"/><rect x="242" y="341" width="4" height="10"/>
+          <rect x="224" y="334" width="7" height="7"/><rect x="226" y="341" width="4" height="10"/>
+        </g>
+        <rect x="257" y="27" width="67" height="338" fill="#c3d2e6"/>
+        <rect x="290" y="27" width="1" height="338" fill="#16183a"/>
+        <!-- 左邊那座鎖住：外框 --bad、沒有火、井頂整條紅 -->
+        <rect x="260" y="205" width="27" height="32" fill="#c08a1a"/>
+        <rect x="260.5" y="205.5" width="26" height="31" fill="none" stroke="#d63b3b" stroke-width="2"/>
+        <rect x="258" y="29" width="30" height="2" fill="#d63b3b"/>
+        <!-- 右邊那座還在跑 -->
+        <rect x="293" y="291" width="27" height="32" fill="#c08a1a"/>
+        <rect x="291" y="29" width="10" height="2" fill="#6d7690"/>
+        <rect x="0" y="368" width="359" height="22" fill="#3ad39a"/>
+        <rect x="0" y="368" width="359" height="2" fill="#16183a"/>
+      </svg>
+    </div>
+
+    <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 46px; background: var(--panel);
+         border-top: 4px solid var(--edge);">
+      <div style="display: flex; justify-content: center; padding-top: 6px;">
+        <div style="width: 44px; height: 5px; background: var(--edge);"></div>
+      </div>
+      <div style="display: flex; justify-content: space-around; padding-top: 6px;">
+        <span style="font-size: 11.5px; font-weight: 700; color: #16183a;">升級</span>
+        <span style="font-size: 11.5px; color: var(--dim);">自動化</span>
+        <span style="font-size: 11.5px; color: var(--dim);">藍圖</span>
+        <span style="font-size: 11.5px; color: var(--dim);">圖鑑</span>
+        <span style="font-size: 11.5px; color: var(--dim);">統計</span>
+        <span style="font-size: 11.5px; color: var(--dim);">拆樓</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------------------------------------------------- 右欄 -->
+  <div style="position: absolute; left: 460px; top: 604px; width: 940px;">
+
+    <div class="pxs lbl">五個狀態 ── 三個方向裡只有 B 每一格都不一樣</div>
+    <div class="night" style="background: var(--panel); border: 3px solid #16183a; padding: 14px;
+         display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px;">
+
+      <div>
+        <div class="pxs" style="font-size:10px; color:var(--dim); margin-bottom:8px; line-height:1.4;">1 靜止<br>熱量 0</div>
+        <div class="gauge pxs">
+          <div style="display:flex; align-items:center; gap:4px; line-height:1;">
+            <span style="font-size:14px;">🔥</span>
+            <span class="han" style="font-size:12.5px;font-weight:900;color:var(--gold);">超速</span>
+            <span style="margin-left:auto; font-size:9px; color:var(--dim);">按住</span></div>
+          <div class="trough"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="pips"><i></i><i></i><span style="margin-left:auto; font-size:9.5px; color:var(--dim);">2 井</span></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="pxs" style="font-size:10px; color:var(--gold); margin-bottom:8px; line-height:1.4;">2 按住<br>熱量 3/8</div>
+        <div class="gauge held pxs">
+          <div style="display:flex; align-items:center; gap:4px; line-height:1;">
+            <span style="font-size:14px;">🔥</span>
+            <span class="han" style="font-size:12.5px;font-weight:900;color:#16183a;">超速</span>
+            <span style="margin-left:auto; font-size:9px; color:#16183a; opacity:.75;">放開</span></div>
+          <div class="trough"><i style="background:#6d7690"></i><i style="background:#6d7690"></i><i style="background:#6d7690"></i><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="pips"><i></i><i></i><span style="margin-left:auto; font-size:9.5px; color:#16183a; opacity:.75;">2 井</span></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="pxs" style="font-size:10px; color:var(--heatWarm); margin-bottom:8px; line-height:1.4;">3 熱量 7/8<br>過 0.7 門檻</div>
+        <div class="gauge held pxs">
+          <div style="display:flex; align-items:center; gap:4px; line-height:1;">
+            <span style="font-size:14px;">🔥</span>
+            <span class="han" style="font-size:12.5px;font-weight:900;color:#16183a;">超速</span>
+            <span style="margin-left:auto; font-size:9px; color:#16183a; opacity:.75;">放開</span></div>
+          <div class="trough"><i style="background:#f0a04a"></i><i style="background:#f0a04a"></i><i style="background:#f0a04a"></i><i style="background:#f0a04a"></i><i style="background:#f0a04a"></i><i style="background:#f0a04a"></i><i style="background:#f0a04a"></i><i></i></div>
+          <div class="pips"><i></i><i></i><span style="margin-left:auto; font-size:9.5px; color:#16183a; opacity:.75;">2 井</span></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="pxs" style="font-size:10px; color:var(--bad); margin-bottom:8px; line-height:1.4;">4 一座井鎖住<br>倒數 8s</div>
+        <div class="gauge pxs">
+          <div style="display:flex; align-items:center; gap:4px; line-height:1;">
+            <span style="font-size:14px;">🔥</span>
+            <span class="han" style="font-size:12.5px;font-weight:900;color:var(--gold);">超速</span>
+            <span style="margin-left:auto; font-size:9px; color:var(--dim);">按住</span></div>
+          <div class="trough"><i style="background:#ff8a8a"></i><i style="background:#ff8a8a"></i><i style="background:#ff8a8a"></i><i style="background:#ff8a8a"></i><i style="background:#ff8a8a"></i><i style="background:#ff8a8a"></i><i style="background:#ff8a8a"></i><i style="background:#ff8a8a"></i></div>
+          <div class="pips"><i class="lock"></i><i></i><span style="margin-left:auto; font-size:9.5px; font-weight:700; color:var(--bad);">8s</span></div>
+        </div>
+        <div class="pxs" style="font-size:9.5px; color:var(--dim); margin-top:6px; line-height:1.5;">
+          鈕<b>沒有</b> disable：另一座井還在吃 1.8 倍
+        </div>
+      </div>
+
+      <div>
+        <div class="pxs" style="font-size:10px; color:var(--money); margin-bottom:8px; line-height:1.4;">5 超導馬達滿級<br>noOverheat</div>
+        <div class="gauge pxs">
+          <div style="display:flex; align-items:center; gap:4px; line-height:1;">
+            <span style="font-size:14px;">🔥</span>
+            <span class="han" style="font-size:12.5px;font-weight:900;color:var(--gold);">超速</span>
+            <span style="margin-left:auto; font-size:9px; color:var(--dim);">按住</span></div>
+          <div class="trough" style="border-color:var(--gold); background:var(--gold); align-items:center; justify-content:center;">
+            <span style="font-size:9px; font-weight:700; color:#16183a; line-height:1;">不會過熱</span>
+          </div>
+          <div class="pips"><i></i><i></i><i></i><span style="margin-left:auto; font-size:9.5px; color:var(--dim);">3 井</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pxs lbl" style="margin-top: 20px;">工單第 4 條：過熱那 8 秒怎麼交代</div>
+    <div class="box" style="border-color:#16183a;">
+      <div style="font-size: 13.5px; line-height: 1.75; color: #16183a;">
+        <b>B 的答案是全部畫在鈕上，但不是工單寫的那個畫法。</b>
+        工單說「過熱時整顆變成鎖住的樣子並倒數 8 秒」——<span style="color:#d63b3b; font-weight:700;">那會說謊。</span>
+        `s.lock` 是每座井各自的（`sim.js:1404`），`sim.boost` 只是一個全域布林；
+        一座井鎖住的時候，你按住不放，其他井照樣吃 `BOOST_MULT 1.8`。
+        所以 B 的畫法是：<b>槽整條變 `--bad`、那座井的燈號變實心、旁邊倒數最長的那個 lock</b>，
+        但<b>鈕永遠不 disable、永遠可按</b>。
+      </div>
+    </div>
+
+    <div class="pxs lbl" style="margin-top: 20px;">為什麼是 8 格比例，不是「一格一秒」</div>
+    <div class="box" style="border-color:#2f6fd0; box-shadow:4px 4px 0 #2f6fd0;">
+      <div style="font-size: 13px; line-height: 1.8; color: #16183a;">
+        `HEAT_PER_SEC` 是 1.0，所以開局 `heatMax` 6 的時候「一格一秒」剛好成立——很誘人，但釘不住：
+        <b>`heatMax = 6 + 2×散熱 + 4×超導馬達`（`state.js:73`），散熱 max 12、超導 max 5，
+        所以 heatMax 的範圍是 6 到 50。</b>
+        一格一秒的話這顆鈕會長到 50 格。所以槽固定 8 格，畫的是 `heat / heatMax` 的比例。<br>
+        顏色門檻<b>抄 `render.js:436` 那一行</b>：`hp > 0.7` 用 `--heatWarm #f0a04a`，否則 `--heatCool #6d7690`，
+        `s.lock > 0` 用 `pal.bad`。<b>鈕上的槽跟井頂那條 2px 的線是同一個數字、同一組顏色</b>，
+        玩家不用學兩套。<br>
+        井燈號最多 9 顆（`shafts = 1 + 井升級 5 + 預留井道 3`，`state.js:72`），
+        9×(6+3) = 81px，塞得進 126px 的鈕。
+      </div>
+    </div>
+
+    <div class="pxs lbl" style="margin-top: 20px;">實作時會動到什麼（選中之後才做）</div>
+    <div class="box" style="border-color:#d63b3b; box-shadow:4px 4px 0 #d63b3b;">
+      <div style="font-size: 13px; line-height: 1.8; color: #16183a;">
+        `css/style.css`：新的 `#boost` 規則 + 槽 + 燈號，約 20 行。<br>
+        `game.html`：`#boost` 從一個 emoji 變成三層結構（槽 8 個 `&lt;i&gt;`、燈號最多 9 個）。<br>
+        <b style="color:#d63b3b;">`js/main.js`：新增一個每幀的寫入器</b>——
+        算 `max(s.heat/d.heatMax)`、`s.lock>0` 的井、`max(s.lock)`，寫進 DOM。
+        要做量化門檻（值沒跨格就不寫），不然每幀動 10 個 class。<br>
+        <b style="color:#d63b3b;">`js/i18n.js`：2 支字串 —— writer 的檔案。</b><br>
+        頂欄高度 +20px：`#stage` 的可用高度跟著少 20px，`render.js` 的 `fh` 會變小一點。
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

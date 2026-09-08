@@ -24,11 +24,16 @@
     <div id="bp">📐 0</div>
     <div id="rating">★ 3.00</div>
   </div>
+  <!-- #157：#boost 移到最後、跟三顆工具鈕之間隔一條硬線（.btnSep）。
+       分隔線是純裝飾（顏色與位置就是它的全部意思），所以 aria-hidden，
+       不然讀螢幕的人會在按鈕之間聽到一個空的元素。
+       標籤走 data-i18n，applyStaticText() 會在切語言時一起換掉。 -->
   <div class="btns">
     <a id="home" href="./" title="Home">🏠</a>
     <button id="lang">EN</button>
-    <button id="boost">🔥</button>
     <button id="sound">🔈</button>
+    <span class="btnSep" aria-hidden="true"></span>
+    <button id="boost"><span class="bIcon">🔥</span><span class="bLabel" data-i18n="boostLabel"></span></button>
   </div>
 </header>
 <div id="hud"></div>

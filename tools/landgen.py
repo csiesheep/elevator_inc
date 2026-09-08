@@ -1473,34 +1473,22 @@ def render_all():
         ', .camera, .carUp, .carDown, .doorL, .doorR, [class^="beat"]')
     doc('LandLiveRun.dc.html', page_c())
 
-    canvas = {
-        "artboards": [
-            {"file": "LandCutaway.dc.html", "x": 0,    "y": 0, "w": 1870, "h": 1620,
-             "title": "\u65b9\u5411 A \u2500\u2500 \u5256\u9762"},
-            {"file": "LandOneRide.dc.html", "x": 1990, "y": 0, "w": 1870, "h": 1620,
-             "title": "\u65b9\u5411 B \u2500\u2500 \u4e00\u8d9f\u5230\u9802"},
-            {"file": "LandLiveRun.dc.html", "x": 3980, "y": 0, "w": 1870, "h": 2180,
-             "title": "\u65b9\u5411 C \u2500\u2500 \u771f\u7684\u8dd1\u4e00\u5834"},
-        ],
-        "annotations": [
-            {"id": "axis", "x": 0, "y": -230, "w": 1400,
-             "text": "#148 \u4e09\u500b\u65b9\u5411\uff0c\u6cbf\u300c\u9996\u9801\u8ddf\u904a\u6232\u7684\u8ddd\u96e2\u300d\u7531\u9060\u5230\u8fd1\u6392\u3002\n"
-                     "A \u975c\u614b\u5256\u9762 \u2192 B \u7de8\u6392\u904e\u7684 18 \u79d2\u5faa\u74b0 \u2192 C \u771f\u7684\u63a5\u4e0a sim.js\u3002\n"
-                     "\u4e09\u4efd\u7528\u7684\u662f\u540c\u4e00\u6279\u7d20\u6750\uff08\u771f\u7684\u6a13\u5c64\u5e36\u8272\u3001\u771f\u7684 16\u00d78 \u5bb6\u5177\u3001\u771f\u7684 7\u00d79 \u5c0f\u4eba\u3001"
-                     "\u771f\u7684 3\u00d75 \u6a13\u5c64\u865f\uff09\uff0c\u7531 tools/landgen.py \u5f9e\u7522\u54c1\u8b80\u51fa\u4f86\u7522\u751f\uff0c\u6c92\u6709\u624b\u6284\u7684\u984f\u8272\u3002"},
-            {"id": "picked", "x": 1990, "y": -370, "w": 1400,
-             "text": "owner \u9078\u4e86 B\u3002#152 \u628a\u5b83\u505a\u6210\u771f\u7684\u9996\u9801\uff1a\n"
-                     "\u540c\u4e00\u652f landgen.py \u53e6\u5916\u7522\u751f js/landride.js \u8207 css/landride.css\uff0c\n"
-                     "\u9a57\u6536\u7b2c 25 \u7d44\u62ff\u6d3b\u7684 EVENTS/BANDS/PEOPLE/MOTIFS/DAY \u8ddf\u7522\u7269\u88e1\u7684 LAND_SRC \u9010\u5b57\u5143\u6bd4\u3002\n"
-                     "\u76f8\u6a5f\u73fe\u5728\u505c\u5728 93 \u6a13\uff1b100 \u6a13\u90a3\u984c\u5728 #152 \u7b49 owner \u88c1\u6c7a\u3002"},
-            {"id": "warning", "x": 3980, "y": -230, "w": 1400,
-             "text": "C \u6709\u4e00\u500b\u5e7e\u4f55\u4e0a\u7684\u9650\u5236\uff0c\u5de5\u55ae\u88e1\u6c92\u6709\u9810\u6599\u5230\uff1a448\u00d7420 \u7684\u756b\u5e03\u4e0a\uff0c"
-                     "\u300c\u770b\u5f97\u5230\u4e00\u500b\u4e00\u500b\u7684\u4eba\u300d\u8207\u300c\u770b\u5f97\u5230\u4e03\u500b\u6a13\u5c64\u5e36\u300d\u4e92\u65a5\u3002\n"
-                     "\u7d30\u7bc0\u8207\u4e26\u6392\u7684\u8b49\u660e\u5728 C \u7684\u7a3f\u88e1\u3002"},
-        ],
-        "launch": {"view": "canvas"},
-    }
-    out['design/canvas.json'] = json.dumps(canvas, ensure_ascii=False, indent=2)
+    # design/canvas.json **刻意不在這支產生器的產物清單裡**（#158 裁決）。
+    #
+    # 下一個讀到這裡的人會想「排版也該鎖啊」——不該，理由是這把鎖守的東西：
+    # #152 立這把鎖只為了擋一件事，**BE 改了 content.js、首頁動畫繼續說謊
+    # 而沒有任何 guard 會紅**。所以鎖的對象是「從產品讀出來、抄一次就會過期」
+    # 的五個檔案：js/landride.js、css/landride.css、三張 Land*.dc.html。
+    #
+    # canvas.json 不是那種東西。它是全部 24 張 .dc.html 共用的排版清單
+    # （x/y/w/h ＋ 便利貼文字），一個位元組都不是從 content.js / sprites.js /
+    # interior.js / theme.js 讀出來的。把它放進 out 只是拿產物比對一段
+    # 寫死在 Python 裡的字面值，擋不到任何安靜過期，**只擋住別人加設計稿**：
+    # #156 加三張 Boost 畫板就讓 --check 紅了，而那三張稿沒有錯。
+    #
+    # 所以 canvas.json 回到手維護。加畫板的人改 design/canvas.json 就好，
+    # 不必來動這支 Python。（拿掉的是整段 canvas = {...} 的建構——
+    # 它在這個 repo 裡沒有第二個讀者，只為了序列化成那一行而存在。）
 
     js, css = build_product()
     out['js/landride.js'] = js

@@ -57,17 +57,64 @@ body{
 #bp{color:var(--hi)}
 #rating{font-size:12px; line-height:1.35}
 #rating .dim{font-size:10.5px}
-#top .btns{display:flex; gap:6px; margin-left:auto}
+/* `align-items:center` 是 #157 加的：這一列以前四顆鈕都是 38px，怎麼對齊都一樣；
+   現在 #boost 是 44px，不置中的話三顆工具鈕會貼著上緣、底下空 6px。 */
+#top .btns{display:flex; align-items:center; gap:6px; margin-left:auto}
 @media (max-width:779px){ #top .btns{width:100%; margin-left:0} }
-#top button, #top a{
+/* `:not(#boost)` 是 #157 加的，而且**不是風格問題，是特異性問題**：
+   `#boost` 要蓋掉這條就得寫成 `#top #boost`（兩個 id），而下面那條
+   `body.boost #boost`（一個 id + 一個 class）就再也蓋不過它了——
+   按住的時候整顆鈕不會變金色，而 CSS 不會報錯。把 #boost 排除在外，
+   它自己那條就只要一個 id，按住的狀態照舊贏。 */
+#top button:not(#boost), #top a{
   background:var(--chipBg); border:3px solid var(--edge); color:var(--text);
   min-width:40px; height:38px; border-radius:0; font-size:16px; cursor:pointer;
   box-shadow:3px 3px 0 var(--drop);
   display:inline-flex; align-items:center; justify-content:center; text-decoration:none; padding:0 8px;
 }
-#top button:active, #top a:active{transform:translate(3px,3px); box-shadow:0 0 0 var(--drop)}
+#top button:not(#boost):active, #top a:active{transform:translate(3px,3px); box-shadow:0 0 0 var(--drop)}
 #top #lang{font-size:12px; font-weight:700}
+
+/* ---------------- 超速鈕（#157，實作 #156 的方向 A「分出來」）
+   問題是「靜止時它跟三顆工具鈕同一階」。解法是把它從上面那條共用規則拉出來，
+   **四個維度一起改**：大小（38→44）、顏色（--edge→--gold 的邊）、
+   形狀（多一個字，工具鈕永遠只有一個字符）、位置（隔一條 .btnSep）。
+   任何一個維度單獨改都能被主題或色盲吃掉，四個一起就吃不掉。
+
+   ⚠ **取捨（owner 裁決 #157，不是遺漏）：設計稿 `design/BoostA.dc.html` 裡
+   還有第二行「按住 SPACE」（9.5px / --dim），owner 明確要求拿掉。**
+   那一行是這顆鈕上**唯一在說「這是按住不是切換」**的東西，拿掉之後
+   按鈕本身不再提示「按住」。桌機還有一個備援：`js/main.js` 把 `boostTitle`
+   （「按住超速（會過熱）」）掛成 `title`，滑鼠停留看得到。
+   **觸控沒有 tooltip，所以手機上這個提示完全不存在。**
+   下一個人看到這顆鈕只有一行字，那是決定，不是漏做。
+
+   只剩一行之後**垂直置中要重新處理**：設計稿是 `flex-direction:column`
+   + `gap:2px` 把兩行疊在 44px 裡，一行的話那組值會讓它偏上。
+   這裡改成單純的 row + `align-items:center`，44px 的框裡就一行，靠 flex 置中。
+
+   `font-family:inherit` 是必要的：`#top button` 從來沒設過字體，
+   按鈕預設吃 UA 字體，中文的「超速」在 900 字重下會掉到系統的備援字體上。 */
+#boost{
+  background:var(--chipBg); color:var(--text); font-family:inherit;
+  border:3px solid var(--gold); border-radius:0;
+  height:44px; padding:0 12px; cursor:pointer;
+  box-shadow:4px 4px 0 var(--drop);
+  display:inline-flex; align-items:center; justify-content:center; gap:5px; line-height:1;
+}
+#boost .bIcon{font-size:16px; line-height:1}
+#boost .bLabel{font-size:13px; font-weight:900; line-height:1; color:var(--gold); white-space:nowrap}
+/* 陰影是 4px 不是 3px，所以按下去要位移 4px——位移 3px 會留 1px 的殘影 */
+#boost:active{transform:translate(4px,4px); box-shadow:0 0 0 var(--drop)}
+/* 分隔：3px 的硬線，跟 #top 的 border-bottom 同一種線、同一個 --edge。
+   桌機兩側各留 6px（外加 .btns 的 6px gap）；手機 `.btns` 佔滿整行
+   （上面那條 media query），改用 margin-left:auto 把三顆工具鈕推成靠左的一組。 */
+.btnSep{flex:0 0 auto; width:3px; height:44px; background:var(--edge); margin:0 6px}
+@media (max-width:779px){ .btnSep{margin-left:auto} }
 body.boost #boost{border-color:var(--gold); background:var(--gold); color:#16183a}
+/* 按住的時候整顆填 --gold，字轉 #16183a。標籤上面寫死了 color:var(--gold)，
+   不覆蓋的話會變成金底金字＝整個消失。 */
+body.boost #boost .bLabel{color:#16183a}
 #hud{padding:5px 12px; font-size:12px; color:var(--dim); font-variant-numeric:tabular-nums;
   font-family:"Pixelify Sans","Courier New",monospace;
   background:var(--panel); border-bottom:3px solid var(--edge)}

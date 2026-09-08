@@ -1,0 +1,402 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;600;700&family=Noto+Sans+TC:wght@500;700;900&display=swap">
+  <style>
+    body { margin: 0; }
+    x-dc { display: block; }
+    .px  { font-family: "Press Start 2P", "Courier New", monospace; }
+    .pxs { font-family: "Pixelify Sans", "Courier New", monospace; }
+    .han { font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; }
+    svg { shape-rendering: crispEdges; }
+
+    /* 兩套變數逐字抄自 css/style.css 的 :root 與 :root[data-theme="day"]，
+       heatCool / heatWarm 抄自 js/theme.js 的 DAY / NIGHT（兩套同值）。
+       **這份稿裡沒有一個新發明的顏色。** */
+    .night { --bg:#0f1116; --panel:#16183a; --card:#1d2046; --line:#4a4f86;
+             --text:#e8eaf0; --dim:#8f95d6; --money:#5ddc9a; --gold:#ffd23f;
+             --hi:#7dd8f7; --bad:#ff8a8a; --edge:#4a4f86; --drop:#0b0d20; --chipBg:#23264f; }
+    .day   { --bg:#dceeff; --panel:#fff8ea; --card:#ffffff; --line:#16183a;
+             --text:#16183a; --dim:#6b6f9e; --money:#12915f; --gold:#c08a1a;
+             --hi:#2f6fd0; --bad:#d63b3b; --edge:#16183a; --drop:#16183a; --chipBg:#ffffff; }
+    .night, .day { --heatCool:#6d7690; --heatWarm:#f0a04a; }
+
+    /* 現況的工具鈕：css/style.css:62 那一條，逐字。三顆工具鈕維持這個樣子。 */
+    .chip { background:var(--chipBg); border:3px solid var(--edge); color:var(--text);
+            min-width:40px; height:38px; border-radius:0; font-size:16px;
+            box-shadow:3px 3px 0 var(--drop); font-family:inherit;
+            display:inline-flex; align-items:center; justify-content:center; padding:0 8px; }
+
+    /* 方向 A 的鈕：**同一個盒模型語彙，四個維度一起改**
+       ── 尺寸（38→44 高、方形→帶字）、顏色（--edge→--gold 邊）、
+          形狀（多一個詞，工具鈕永遠只有一個字符）、位置（隔一條線）。
+       靜止就不同級，不必等按下去。 */
+    /* #157：owner 選了 A，但要拿掉第二行「按住 SPACE」。只剩一行之後，
+       原本 `flex-direction:column` + `gap:2px` 那組值會讓字偏上——
+       44px 的框裡放一行要重新置中，所以這裡改成單純的 row。 */
+    .boost { background:var(--chipBg); border:3px solid var(--gold); color:var(--text);
+             height:44px; border-radius:0; box-shadow:4px 4px 0 var(--drop);
+             display:inline-flex; align-items:center; justify-content:center;
+             gap:5px; padding:0 12px; }
+    .boost.held { background:var(--gold); border-color:var(--gold); color:#16183a;
+                  transform:translate(4px,4px); box-shadow:0 0 0 var(--drop); }
+
+    .lbl { font-size:11px; letter-spacing:.12em; color:#6b6f9e; margin-bottom:7px; }
+    .box { border:3px solid #16183a; background:#ffffff; box-shadow:4px 4px 0 #16183a; padding:11px 13px; }
+  </style>
+</helmet>
+
+<!-- ==========================================================================
+     #156 方向 A ──「只把它從工具列分出來」
+     軸上的位置：這顆鈕自己承載的狀態 = 0。
+     沒有新的狀態來源、沒有每幀寫 DOM、沒有 JS。
+     ========================================================================== -->
+<div class="han" style="position: relative; width: 1440px; height: 1440px; overflow: hidden; background: #eef1f8;">
+
+  <!-- ---------------------------------------------------------------- 抬頭 -->
+  <div style="position: absolute; left: 40px; top: 30px; width: 1360px;">
+    <h1 class="px" style="margin: 0 0 10px; font-size: 20px; line-height: 1.4; color: #16183a;">
+      A ── 分出來
+    </h1>
+    <div class="pxs" style="display: inline-block; padding: 5px 10px; background: #16183a; color: #ffe9a8;
+         font-size: 13px; font-weight: 700; letter-spacing: .06em;">
+      軸：這顆鈕自己承載的狀態 ＝ <b style="color:#ffd23f">0</b>　·　不新增狀態來源，不用每幀寫 DOM，不動 JS
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 14px;">
+      <div class="box" style="border-color:#12915f; box-shadow:4px 4px 0 #12915f;">
+        <div class="pxs" style="font-size: 11px; letter-spacing: .12em; color: #12915f; margin-bottom: 5px;">動機</div>
+        <div style="font-size: 13.5px; line-height: 1.7; color: #16183a;">
+          問題是「靜止時它跟三顆工具鈕同一階」，那就把它從那條 CSS 規則裡拿出來，
+          <b>四個維度一起改：大小、顏色、形狀、位置。</b>
+          任何一個維度單獨改都能被主題或色盲吃掉，四個一起就吃不掉。
+          代價是這一版的全部：一條新 CSS 規則、`game.html` 裡兩個字、<b>一支</b> i18n 字串。
+        </div>
+      </div>
+      <div class="box" style="border-color:#d63b3b; box-shadow:4px 4px 0 #d63b3b;">
+        <div class="pxs" style="font-size: 11px; letter-spacing: .12em; color: #d63b3b; margin-bottom: 5px;">主要缺點</div>
+        <div style="font-size: 13.5px; line-height: 1.7; color: #16183a;">
+          它只說「這顆很重要」，永遠不說「這顆很燙」。
+          <b>你還是會一路按到過熱，而鈕上完全沒有預警。</b>
+          另外它在頂欄多吃 46px；`#top` 是 `flex-wrap:wrap`，
+          視窗寬 780–900px 之間本來就快擠不下，這一版會讓那一段更早換行。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------------------------------------------------------- 畫框一：桌機 -->
+  <div class="pxs lbl" style="position: absolute; left: 40px; top: 250px;">畫框 1 ── 桌機 1280 寬 · 夜（`:root` 預設）</div>
+
+  <div class="night" style="position: absolute; left: 40px; top: 274px; width: 1280px; height: 300px;
+       overflow: hidden; border: 3px solid #16183a; box-shadow: 6px 6px 0 rgba(22,24,58,.35); background: var(--bg);">
+
+    <!-- #top -->
+    <div style="display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px 6px;
+         background: var(--panel); border-bottom: 3px solid var(--edge);">
+      <div>
+        <div class="pxs" style="font-size: 28px; font-weight: 700; color: var(--money); line-height: 1.1;">$12.4K</div>
+        <div class="pxs" style="font-size: 12px; color: var(--dim);">$84/秒</div>
+      </div>
+      <div style="margin-left: auto; text-align: right;">
+        <div class="pxs" style="font-size: 12px; color: var(--hi);">📐 3</div>
+        <div class="pxs" style="font-size: 12px; color: var(--text);">★ 3.42</div>
+        <div class="pxs" style="font-size: 10.5px; color: var(--dim);">×1.86 票價 · ×1.27 人流</div>
+      </div>
+
+      <!-- .btns -->
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 6px;">
+        <div class="chip">🏠</div>
+        <div class="chip pxs" style="font-size: 12px; font-weight: 700;">EN</div>
+        <div class="chip">🔈</div>
+        <!-- 分隔：3px 的硬線，跟 #top 的 border-bottom 同一種線 -->
+        <div style="width: 3px; height: 44px; background: var(--edge); margin: 0 6px;"></div>
+        <div class="boost pxs">
+          <div style="display: flex; align-items: center; gap: 5px; line-height: 1;">
+            <span style="font-size: 16px;">🔥</span>
+            <span class="han" style="font-size: 13px; font-weight: 900; color: var(--gold);">超速</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- #hud -->
+    <div class="pxs" style="padding: 5px 12px; font-size: 12px; color: var(--dim);
+         background: var(--panel); border-bottom: 3px solid var(--edge);">
+      25 樓 · 2 井 · FIFO · 等待 5 · 週三 09:12
+    </div>
+
+    <!-- #stage：夜間畫布（示意；井道在右緣，街道只有約 11px） -->
+    <div style="padding: 0 8px 8px; height: 218px;">
+      <svg width="1264" height="210" viewBox="0 0 1264 210">
+        <rect x="0" y="0" width="1264" height="210" fill="#0f1116"/>
+        <rect x="0" y="0" width="1264" height="46" fill="#141834"/>
+        <rect x="0" y="46" width="1264" height="40" fill="#171b3c"/>
+        <g fill="#3a3f7a"><rect x="120" y="16" width="3" height="3"/><rect x="340" y="30" width="3" height="3"/>
+          <rect x="880" y="12" width="3" height="3"/><rect x="1080" y="40" width="3" height="3"/></g>
+        <!-- 大樓 -->
+        <rect x="62" y="20" width="1140" height="179" fill="#1a1d3f"/>
+        <rect x="68" y="24" width="1128" height="175" fill="#1d2046"/>
+        <g>
+          <rect x="68" y="176" width="1074" height="23" fill="#222650"/>
+          <rect x="68" y="153" width="1074" height="23" fill="#1d2046"/>
+          <rect x="68" y="130" width="1074" height="23" fill="#222650"/>
+          <rect x="68" y="107" width="1074" height="23" fill="#1d2046"/>
+          <rect x="68" y="84"  width="1074" height="23" fill="#222650"/>
+          <rect x="68" y="61"  width="1074" height="23" fill="#1d2046"/>
+          <rect x="68" y="38"  width="1074" height="23" fill="#222650"/>
+        </g>
+        <g fill="#4a4f86">
+          <rect x="68" y="176" width="1074" height="1"/><rect x="68" y="153" width="1074" height="1"/>
+          <rect x="68" y="130" width="1074" height="1"/><rect x="68" y="107" width="1074" height="1"/>
+          <rect x="68" y="84" width="1074" height="1"/><rect x="68" y="61" width="1074" height="1"/>
+        </g>
+        <g fill="#8f95d6" font-family="Pixelify Sans, monospace" font-size="11">
+          <text x="80" y="192">1</text><text x="80" y="169">2</text><text x="80" y="146">3</text>
+          <text x="80" y="123">4</text><text x="80" y="100">5</text><text x="80" y="77">6</text>
+        </g>
+        <!-- 等待的人：從 shaftX 往左長 -->
+        <g fill="#e8eaf0">
+          <rect x="1100" y="181" width="5" height="5"/><rect x="1101" y="186" width="3" height="7"/>
+          <rect x="1086" y="181" width="5" height="5"/><rect x="1087" y="186" width="3" height="7"/>
+          <rect x="1100" y="112" width="5" height="5"/><rect x="1101" y="117" width="3" height="7"/>
+        </g>
+        <!-- 兩座井（shaftX ≈ fx1 - 70） -->
+        <rect x="1142" y="20" width="70" height="179" fill="#12142e"/>
+        <rect x="1142" y="20" width="1" height="179" fill="#4a4f86"/>
+        <rect x="1177" y="20" width="1" height="179" fill="#4a4f86"/>
+        <!-- 車 + 噴口（#144：長度跟熱量走） -->
+        <g>
+          <rect x="1146" y="105" width="27" height="21" fill="#ffd23f"/>
+          <rect x="1146" y="105" width="27" height="21" fill="none" stroke="#e8eaf0"/>
+          <rect x="1152" y="126" width="6" height="14" fill="#f0a04a"/>
+          <rect x="1162" y="126" width="6" height="11" fill="#f0a04a"/>
+        </g>
+        <rect x="1181" y="152" width="27" height="21" fill="#ffd23f"/>
+        <!-- 井頂的熱量條（render.js:434 已經有的） -->
+        <rect x="1143" y="22" width="18" height="2" fill="#6d7690"/>
+        <!-- 街道 -->
+        <rect x="0" y="199" width="1264" height="11" fill="#191c3e"/>
+        <rect x="0" y="199" width="1264" height="2" fill="#4a4f86"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ---------------------------------------------------------- 畫框二：手機 -->
+  <div class="pxs lbl" style="position: absolute; left: 40px; top: 604px;">畫框 2 ── 手機 375 寬 · 日（`.btns` 佔滿整行）</div>
+
+  <div class="day" style="position: absolute; left: 40px; top: 628px; width: 375px; height: 640px;
+       overflow: hidden; border: 3px solid #16183a; box-shadow: 6px 6px 0 rgba(22,24,58,.35); background: var(--bg);">
+
+    <div style="background: var(--panel); border-bottom: 3px solid var(--edge); padding: 8px 12px 6px;">
+      <div style="display: flex; align-items: flex-start; gap: 10px;">
+        <div>
+          <div class="pxs" style="font-size: 28px; font-weight: 700; color: var(--money); line-height: 1.1;">$12.4K</div>
+          <div class="pxs" style="font-size: 12px; color: var(--dim);">$84/秒</div>
+        </div>
+        <div style="margin-left: auto; text-align: right;">
+          <div class="pxs" style="font-size: 12px; color: var(--hi);">📐 3</div>
+          <div class="pxs" style="font-size: 12px; color: var(--text);">★ 3.42</div>
+        </div>
+      </div>
+      <!-- .btns：width:100%; margin-left:0（css/style.css:61）。
+           三顆工具鈕靠左成一組，超速用 margin-left:auto 推到右緣，
+           中間**空出一大段真空氣**——這條行本來就有多的寬度，分隔是免費的。
+           （#157 拿掉第二行之後鈕變窄，真空氣比原稿更多。） -->
+      <div style="display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 8px;">
+        <div class="chip">🏠</div>
+        <div class="chip pxs" style="font-size: 12px; font-weight: 700;">EN</div>
+        <div class="chip">🔈</div>
+        <div style="width: 3px; height: 44px; background: var(--edge); margin-left: auto;"></div>
+        <div class="boost pxs" style="margin-left: 6px;">
+          <div style="display: flex; align-items: center; gap: 5px; line-height: 1;">
+            <span style="font-size: 16px;">🔥</span>
+            <span class="han" style="font-size: 13px; font-weight: 900; color: var(--gold);">超速</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pxs" style="padding: 5px 12px; font-size: 12px; color: var(--dim);
+         background: var(--panel); border-bottom: 3px solid var(--edge);">25 樓 · 2 井 · 等待 5</div>
+
+    <div style="padding: 0 8px 52px; height: 420px;">
+      <svg width="359" height="410" viewBox="0 0 359 410">
+        <rect x="0" y="0" width="359" height="410" fill="#dceeff"/>
+        <rect x="0" y="0" width="359" height="48" fill="#cfe7ff"/>
+        <rect x="32" y="26" width="295" height="362" fill="#16183a"/>
+        <rect x="35" y="29" width="289" height="356" fill="#fff8ea"/>
+        <g>
+          <rect x="35" y="345" width="222" height="40" fill="#f4ecd9"/>
+          <rect x="35" y="305" width="222" height="40" fill="#fff8ea"/>
+          <rect x="35" y="265" width="222" height="40" fill="#f4ecd9"/>
+          <rect x="35" y="225" width="222" height="40" fill="#fff8ea"/>
+          <rect x="35" y="185" width="222" height="40" fill="#f4ecd9"/>
+          <rect x="35" y="145" width="222" height="40" fill="#fff8ea"/>
+          <rect x="35" y="105" width="222" height="40" fill="#f4ecd9"/>
+          <rect x="35" y="65"  width="222" height="40" fill="#fff8ea"/>
+        </g>
+        <g fill="#c9c0ab"><rect x="35" y="344" width="222" height="1"/><rect x="35" y="304" width="222" height="1"/>
+          <rect x="35" y="264" width="222" height="1"/><rect x="35" y="224" width="222" height="1"/>
+          <rect x="35" y="184" width="222" height="1"/><rect x="35" y="144" width="222" height="1"/>
+          <rect x="35" y="104" width="222" height="1"/></g>
+        <g fill="#8a8299" font-family="Pixelify Sans, monospace" font-size="12">
+          <text x="41" y="372">1</text><text x="41" y="332">2</text><text x="41" y="292">3</text>
+          <text x="41" y="252">4</text><text x="41" y="212">5</text><text x="41" y="172">6</text>
+        </g>
+        <g fill="#16183a">
+          <rect x="240" y="352" width="7" height="7"/><rect x="242" y="359" width="4" height="10"/>
+          <rect x="224" y="352" width="7" height="7"/><rect x="226" y="359" width="4" height="10"/>
+        </g>
+        <rect x="257" y="29" width="67" height="356" fill="#c3d2e6"/>
+        <rect x="290" y="29" width="1" height="356" fill="#16183a"/>
+        <g>
+          <rect x="260" y="216" width="27" height="34" fill="#c08a1a"/>
+          <rect x="260" y="216" width="27" height="34" fill="none" stroke="#16183a"/>
+          <rect x="266" y="250" width="6" height="17" fill="#f0a04a"/>
+          <rect x="276" y="250" width="6" height="13" fill="#f0a04a"/>
+        </g>
+        <rect x="293" y="310" width="27" height="34" fill="#c08a1a"/>
+        <rect x="258" y="31" width="14" height="2" fill="#6d7690"/>
+        <rect x="0" y="388" width="359" height="22" fill="#3ad39a"/>
+        <rect x="0" y="388" width="359" height="2" fill="#16183a"/>
+      </svg>
+    </div>
+
+    <!-- 抽屜露出的 46px -->
+    <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 46px; background: var(--panel);
+         border-top: 4px solid var(--edge);">
+      <div style="display: flex; justify-content: center; padding-top: 6px;">
+        <div style="width: 44px; height: 5px; background: var(--edge);"></div>
+      </div>
+      <div style="display: flex; justify-content: space-around; padding-top: 6px;">
+        <span style="font-size: 11.5px; font-weight: 700; color: #16183a;">升級</span>
+        <span style="font-size: 11.5px; color: var(--dim);">自動化</span>
+        <span style="font-size: 11.5px; color: var(--dim);">藍圖</span>
+        <span style="font-size: 11.5px; color: var(--dim);">圖鑑</span>
+        <span style="font-size: 11.5px; color: var(--dim);">統計</span>
+        <span style="font-size: 11.5px; color: var(--dim);">拆樓</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------------------------------------------------- 右欄：現況 / 狀態 / 交代 -->
+  <div style="position: absolute; left: 460px; top: 604px; width: 940px;">
+
+    <!-- 現況 vs A -->
+    <div class="pxs lbl">現況 vs A ── 兩個主題各看一次（`--gold` 日夜差很多：#c08a1a / #ffd23f）</div>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px;">
+      <div class="night" style="background: var(--panel); border: 3px solid #16183a; padding: 12px;">
+        <div class="pxs" style="font-size: 10.5px; color: var(--dim); margin-bottom: 8px;">夜 · 現況</div>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <div class="chip">🏠</div><div class="chip pxs" style="font-size:12px;font-weight:700;">EN</div>
+          <div class="chip">🔥</div><div class="chip">🔈</div>
+        </div>
+        <div class="pxs" style="font-size: 10.5px; color: var(--dim); margin: 14px 0 8px;">夜 · A</div>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <div class="chip">🏠</div><div class="chip pxs" style="font-size:12px;font-weight:700;">EN</div>
+          <div class="chip">🔈</div>
+          <div style="width:3px; height:44px; background:var(--edge); margin:0 6px;"></div>
+          <div class="boost pxs">
+            <div style="display:flex; align-items:center; gap:5px; line-height:1;">
+              <span style="font-size:16px;">🔥</span>
+              <span class="han" style="font-size:13px; font-weight:900; color:var(--gold);">超速</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="day" style="background: var(--panel); border: 3px solid #16183a; padding: 12px;">
+        <div class="pxs" style="font-size: 10.5px; color: var(--dim); margin-bottom: 8px;">日 · 現況</div>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <div class="chip">🏠</div><div class="chip pxs" style="font-size:12px;font-weight:700;">EN</div>
+          <div class="chip">🔥</div><div class="chip">🔈</div>
+        </div>
+        <div class="pxs" style="font-size: 10.5px; color: var(--dim); margin: 14px 0 8px;">日 · A</div>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <div class="chip">🏠</div><div class="chip pxs" style="font-size:12px;font-weight:700;">EN</div>
+          <div class="chip">🔈</div>
+          <div style="width:3px; height:44px; background:var(--edge); margin:0 6px;"></div>
+          <div class="boost pxs">
+            <div style="display:flex; align-items:center; gap:5px; line-height:1;">
+              <span style="font-size:16px;">🔥</span>
+              <span class="han" style="font-size:13px; font-weight:900; color:var(--gold);">超速</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 四個狀態 -->
+    <div class="pxs lbl" style="margin-top: 22px;">A 走過四個狀態 ── 後兩個鈕上不會變（這是 A 的代價，不是漏畫）</div>
+    <div class="night" style="background: var(--panel); border: 3px solid #16183a; padding: 14px;
+         display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;">
+      <div>
+        <div class="pxs" style="font-size:10.5px; color:var(--dim); margin-bottom:8px;">1 靜止</div>
+        <div class="boost pxs" style="display:inline-flex;">
+          <div style="display:flex; align-items:center; gap:5px; line-height:1;">
+            <span style="font-size:16px;">🔥</span><span class="han" style="font-size:13px;font-weight:900;color:var(--gold);">超速</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="pxs" style="font-size:10.5px; color:var(--gold); margin-bottom:8px;">2 按住中</div>
+        <div class="boost held pxs" style="display:inline-flex;">
+          <div style="display:flex; align-items:center; gap:5px; line-height:1;">
+            <span style="font-size:16px;">🔥</span><span class="han" style="font-size:13px;font-weight:900;color:#16183a;">超速</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="pxs" style="font-size:10.5px; color:var(--heatWarm); margin-bottom:8px;">3 熱量 5/6</div>
+        <div class="boost held pxs" style="display:inline-flex;">
+          <div style="display:flex; align-items:center; gap:5px; line-height:1;">
+            <span style="font-size:16px;">🔥</span><span class="han" style="font-size:13px;font-weight:900;color:#16183a;">超速</span></div>
+        </div>
+        <div class="pxs" style="font-size:10px; color:var(--dim); margin-top:6px; line-height:1.5;">跟 2 逐像素相同</div>
+      </div>
+      <div>
+        <div class="pxs" style="font-size:10.5px; color:var(--bad); margin-bottom:8px;">4 有井過熱（8 秒）</div>
+        <div class="boost held pxs" style="display:inline-flex;">
+          <div style="display:flex; align-items:center; gap:5px; line-height:1;">
+            <span style="font-size:16px;">🔥</span><span class="han" style="font-size:13px;font-weight:900;color:#16183a;">超速</span></div>
+        </div>
+        <div class="pxs" style="font-size:10px; color:var(--dim); margin-top:6px; line-height:1.5;">也跟 2 相同</div>
+      </div>
+    </div>
+
+    <!-- 過熱那 8 秒 -->
+    <div class="pxs lbl" style="margin-top: 22px;">工單第 4 條：過熱那 8 秒怎麼交代</div>
+    <div class="box" style="border-color:#16183a;">
+      <div style="font-size: 13.5px; line-height: 1.75; color: #16183a;">
+        <b>A 的答案是「不在鈕上交代」，而且這是刻意的。</b>
+        畫面上已經有三個訊號在講同一件事：井頂的熱量條（`render.js:434`，鎖住時整條變 `--bad`）、
+        轎廂外框在 `s.lock &gt; 0` 時變紅（`:430`）、以及那則
+        <span class="pxs" style="color:#d63b3b;">🔥 馬達過熱，強制停機 8 秒</span> 的 toast。
+        A 不再說第四次。<b>代價寫在缺點欄：那三個訊號都不在你的拇指旁邊。</b>
+        <br><br>
+        <span style="color:#d63b3b; font-weight:700;">而且注意 —— 這顆鈕永遠不會被 disable。</span>
+        `s.lock` 是<b>每座井各自</b>的（`sim.js:1404`），`sim.boost` 是全域的一個布林。
+        一座井鎖住的時候，其他井照樣吃 1.8 倍。任何「整顆鈕鎖起來倒數 8 秒」的畫法都在說謊。
+      </div>
+    </div>
+
+    <!-- 要動到什麼 -->
+    <div class="pxs lbl" style="margin-top: 22px;">實作時會動到什麼（選中之後才做）</div>
+    <div class="box" style="border-color:#2f6fd0; box-shadow:4px 4px 0 #2f6fd0;">
+      <div style="font-size: 13px; line-height: 1.8; color: #16183a;">
+        `css/style.css`：把 `#boost` 從 `#top button, #top a` 那條規則抽出來，加一條新規則 + 一條分隔線。<br>
+        `game.html`：`#boost` 換成兩行內容，`#sound` 移到 `#boost` 之前。<br>
+        <b style="color:#d63b3b;">`js/i18n.js`：新增 1 支字串（`boostLabel`「超速 / Overdrive」）——
+        依 TEAM.md 那是 writer 的檔案。`boostTitle` 已經存在，不必新增。</b><br>
+        <b style="color:#d63b3b;">#157：第二行整行拿掉，所以原本的 `boostHold` 不需要了，
+        「手機把副標縮短」那支 media query 也不需要了。</b><br>
+        `js/`：<b>不動</b>。
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

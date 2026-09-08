@@ -48,6 +48,15 @@ const DICT = {
   peak:          ['尖峰', 'peak'],
   manual:        ['手動', 'manual'],
   boostTitle:    ['按住超速（會過熱）', 'Hold for overdrive (it overheats)'],
+  // ⚠ **這個鍵是 FE 加的（#157），字本身還沒有 writer 簽過。** TEAM.md 說玩家看得到的
+  // 字是 writer 的所有權；照 #149 那七個鍵的先例辦：現有格式、大聲點名是誰加的、
+  // **譯文以 writer 為準**，writer 要改就直接改，不用回頭問 FE。
+  // 用途：#156 方向 A 讓超速鈕從「一個 🔥」變成「🔥 + 一個詞」（`game.html` 的
+  // `.bLabel`）。上面的 `boostTitle` 是滑鼠停留的長句，這個是鈕面上的短標籤，兩支不同。
+  // ⚠⚠ **不要拿 `rowBoost`（本檔 ~130 行）來共用。** 它的英文剛好也是 'Overdrive'，
+  // 但中文是「超速時間」——那是統計頁的欄名（`js/ui.js` 那一列後面接秒數）。
+  // 共用的話英文看起來沒事，中文會在鈕面上印出「超速時間」。
+  boostLabel:    ['超速', 'Overdrive'],
 
   secRoof:       ['屋頂', 'Roof'],
   roofHint:      ['純外觀，不影響任何數值。拆樓也會保留。',
