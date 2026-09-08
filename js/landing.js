@@ -37,6 +37,19 @@ function readSave(){
 }
 
 // ---------------------------------------------------------------- 說明
+//
+// ⚠ **這裡的字是玩家看得到的規則書。TEAM.md 上「玩家看得到的字」是 writer 的邊界。**
+//   「操作」那一段的最後一句由 **BE 在 #155 改寫**（照 #149 的先例：現有格式改、
+//   大聲註解點名、交付時列出）。原句兩種語言都寫著「你不在的時候大樓還在賺，半速、
+//   最多四小時」——#155 把離線收益整個拿掉了，那句話會變成謊話，跟 #150 一模一樣
+//   （`ORBIT_CASH` 從 $20M 改成 $10M，規則書兩種語言都還寫著 $20M）。
+//
+//   ⚠ **中文那句本來把「自動存檔」跟「離線收益」綁在一起講，而自動存檔是留著的**，
+//   所以是重寫、不是刪句。兩種語言現在都正面說出「關掉不賺」——靜靜刪掉的話，
+//   腦裡還裝著舊規則的玩家只會以為是壞了。
+//
+//   驗收：`tests/acceptance.js` 第 27 組那條「規則文案（中英）不再宣稱離線收益，
+//   而且自動存檔那句還在」——它**同時**斷言存檔那句沒有被連坐砍掉。
 export function rulesHTML(){
   const en = getLang() === 'en';
   if (en) return `
@@ -79,8 +92,9 @@ export function rulesHTML(){
     <h3>Controls</h3>
     <div class="keys"><kbd>tap a floor</kbd><kbd>1–9, 0</kbd><kbd>space / 🔥 = overdrive</kbd></div>
     <p>Overdrive runs the cars at 1.8× but builds heat; overheat and that shaft shuts down for
-    8 seconds. Progress saves itself, and the building keeps earning while you are away — at half
-    rate, and for at most four hours.</p>
+    8 seconds. Progress saves itself, so closing the tab and coming back picks up where you left
+    off — but the tower only runs while you are watching it. Nothing is earned with the tab
+    closed.</p>
 
     <h3>The ending</h3>
     <p>Demolish the tower to convert a run into blueprints, which never disappear. You can do it
@@ -123,7 +137,7 @@ export function rulesHTML(){
     <h3>操作</h3>
     <div class="keys"><kbd>點樓層</kbd><kbd>1–9、0</kbd><kbd>空白鍵 / 🔥 超速</kbd></div>
     <p>超速讓電梯跑 1.8 倍，但會累積熱量；過熱該座井強制停機 8 秒。
-    進度會自動存檔；你不在的時候大樓還在賺，但只算半速，而且最多算四小時。</p>
+    進度會自動存檔，關掉分頁再回來會接在原地；但大樓只有在你看著的時候才會跑——關掉就不會再賺錢。</p>
 
     <h3>結局</h3>
     <p>拆掉大樓可以把這一輪換成藍圖，藍圖永遠不會消失。什麼時候拆都可以，沒有門檻。</p>
