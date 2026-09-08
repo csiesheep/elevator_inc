@@ -86,6 +86,8 @@ const THEME_SRC = await fetch(new URL('../js/theme.js', import.meta.url) + '?pro
 
 // 招商在不在？第 3 組和第 7 組都要靠它決定「這條規則現在還存不存在」。
 const leasingGone = typeof S.buyLease !== 'function';
+// 同一個形狀，給 #155 的離線收益用（BE 加的）。
+const offlineGone = typeof S.applyOffline !== 'function';
 
 // **背債表空了要是綠的。**
 //
@@ -124,8 +126,24 @@ check('LEASE_BLOCK', () => leasingGone
 check('RATING_DRIFT_TO',() => eq(C.RATING_DRIFT_TO, SPEC.ratingDriftTo, 'RATING_DRIFT_TO'));
 check('BOOST_MULT',     () => eq(C.BOOST_MULT, SPEC.boostMult, 'BOOST_MULT'));
 check('OVERHEAT_LOCK',  () => eq(C.OVERHEAT_LOCK, SPEC.overheatLock, 'OVERHEAT_LOCK'));
-check('OFFLINE_CAP_H',  () => eq(C.OFFLINE_CAP_H, SPEC.offlineCapH, 'OFFLINE_CAP_H'));
-check('OFFLINE_RATE',   () => eq(C.OFFLINE_RATE, SPEC.offlineRate, 'OFFLINE_RATE'));
+// 這兩個是離線收益的旋鈕，#155 把整個機制拿掉之後它們要跟著消失。
+// **照上面 CHURN_RATING / LEASE_BLOCK 的同一個形狀**：機制還在的 SHA 上比數值，
+// 拿掉之後改成斷言它們不存在——留著一個沒有人讀的 OFFLINE_CAP_H，下一個人會照它
+// 去找一個不存在的機制。SPEC 的抄本留著（跟 churnRating 一樣），那是機制存在過的紀錄。
+// **⚠ 這四行是 BE 在 #155 動的，不在我新加的第 27 組裡——它動到第 0 組。**
+//   理由與提案寫在 #155 的開工留言第 3 節；不同意的話這裡要改回去。
+//
+// ⚠ 綠的那一列與紅的那一列**不共用同一句話**。`ok(cond, msg)` 兩種狀態印同一個 msg，
+//   所以直接寫「卻還在」的話，**通過的時候印出來的也是「卻還在：undefined」**——
+//   我第一版就是這樣，跑出來的綠訊息是一句謊話。（`sameAs()` 為了同一件事把兩邊分開寫。）
+//   **上面 CHURN_RATING / LEASE_BLOCK 兩條還帶著這個毛病**，那是 orchestrator 的行，我沒有動。
+const gone = (name, v, spec) => offlineGone
+  ? ok(v === undefined, v === undefined
+      ? `離線收益已移除，CONFIG.${name} 也跟著消失了（#155）`
+      : `離線收益已移除，${name} 卻還在：${v}`)
+  : eq(v, spec, name);
+check('OFFLINE_CAP_H', () => gone('OFFLINE_CAP_H', C.OFFLINE_CAP_H, SPEC.offlineCapH));
+check('OFFLINE_RATE',  () => gone('OFFLINE_RATE',  C.OFFLINE_RATE,  SPEC.offlineRate));
 check('樓層帶數量',      () => eq(BANDS.length, SPEC.bandCount, 'BANDS.length'));
 check('樓層帶範圍', () => {
   const got = BANDS.map(b => [b.from, b.to]);
@@ -3578,4 +3596,208 @@ check('規則文案兩種語言都真的有內容', () => {
     return ok(en.length > 800 && zh.length > 600 && en !== zh,
       `EN ${en.length} 字元、ZH ${zh.length} 字元`);
   } finally { setLang(back); }
+});
+
+// ---------------------------------------------------------------- 27 離線收益移除（#155）
+//
+// **這一整組是 BE 寫的（分支 `be/no-offline`，#155）。** 照 #152 的先例放成一組、連在一起、
+// 上面點名作者。`tests/` 是 orchestrator 的檔，land 之前請自己證偽這五條。
+//
+// #155 要拿掉的機制：`applyOffline()`（`js/state.js`）在 `js/main.js` 開場時被呼叫一次，
+// 拿 `st.stats.avgRate × (now - st.lastSave)` 直接換成現金（半速、上限四小時）。
+//
+// 這一組守的**不是某一個常數的值**（那是 #152 為 `ORBIT_CASH` 寫的形狀），
+// 而是**這個機制不存在了**。三件事，缺一不可：
+//
+//   1. 那條路徑不在了（原始碼 + 模組匯出 + 死常數 + 死字串）
+//   2. 玩家看得到的規則書不再宣稱它——**而且自動存檔那句還在**（存檔是留著的）
+//   3. 行為本身：拿一份時戳是六小時前的存檔重新載入，現金一塊都不會多
+//
+// 第 3 條是本體。它在機制還在的 `8b8c612` 上是紅的（`applyOffline` 把 $12345 變成 $372345），
+// 那是它有資格當 guard 的唯一理由。
+section('27 關掉分頁就不再賺錢（#155）');
+
+const STATE_SRC = await fetch(new URL('../js/state.js', import.meta.url) + '?probe=' + Math.random())
+  .then(r => r.ok ? r.text() : null).catch(() => null);
+const MAIN_SRC = await fetch(new URL('../js/main.js', import.meta.url) + '?probe=' + Math.random())
+  .then(r => r.ok ? r.text() : null).catch(() => null);
+
+// 只看**活的程式碼**：整行都是註解的那些行先濾掉。
+//
+// 為什麼：拿掉機制之後，`state.js` / `main.js` 原地留了墓碑註解（「applyOffline 在 #155
+// 整支拿掉了、連帶的死常數與死字串是哪些」）。那幾行**正是防止下一個人重新發明這個機制的
+// 東西**，不該被 guard 逼著一起刪掉。但機制本身一個字都不能留——所以掃的是活的程式碼，
+// 不是整個檔案。反過來是保守的：掛在程式碼行**尾巴**的註解不會被濾掉，寫在那裡照樣算紅。
+const liveCode = src => src.split('\n').filter(l => l.trim().slice(0, 2) !== '//').join('\n');
+
+// ---- 1a：state.js 那一半
+check('state.js：applyOffline 整支不在了（匯出與活的程式碼都是）', () => {
+  if (!STATE_SRC) return 'TODO: 拿不到 js/state.js 的原碼（fetch 失敗），這條沒有驗到任何東西';
+  // 母體非空。「原始碼裡找不到 applyOffline」在一份空字串或一頁 404 上**永遠通過**，
+  // 所以先證明抓回來的真的是 state.js。（orch serve 的背景行程死掉時 fetch 不一定會失敗。）
+  if (!/export function save\b/.test(STATE_SRC) || !/export function load\b/.test(STATE_SRC))
+    return `TODO: 抓回來的東西不是 js/state.js（裡面找不到 save()/load()），共 ${STATE_SRC.length} 字元`
+         + '——這條沒有驗到任何東西';
+  const src = liveCode(STATE_SRC);
+  const bad = [];
+  if (typeof S.applyOffline === 'function') bad.push('js/state.js 還匯出 applyOffline()');
+  if (src.indexOf('applyOffline') >= 0) bad.push('js/state.js 活的程式碼裡還有 "applyOffline"');
+  if (/OFFLINE_CAP_H|OFFLINE_RATE/.test(src)) bad.push('js/state.js 還在讀 OFFLINE_CAP_H / OFFLINE_RATE');
+  // `lastSave` 只有離線收益讀（`newGame` 生、`save()` 寫、`applyOffline()` 讀）。
+  // 留著一個只寫不讀、名字叫 lastSave 的欄位，下一個人會以為開場還有補算。
+  if (/\blastSave\b/.test(src)) bad.push('js/state.js 還在生／寫 st.lastSave');
+  return ok(bad.length === 0, bad.join('｜')
+    || `state.js ${STATE_SRC.length} 字元（活的程式碼 ${src.length}），save()/load() 都在，`
+     + 'applyOffline / OFFLINE_* / lastSave 都不在');
+});
+
+// ---- 1b：main.js 那一半（開場）
+check('main.js：開場沒有把時間差換算成現金', () => {
+  if (!MAIN_SRC) return 'TODO: 拿不到 js/main.js 的原碼（fetch 失敗），這條沒有驗到任何東西';
+  if (!/load\(\)\s*\|\|\s*newGame\(\)/.test(MAIN_SRC))
+    return `TODO: 抓回來的東西不是 js/main.js（找不到 \`load() || newGame()\`），共 ${MAIN_SRC.length} 字元`
+         + '——這條沒有驗到任何東西';
+  const src = liveCode(MAIN_SRC);
+  const bad = [];
+  if (/\bapplyOffline\b/.test(src)) bad.push('還在 import／呼叫 applyOffline');
+  if (/\blastSave\b/.test(src))     bad.push('還在讀 st.lastSave');
+  for (const k of ['offlineTitle', 'offlineBody', 'offlineBtn', 'OFFLINE_CAP_H', 'OFFLINE_RATE'])
+    if (src.indexOf(k) >= 0) bad.push(`還在用 ${k}`);
+  // 換一個名字重寫一次也要抓得到：開場整支不可以有「現在的時間 − 存檔的時間」。
+  // main.js 的活程式碼現在一個 `Date.now()` 都沒有（時戳都在 state.js 裡）。
+  if (/Date\.now\(\)/.test(src)) bad.push('開場的程式碼裡出現了 Date.now()——時間差換現金的起手式');
+  return ok(bad.length === 0, bad.join('｜')
+    || `main.js ${MAIN_SRC.length} 字元（活的程式碼 ${src.length}），開場只有 load() || newGame()，`
+     + '沒有 Date.now()、沒有任何補算');
+});
+
+// ---- 1c：死常數與死字串
+//
+// 留著一個沒有人讀的 `OFFLINE_CAP_H`，下一個人會照它去找一個不存在的機制——
+// 這正是 #155 明寫「死常數與死字串要一起拿掉」的理由。
+//
+// i18n 的字典 `DICT` 沒有 export，但 `t(key)` **查不到就原樣回傳那個 key**，
+// 所以 `t('offlineTitle') === 'offlineTitle'` 就是「這個字串已經不在了」。
+// （`i18n.js` 在這一組裡才用到 `t`，所以就地 import，不去動檔頭那一行。）
+const OFF_I18N = await import('../js/i18n.js').catch(() => null);
+const DEAD_KEYS = ['offlineTitle', 'offlineBody', 'offlineBtn', 'hours', 'minutes'];
+check('死常數與死字串都不在了（CONFIG 兩個、i18n 五個）', () => {
+  if (!OFF_I18N) return 'TODO: 匯入 js/i18n.js 失敗，i18n 那半條沒有驗到任何東西';
+  // 母體非空：`t()` 整個壞掉（永遠回傳 key）的話，下面五條會全部假綠。
+  // 先拿一個一定還活著的鍵證明字典查得動。
+  if (OFF_I18N.t('perSec') === 'perSec')
+    return 'TODO: i18n 的 t() 連 perSec 都查不到（字典沒載進來？），下面五條沒有驗到任何東西';
+  const bad = [];
+  for (const k of ['OFFLINE_CAP_H', 'OFFLINE_RATE'])
+    if (C[k] !== undefined) bad.push(`CONFIG.${k} 還在：${C[k]}`);
+  // hours／minutes 只被離線 overlay 用過（main.js 把秒數印成「3 小時 20 分」），
+  // #155 的清單漏了它們兩個。
+  for (const k of DEAD_KEYS)
+    if (OFF_I18N.t(k) !== k) bad.push(`i18n 的 ${k} 還在：「${OFF_I18N.t(k)}」`);
+  return ok(bad.length === 0, bad.join('｜')
+    || `CONFIG 沒有 OFFLINE_CAP_H／OFFLINE_RATE，i18n 查不到 ${DEAD_KEYS.join('／')}`);
+});
+
+// ---- 2：玩家看得到的規則書
+//
+// ⚠ **這是 #150 的複發預防。** 那一次是 `ORBIT_CASH` 從 $20M 改成 $10M，規則書兩種語言
+// 都還寫著 $20M，好幾個星期沒有人發現。這一次拿掉的是整個機制，文案會變成同一種謊話。
+//
+// ⚠ 只驗「不含離線那組字」是不夠的：**把整段砍掉也會通過**，而自動存檔是要留下來的。
+// 所以這條同時斷言兩邊都還講得出自動存檔。
+const OFFLINE_WORDS = ['離線', '半速', '四小時', 'offline', 'half rate', 'four hours'];
+check('規則文案（中英）不再宣稱離線收益，而且自動存檔那句還在', () => {
+  const back = getLang();
+  try {
+    setLang('en'); const en = rulesHTML();
+    setLang('zh'); const zh = rulesHTML();
+    const ne = nonEmpty(Math.min(en.length, zh.length),
+      'rulesHTML() 有一邊是空的——「字串裡沒有 X」在空字串上永遠通過');
+    if (ne !== true) return ne;
+    // ⚠ **先把換行與縮排壓平再找。** 第一次寫成直接 indexOf，結果英文那句原文在 HTML
+    // 樣板裡是換了行的（`at half` 一行、`rate` 下一行），「half rate」**找不到**——
+    // 這條在 `8b8c612` 上只紅了「four hours」一項，另外兩項是假綠。
+    // 空白壓平之後三項全部命中。
+    const flat = t => t.replace(/\s+/g, ' ').toLowerCase();
+    const enF = flat(en), zhF = flat(zh);
+    const bad = [];
+    for (const w of OFFLINE_WORDS){
+      const wf = flat(w);
+      if (enF.indexOf(wf) >= 0) bad.push(`英文規則書裡還有「${w}」`);
+      if (zhF.indexOf(wf) >= 0) bad.push(`中文規則書裡還有「${w}」`);
+    }
+    if (!/存檔/.test(zh))
+      bad.push('中文規則書不再提自動存檔——中文那句本來把存檔跟離線收益綁在一起講，整句砍掉會讓上面那半條假綠');
+    if (!/saves? itself|autosaves?|saves your progress/i.test(en))
+      bad.push('英文規則書不再提自動存檔（同上）');
+    return ok(bad.length === 0, bad.join('｜')
+      || `中英都不含「${OFFLINE_WORDS.join('／')}」，而且兩邊都還寫著自動存檔（EN ${en.length} 字元、ZH ${zh.length} 字元）`);
+  } finally { setLang(back); }
+});
+
+// ---- 3：行為本身（#155 驗收第 3 條，本體）
+//
+// 存檔 → 把 `lastSave` 倒推六小時 → 重新載入 → `st.cash` 必須一模一樣。
+//
+// 「重新載入」不等於 `load()`：開場那一段寫在 `js/main.js` 的**模組頂層**，而 main.js
+// 一被 import 就會去抓 `#c` 那顆 canvas，harness 裡沒有。所以這裡重演它——把 `state.js`
+// 匯出的、名字看起來像「補算離線」的每一支都餵一次讀回來的 state。機制還在的版本上
+// 那支叫 `applyOffline`，於是這條在 `8b8c612` 上是紅的。**沒有紅過的 guard 不算數。**
+//
+// 用名字比對而不是寫死 `S.applyOffline`，是為了讓「改個名字再加回來」也會被抓到。
+check('存檔、把 lastSave 倒推六小時、重新載入——現金一模一樣', () => {
+  let LS = null;
+  try { LS = window.localStorage; LS.setItem('__off_probe', '1'); LS.removeItem('__off_probe'); }
+  catch (e){ return 'TODO: 這個環境不給用 localStorage（' + ((e && e.message) || e) + '），存檔往返沒有辦法重演'; }
+  // harness 跟遊戲同一個 origin。不備份的話這條會把玩家真正的存檔洗掉。
+  const before = {};
+  for (let i = 0; i < LS.length; i++){ const k = LS.key(i); before[k] = LS.getItem(k); }
+  try {
+    const st = S.newGame();
+    st.cash = 12345;
+    st.stats.avgRate = 50;   // 有速率才有東西可以補算——avgRate 是 0 的話這條永遠是綠的
+    st.runRevenue = 0; st.lifetimeRevenue = 0;
+    if (!S.save(st)) return 'TODO: S.save() 回報寫不進去，這條沒有驗到任何東西';
+    // save() 寫到哪一個 key？`SAVE_KEY` 沒有 export，所以用「存檔前後哪一格變了」找，
+    // 不在這裡硬寫 'elevator_inc_v1'（寫死的話改了 key 名這條會安靜地變成量空氣）。
+    let key = null;
+    for (let i = 0; i < LS.length; i++){
+      const k = LS.key(i);
+      if (LS.getItem(k) !== (k in before ? before[k] : null)){ key = k; break; }
+    }
+    if (!key) return 'TODO: S.save() 之後 localStorage 一格都沒變，找不到剛寫的存檔';
+    const raw = JSON.parse(LS.getItem(key));
+    const savedCash = raw.cash;
+    // 六小時前存的檔。**這裡刻意寫進 lastSave，就算產品已經不再寫這個欄位**——
+    // 這條問的是「拿到一份帶著六小時前時戳的存檔，開場會不會憑空生錢」。
+    const rewound = Date.now() - 6 * 3600 * 1000;
+    raw.lastSave = rewound;
+    LS.setItem(key, JSON.stringify(raw));
+
+    const st2 = S.load();
+    if (!st2) return 'TODO: S.load() 讀不回剛剛寫的存檔，這條沒有驗到任何東西';
+    // 道具真的生效了嗎？倒推的時戳要活著走進讀回來的 state，否則下面量的是空氣。
+    if (st2.lastSave !== rewound)
+      return `TODO: 倒推的時戳沒有活著進到讀回來的 state（寫進去 ${rewound}，讀回來 ${st2.lastSave}）`
+           + '——這條的道具沒有生效，它現在沒有驗到任何東西';
+    const afterLoad = st2.cash;
+    const boot = Object.keys(S).filter(k =>
+      typeof S[k] === 'function' && /offline|away|idle|catch|elapsed|since|resume/i.test(k));
+    for (const k of boot){ try { S[k](st2); } catch (e){} }
+    const after = st2.cash;
+
+    const bad = [];
+    if (afterLoad !== savedCash)
+      bad.push(`load() 本身就把現金從 $${savedCash} 變成 $${afterLoad}`);
+    if (after !== savedCash)
+      bad.push(`開場補算（${boot.join(', ')}）把現金從 $${savedCash} 變成 $${after}，憑空多了 $${after - savedCash}`);
+    if (st2.runRevenue !== 0 || st2.lifetimeRevenue !== 0)
+      bad.push(`收入帳也被灌了：runRevenue=${st2.runRevenue}、lifetimeRevenue=${st2.lifetimeRevenue}`);
+    return ok(bad.length === 0, bad.join('｜')
+      || `存檔 $${savedCash}、avgRate 50/秒、lastSave 倒推 6 小時（機制還在的話是半速上限四小時 = $360000）`
+       + `，重新載入之後還是 $${after}；state.js 沒有任何一支名字像補算離線的匯出`);
+  } finally {
+    for (let i = LS.length - 1; i >= 0; i--){ const k = LS.key(i); if (!(k in before)) LS.removeItem(k); }
+    for (const k in before) LS.setItem(k, before[k]);
+  }
 });
