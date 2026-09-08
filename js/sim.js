@@ -847,7 +847,12 @@ const isSealed = s => s.riders.some(isExcl);
 // 那正是「誰都不能一起搭」的意思。crate 的 `w:3`（一場約兩個）讓它不會變成常態。
 // 回傳 null = 現在沒有這種呼叫，呼叫端照原本的路走（所以沒有 exclusive 資料時
 // 這支永遠回 null，整個機制等於不存在）。
-function soloCalls(st, sim, s){
+// ⚠ `export` 是給驗收第 24 組第 2 條用的，**不是產品有第二個呼叫端**。
+// 那一條要斷言「空車調度真的在跑」，而唯一誠實的量法是**問產品自己這一支**——
+// 在驗收裡照抄一份邏輯的話，把 `isExcl` 注成 false 的證偽根本碰不到它，
+// 那條 guard 會在機制整個消失的時候維持綠色。這支是純函式（只讀 st/sim/s），
+// 從外面每個 tick 叫一次不會改變任何模擬狀態。
+export function soloCalls(st, sim, s){
   if (s.riders.length) return null;
   const out = [];
   for (const p of sim.waiting){
