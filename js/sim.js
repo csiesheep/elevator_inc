@@ -1049,7 +1049,7 @@ function openDoors(st, sim, s, f){
       const fare = fareOf(st, d, p, sim);
       // 送得夠快的小費（#25 大包小包購物客）。**資料寫了 tip:{sat,mult} 才會發生**，
       // 沒寫的人物走的還是原本那一行、一個位元組都沒變。
-      // 走跟車資完全一樣的帳（現金／本輪／終身／離線速率窗），因為它就是收入的一部分，
+      // 走跟車資完全一樣的帳（現金／本輪／終身／頂欄的 $/秒 速率窗），因為它就是收入的一部分，
       // 不是另一種貨幣；分開記帳只會多一個以後對不起來的數字。
       const onTime = !!p.t.tip && sat >= (p.t.tip.sat != null ? p.t.tip.sat : 0.6);
       const tip = onTime ? fare * (p.t.tip.mult || 0) : 0;
@@ -1456,7 +1456,8 @@ export function step(st, sim, dt){
   for (let i = sim.pops.length - 1; i >= 0; i--){ sim.pops[i].life -= dt * 0.9; if (sim.pops[i].life <= 0) sim.pops.splice(i, 1); }
   for (let i = sim.toasts.length - 1; i >= 0; i--){ sim.toasts[i].life -= dt; if (sim.toasts[i].life <= 0) sim.toasts.splice(i, 1); }
 
-  // 收益速率（給離線收益用的平均值）
+  // 收益速率。**這一行本來的註解寫「給離線收益用的平均值」**，而離線收益在 #155 拿掉了——
+  // 但 `avgRate` 不是死程式碼：它真正的讀者是頂欄那個「$X/秒」（`js/ui.js` 的 `#rate`）。
   sim.rateWin += dt;
   if (sim.rateWin >= 2){
     const r = sim.rateAcc / sim.rateWin;

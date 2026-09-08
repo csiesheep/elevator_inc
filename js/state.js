@@ -26,7 +26,6 @@ export function newGame(carry){
              tips:0, shafts:[], bestRun:(carry && carry.bestRun) || 0 },
     ending: (carry && carry.ending) || false,
     roofStyle: (carry && carry.roofStyle) || 'chinese',   // 外觀，跨拆樓保留
-    lastSave: Date.now(),
     // 跨 Prestige 保留的永久解鎖（自動化的藍圖階段）
     autoPerm: (carry && carry.autoPerm) || {},
     // 「一輪只發生一次」的事件記在這裡（`EVENTS` 的 `once:true`，#134 最後升空第一個用）。
@@ -188,8 +187,10 @@ export function checkAchievements(st, onUnlock){
 }
 
 // ------------------------------------------------------------ 存讀檔
+// `lastSave` 一起拿掉了（#155）：離線收益是它唯一的讀者。留著一個只寫不讀、
+// 名字叫 lastSave 的欄位，下一個人會以為開場還有補算。舊存檔帶著這一欄不會炸——
+// `load()` 只補「缺的欄位」，多出來的原樣留著、沒有人讀。
 export function save(st){
-  st.lastSave = Date.now();
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(st)); return true; }
   catch(e){ return false; }
 }
@@ -220,15 +221,6 @@ export function load(){
 }
 export function wipe(){ try { localStorage.removeItem(SAVE_KEY); } catch(e){} }
 
-// 離線收益：用平均流量 × 時間直接算，絕不重跑模擬（設計 4.13）
-export function applyOffline(st){
-  const now = Date.now();
-  const secs = Math.max(0, (now - (st.lastSave || now)) / 1000);
-  const capped = Math.min(secs, C.OFFLINE_CAP_H * 3600);
-  if (capped < 60) return null;
-  const rate = st.stats.avgRate || 0;
-  const earned = Math.floor(rate * capped * C.OFFLINE_RATE);
-  if (earned <= 0) return null;
-  st.cash += earned; st.runRevenue += earned; st.lifetimeRevenue += earned;
-  return { secs: capped, earned };
-}
+// 離線收益（`applyOffline`）在 #155 整支拿掉了：**關掉分頁就不再賺錢**。
+// 連帶消失的有 `CONFIG.OFFLINE_CAP_H` / `OFFLINE_RATE`、i18n 的 offlineTitle／Body／Btn
+// 與 hours／minutes、以及 `st.lastSave`。驗收在 `tests/acceptance.js` 第 27 組。

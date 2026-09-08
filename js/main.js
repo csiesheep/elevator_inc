@@ -1,6 +1,6 @@
 // main.js — 迴圈與接線。固定時間步，render 解耦。
 import { CONFIG as C, ACHIEVEMENTS } from './content.js';
-import { newGame, load, save, wipe, applyOffline, derived, doPrestige, checkAchievements,
+import { newGame, load, save, wipe, derived, doPrestige, checkAchievements,
          buyUpgrade, buyAutomation, upgradeCost, prestigeGain } from './state.js';
 import { createSim, syncShafts, step, requestFloor, evacuate, fmtShort, hourOf } from './sim.js';
 import { layout, draw, floorAt, view, rejectIfBlocked } from './render.js';
@@ -42,13 +42,9 @@ const app = {
 };
 app.sim = createSim(app.st);
 
-// ---- 離線收益
-const off = applyOffline(app.st);
-if (off){
-  const m = Math.floor(off.secs / 60);
-  const dur = m >= 60 ? t('hours', Math.floor(m/60), m%60) : t('minutes', m);
-  overlay(t('offlineTitle'), t('offlineBody', dur, C.OFFLINE_CAP_H, fmtShort(off.earned)), t('offlineBtn'));
-}
+// 開場**只有讀檔**。#155 之前這裡還會呼叫 `applyOffline()`，拿上次存檔到現在的時間差
+// 乘上平均速率換成現金（半速、上限四小時），再跳一個 overlay。整段拿掉了：
+// 大樓只在分頁開著的時候才會跑。驗收在 `tests/acceptance.js` 第 27 組。
 
 // ---- 語言：靜態文字 + 切換鍵
 function applyStaticText(){
