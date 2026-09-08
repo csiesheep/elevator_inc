@@ -3801,3 +3801,71 @@ check('存檔、把 lastSave 倒推六小時、重新載入——現金一模一
     for (const k in before) LS.setItem(k, before[k]);
   }
 });
+
+// ---------------------------------------------------------------- 28 超速鈕的標籤（#157）
+//
+// **這一組是 FE 寫的（分支 `fe/boost-button-design`，#157）。** 照第 27 組（BE / #155）
+// 的先例放成一組、連在一起、上面點名作者。`tests/` 是 orchestrator 的檔——
+// **land 之前請自己證偽這兩條**，工單上寫明了會這麼做。
+//
+// #157 把超速鈕從「一個 🔥」改成「🔥 + 一個詞」，那個詞來自新的 i18n 鍵 `boostLabel`。
+// 這一組只守**一件很便宜的事**：那支字串中英兩種語言都存在而且非空。
+//
+// ⚠ **它守不到的（工單裡量過，誠實寫在這裡）：** 版面。`tests/` 裡沒有任何版面 guard，
+// 上一輪把首頁的 `justify-content` 注掉、harness 照樣全綠。所以 44px 的高度、
+// --gold 的邊框、4px 的陰影、那條分隔線、垂直置中——**這一組一條都看不到**，
+// 只有人打開頁面看得到。owner 裁決版面 guard 這一輪先不做。
+//
+// 為什麼還是值得加這兩條：`boostLabel` 空掉的話，鈕上只剩一個 🔥 加一塊空白，
+// 而那**看起來像是「設計就是這樣」**——沒有錯誤、沒有 console、沒有紅。
+// 尤其是英文：中文是原稿，英文在 i18n.js 是同一列的第二格，很容易只加一半。
+section('28 超速鈕的標籤（#157）');
+
+// `t(key)` 查不到就原樣回傳 key（第 27 組 1c 用的是同一個性質）。
+const BOOST_I18N = await import('../js/i18n.js').catch(() => null);
+
+check('boostLabel 中英兩種語言都查得到而且非空', () => {
+  if (!BOOST_I18N) return 'TODO: 匯入 js/i18n.js 失敗，這條沒有驗到任何東西';
+  // 母體非空：t() 整個壞掉（永遠回傳 key）的話下面會假紅、永遠回傳空字串的話會假綠。
+  // 先拿一個一定還活著的鍵證明字典查得動。
+  if (BOOST_I18N.t('perSec') === 'perSec')
+    return 'TODO: i18n 的 t() 連 perSec 都查不到（字典沒載進來？），這條沒有驗到任何東西';
+  const back = BOOST_I18N.getLang();
+  try {
+    const got = {};
+    const bad = [];
+    for (const lang of ['zh', 'en']){
+      BOOST_I18N.setLang(lang);
+      const v = BOOST_I18N.t('boostLabel');
+      got[lang] = v;
+      if (v === 'boostLabel') bad.push(`${lang}：字典裡沒有 boostLabel（t() 原樣回傳了 key）`);
+      else if (typeof v !== 'string' || v.trim() === '') bad.push(`${lang}：boostLabel 是空的「${v}」`);
+    }
+    // 道具真的生效了嗎？setLang 沒把語言換過去的話，上面兩圈量的是同一個語言。
+    if (BOOST_I18N.t('perSec') !== '/s')
+      return 'TODO: setLang("en") 之後 perSec 不是 "/s"，語言沒有真的切過去，這條沒有驗到英文那一半';
+    return ok(bad.length === 0, bad.join('｜')
+      || `zh「${got.zh}」、en「${got.en}」，兩邊都非空`);
+  } finally { BOOST_I18N.setLang(back); }
+});
+
+// 分成第二條，因為它紅起來的**理由完全不同**：上面那條紅 = 字漏了；
+// 這條紅 = 有人為了省一支字串把統計頁的欄名接到鈕上。
+// `rowBoost` 的英文剛好也是 'Overdrive'，**中文是「超速時間」**（統計頁那一列後面接秒數），
+// 所以共用的話英文那半看起來完全正常，只有中文會在鈕面上印出「超速時間」。
+// 一條合起來寫的話，這種錯會被上面那條判成綠的。
+check('boostLabel 不是 rowBoost 的別名（中文那半會壞在鈕面上）', () => {
+  if (!BOOST_I18N) return 'TODO: 匯入 js/i18n.js 失敗，這條沒有驗到任何東西';
+  const back = BOOST_I18N.getLang();
+  try {
+    BOOST_I18N.setLang('zh');
+    const label = BOOST_I18N.t('boostLabel'), row = BOOST_I18N.t('rowBoost');
+    // 母體非空：rowBoost 自己得先還在（它被改名或刪掉的話，這條會安靜變成量空氣）。
+    if (row === 'rowBoost')
+      return 'TODO: 字典裡查不到 rowBoost（改名或刪掉了？），這條沒有驗到任何東西';
+    return ok(label !== row, label === row
+      ? `中文的 boostLabel 跟 rowBoost 是同一個字「${label}」——鈕面上會印出統計頁的欄名`
+      : `boostLabel「${label}」≠ rowBoost「${row}」`
+        + `（英文兩邊剛好都是 Overdrive，所以只有中文那半分得出來）`);
+  } finally { BOOST_I18N.setLang(back); }
+});
