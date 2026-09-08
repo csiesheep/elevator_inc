@@ -33,6 +33,8 @@ body.landing svg  { shape-rendering: crispEdges; }
   width: clamp(58px, 9vw, 108px); height: auto;
 }
 .cloud{ position: absolute; top: clamp(96px, 15vh, 150px); width: clamp(104px, 14vw, 168px); height: auto; }
+/* 綠地。窄螢幕是 0 高（那時候綠色是 .band 自己），桌機兩欄才長出來。 */
+.ground{ position: absolute; left: 0; right: 0; bottom: 0; height: 0; }
 .drift{ left: -200px; animation: drift 34s linear infinite; }
 @keyframes drift{ from { transform: translateX(0); } to { transform: translateX(calc(100vw + 220px)); } }
 
@@ -47,22 +49,48 @@ body.landing svg  { shape-rendering: crispEdges; }
 .towerWrap{
   position: relative;
   display: flex; justify-content: center; align-items: flex-end;
-  padding-top: clamp(14px, 4vh, 76px);
+  /* 上緣至少 62px：語言鍵是 `position: fixed; top: 14px`，高 40px。
+     單欄的時候剖面幾乎滿版，留白不夠的話那顆鍵會啃掉窗的右上角。 */
+  padding: clamp(62px, 7vh, 76px) 12px 0;
   margin-bottom: -4px;          /* 讓大樓底部壓在地平線上 */
 }
-/* 寬度看螢幕寬，但也要被高度夾住：寬又矮的視窗（最大化的桌機視窗）
-   如果只看 vw，大樓會把選單擠出畫面。 */
-.tower{ width: min(clamp(150px, 21vw, 232px), 26vh); height: auto; position: relative; z-index: 1; }
 .city{ display: none; }         /* 窄螢幕不畫兩側的城市 */
 
-.car{ animation: ride 7.5s steps(11) infinite; }
-@keyframes ride{
-  0%, 6%   { transform: translateY(0); }
-  44%, 56% { transform: translateY(-84px); }
-  94%, 100%{ transform: translateY(0); }
+/* ---------------- 那一段 18 秒的剖面（#152）
+   `.ride` 是**一扇窗**：裡面那張 SVG 有 1586 個 user unit 高，窗只露 420。
+   相機在 SVG 內部用 translateY 走，所以：
+
+   ⚠ **窗的寬高比一定要是 448:420，而 SVG 一定要 width:100% + height:auto。**
+      SVG 內部的 transform 用的是 viewBox 的 user unit，會跟著元素一起縮，
+      所以整個動畫是**解析度無關**的——不需要 CSS scale()，也就不會把 3×5 的
+      樓層號縮到落在半格上（設計稿 #148 的手機那一格就是被 scale() 縮糊的）。
+
+   高度也要夾：`--rideW` 第三項是「剩下的高度換算回寬度」，
+   矮視窗（橫著拿的手機、矮的桌機視窗）不會被這扇窗把選單擠出畫面。 */
+.ride{
+  --rideW: min(448px, 100%, calc((100dvh - 300px) * 1.0667));
+  position: relative; z-index: 1;
+  width: var(--rideW); aspect-ratio: 448 / 420;
+  overflow: hidden; background: #2a3142;
+  border: 4px solid var(--ink); box-shadow: 7px 7px 0 var(--ink);
 }
-.beacon{ animation: blink 1.6s steps(1) infinite; }
-@keyframes blink{ 0%, 55% { opacity: 1; } 56%, 100% { opacity: .2; } }
+.ride .rideSvg{ display: block; width: 100%; height: auto; }
+
+/* 字幕：四格疊在同一個位置，由 landride.css 的 @keyframes 輪流開關 opacity。 */
+.rideBeat{ position: absolute; inset: 0; pointer-events: none; }
+.rideClock{
+  position: absolute; left: 10px; top: 9px;
+  background: var(--ink); color: #ffe9a8; padding: 4px 8px;
+  font-family: "Pixelify Sans", "Courier New", monospace;
+  font-size: clamp(11px, 2.6vw, 13px); font-weight: 700; letter-spacing: .08em;
+}
+.rideCap{
+  position: absolute; left: 8px; right: 8px; bottom: 8px;
+  background: rgba(22, 24, 58, .88); color: #fff8ea;
+  padding: 6px 9px; line-height: 1.5;
+}
+.rideCap b{ display: block; color: var(--sun); font-size: clamp(11px, 2.8vw, 13px); }
+.rideCap span{ display: block; opacity: .82; font-size: clamp(10px, 2.5vw, 11.5px); }
 
 /* 地面 */
 .band{
@@ -138,7 +166,7 @@ body.landing svg  { shape-rendering: crispEdges; }
 }
 .langBtn:active{ transform: translate(5px, 5px); box-shadow: 0 0 0 var(--ink); }
 
-/* ---------------- 寬螢幕：城市出現，後三顆併成一排 */
+/* ---------------- 寬螢幕（但還是單欄）：城市出現，後三顆併成一排 */
 @media (min-width: 700px){
   .city{
     display: block; position: absolute; bottom: 0;
@@ -154,15 +182,67 @@ body.landing svg  { shape-rendering: crispEdges; }
   .band{ padding-left: 32px; padding-right: 32px; }
 }
 
-/* 矮視窗：先收上緣的留白，再不夠才縮大樓、收掉太陽與雲 */
+/* ---------------- 桌機：兩欄（#152）
+   ⚠ **這是版面決定，不只是換插圖。** 舊的 `.tower` 被
+   `min(clamp(150px,21vw,232px), 26vh)` 夾在 1280×860 上的 **224px**，
+   而看得清楚的剖面要 448px 寬 / 420px 高。單欄（樓在上、選單在下）裝不下，
+   所以桌機改成「視覺在左、字與按鈕在右」；**手機維持單欄堆疊**。
+
+   斷點取 980px：448（窗）+ 24（padding）+ 40（間距）+ 420（右欄最小可讀寬）
+   = 932，再留一點餘裕。窄於這個就退回單欄。
+
+   ⚠ **這一段一定要排在 `min-width: 700px` 後面。** 兩段都設 `.city`，
+     特異性一樣，後面的贏；排在前面的話 980 以上會吃到 700 那一段的
+     `position: absolute; bottom: 0`——城市會縮進左欄裡，兩顆疊在畫面中間。 */
+@media (min-width: 980px){
+  #land{ flex-direction: row; align-items: stretch; }
+
+  .ground{ height: 21vh; background: var(--grass); border-top: 10px solid var(--grassDk); }
+
+  .towerWrap{
+    flex: 1 1 auto; min-width: 0;
+    padding: 0 clamp(16px, 3vw, 56px);
+    align-items: flex-end;
+    margin-bottom: 0; padding-bottom: calc(21vh - 14px);
+  }
+  .ride{ --rideW: min(448px, 100%, calc((79dvh - 60px) * 1.0667)); }
+
+  /* 右欄：綠色交給 .ground，這一欄只剩「置中的一疊字與按鈕」。
+     `position: relative` 是必要的，不是裝飾：`.city` 是 fixed（= positioned），
+     沒有這一行的話它會蓋在按鈕上面——右下那顆「更多遊戲」會被城市壓掉一半。 */
+  .band{
+    flex: 0 1 clamp(420px, 40vw, 620px);
+    position: relative; z-index: 1;
+    background: none; border-top: 0;
+    padding: 24px clamp(20px, 3vw, 48px);
+  }
+
+  /* 招牌現在量的是**這一欄**的寬，不是視窗的寬。單欄的 4.4vw 在 1280 上
+     算出 34px，而右欄只有 ~435px —— 13 個字 × 34px 放不下，會斷成兩行。 */
+  .wordmark{ font-size: clamp(20px, min(2.6vw, 4.4vh), 34px); }
+  /* 同一個理由：三顆併排的那一列在右欄裡每顆只剩 ~100px 的字寬，
+     17px 會讓「How to play」斷行。 */
+  .menu button, .menu .more, .menu .codex{ font-size: clamp(14px, 1.15vw, 17px); }
+
+  /* 城市貼在視窗底、坐在地平線上——不再跟著 .towerWrap 走，
+     不然兩欄之後「right」會落在畫面正中間。 */
+  .city{
+    display: block; position: fixed; bottom: calc(21vh - 10px); z-index: 0;
+    width: clamp(200px, 22vw, 320px); height: auto; opacity: .95;
+  }
+  .city.left{ left: 0; }
+  .city.right{ right: 0; }
+}
+
+/* 矮視窗：先收上緣的留白，再不夠才縮大樓、收掉太陽與雲。
+   ⚠ 收不到 10px：單欄的時候上面那 62px 是語言鍵的位置，不是裝飾。 */
 @media (max-height: 700px){
-  .towerWrap{ padding-top: 10px; }
+  .towerWrap{ padding-top: 62px; }
   .col{ gap: 8px; }
   .menu{ gap: 10px; }
   .menuRow{ gap: 10px; }
 }
 @media (max-height: 560px){
-  .tower{ width: min(clamp(116px, 16vh, 168px), 24vh); }
   .sun, .cloud{ display: none; }
 }
 /* 橫著拿的手機：高度真的不夠了，收掉大樓，先保住選單能全部按到 */
@@ -171,8 +251,14 @@ body.landing svg  { shape-rendering: crispEdges; }
   .band{ border-top: 0; }
 }
 
+/* reduced-motion：這裡只剩 `.drift`（雲）。那段 18 秒的循環在
+   `css/landride.css`（產生檔）裡收，並且**定格在 t=0**——大廳、門開著、
+   第一站的字幕還在。那一格自己就成立。
+
+   （`.beacon` 的規則跟著舊的手繪大樓 SVG 一起刪了：#152 之後首頁上
+     沒有任何元素帶那個 class，留著的是一條指不到東西的規則。） */
 @media (prefers-reduced-motion: reduce){
-  .car, .beacon, .drift{ animation: none; }
+  .drift{ animation: none; }
 }
 
 /* ---------------- 說明 / 帳本的浮層 */

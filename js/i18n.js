@@ -226,6 +226,27 @@ const DICT = {
   codexOneFloor: ['只有 {0} 樓', 'Floor {0} only'],
   codexPoseUrgent:['快沒耐性', 'Out of patience'],
   codexPoseCalm: ['一般', 'Calm'],
+
+  // ---- 首頁那段 18 秒動畫的字幕（#152）
+  // ⚠ **這六個鍵是 FE 加的，字本身還沒有 writer 簽過。** 跟上面那七個（#149）
+  //   同一個狀況、同一個先例：TEAM.md 說玩家看得到的字是 writer 的所有權，
+  //   擋著整頁不做比較糟，所以照現有格式加上，交付時點名。
+  //   **譯文以 writer 的為準，改掉不用問我。**
+  //
+  // 這六個**只有接合詞**。字幕裡真正的內容——事件名與樓層帶名——一個字都沒有新增：
+  //   事件名 = L(beat.ev, 'name', 'events')      → i18n-content.js 的 events
+  //   樓層帶名 = L(band, 'name', 'bands')        → i18n-content.js 的 bands
+  // 兩張表中英文都齊，所以這一段動畫**沒有任何一句話是我編的**。
+  //
+  // `landRideLobby` 是唯一的例外：EVENTS 的 at/to 用 'lobby'，而 'lobby' 不是
+  // BANDS 的 key（1 樓在 retail 帶裡），所以它沒有現成的譯名。
+  landRideAt:    ['{0} {1} 樓', '{0}, floor {1}'],
+  landRideHours: ['{0}–{1} 點', '{0}:00–{1}:00'],
+  landRideCount: ['{0}–{1} 人', '{0}–{1} people'],
+  landRideAllDay:['任何時段', 'any hour'],
+  landRideLobby: ['大廳', 'Lobby'],
+  landRideAlt:   ['首頁動畫：電梯從大廳一路往上，在四個樓層停下來，每一站是遊戲裡真的會發生的事件。',
+                  'Landing animation: the car rides up from the lobby and stops at four floors, each one a real in-game event.'],
 };
 
 export function t(key, ...args){
