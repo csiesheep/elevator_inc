@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Elevator Inc. — Codex</title>
+<meta name="description" content="Every kind of person who rides the tower in Elevator Inc.">
+<meta name="theme-color" content="#0f1116">
+<!-- favicon（#149）。7×9 的圖沒有整數倍剛好合 16×16：2× 是 14×18，高度爆 2px。
+     解法是挑「佔用列 ≤ 8」或「最後一列冗餘」的角色，2× 之後零裁切／無損裁切，
+     擺在一塊 #16183a 的底磚上（淺色剪影在亮色分頁列會消失，所以底磚是必要的）。
+     icon.svg 一個檔覆蓋所有尺寸；180 的 PNG 給 iOS 加到主畫面。
+     兩個檔由 tools/artfavicon.py 產生，**角色是暫定的，等 #149 的裁決**。 -->
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;600;700&family=Noto+Sans+TC:wght@500;700;900&display=swap">
+<link rel="stylesheet" href="css/codex.css">
+</head>
+<body class="codexPage">
+
+<header class="cxTop">
+  <a class="cxBack" href="./" data-i18n="back"></a>
+  <h1 class="cxTitle px" data-i18n="codexTitle"></h1>
+  <div class="cxTopBtns">
+    <button id="pose" class="cxChip"></button>
+    <button id="lang" class="cxChip">EN</button>
+  </div>
+</header>
+
+<main class="cxMain">
+  <p class="cxLead" data-i18n="codexLead"></p>
+  <p class="cxSeen" id="seenLine"></p>
+  <p class="cxHint" data-i18n="codexPose"></p>
+  <div id="bands"></div>
+  <footer class="cxFoot">
+    <a class="cxBtn" href="game.html" id="btnPlay"></a>
+    <a class="cxBtn ghost" href="./" data-i18n="back"></a>
+  </footer>
+</main>
+
+<script type="module" src="js/codex.js"></script>
+</body>
+</html>

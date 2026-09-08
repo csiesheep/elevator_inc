@@ -1,0 +1,122 @@
+/* codex.css — 獨立圖鑑頁（#149）。
+   自成一頁，**不載 style.css**：那個檔給 html/body 上了 height:100%; overflow:hidden
+   （遊戲頁需要），這一頁要能捲。變數與硬邊風格照抄它與 landing.css，不另立一套。 */
+
+:root{
+  --bg:#0f1116; --panel:#16183a; --card:#1d2046; --line:#4a4f86;
+  --text:#e8eaf0; --dim:#8f95d6; --gold:#ffd23f; --hi:#7dd8f7;
+  --bad:#ff8a8a; --edge:#4a4f86; --drop:#0b0d20;
+  --sprite-ink:var(--text);      /* spritedom.js 的身體色入口 */
+  /* urgent 姿勢的身體色。**逐字抄 theme.js 的 pal.bad**，不是上面那個 UI 的 --bad：
+     acceptance 第 20 組守的是配件色對 pal.bad，換一個紅色就等於離開那條 guard。
+     量過：配件對 #e2645a 最小 ΔE 24.17，對 --bad #ff8a8a 只有 17.47。 */
+  --spriteBad:#e2645a;
+}
+
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+html,body{height:auto; margin:0}
+body.codexPage{
+  background:var(--bg); color:var(--text);
+  font:14px/1.55 "Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  padding-bottom:28px;
+}
+.px { font-family:"Press Start 2P","Courier New",monospace }
+.pxs{ font-family:"Pixelify Sans","Courier New",monospace }
+svg{ shape-rendering:crispEdges }
+
+/* ---------------- 頂欄。黏在上面，78×2 張圖捲很長，語言與姿勢的開關要一直在手邊 */
+.cxTop{
+  position:sticky; top:0; z-index:5;
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  padding:12px 16px; background:var(--panel); border-bottom:3px solid var(--edge);
+}
+.cxBack{ color:var(--hi); text-decoration:none; font-size:13px; white-space:nowrap }
+.cxBack:hover{ text-decoration:underline }
+.cxTitle{ font-size:clamp(11px,2.4vw,15px); margin:0; color:var(--gold); letter-spacing:.02em }
+.cxTopBtns{ margin-left:auto; display:flex; gap:8px }
+.cxChip{
+  font:inherit; font-size:12px; padding:6px 10px; cursor:pointer; border-radius:0;
+  background:var(--card); color:var(--text); border:2px solid var(--edge);
+  box-shadow:2px 2px 0 var(--drop);
+}
+.cxChip:hover{ border-color:var(--hi) }
+.cxChip:active{ transform:translate(2px,2px); box-shadow:0 0 0 var(--drop) }
+body.urgentAll #pose{ background:var(--bad); color:#16183a; border-color:#16183a }
+
+/* ---------------- 內容 */
+.cxMain{ max-width:960px; margin:0 auto; padding:14px 16px 0 }
+.cxLead{ font-size:14px; margin:2px 0 8px; max-width:62ch }
+.cxSeen{
+  display:inline-flex; align-items:center; gap:8px; margin:0 0 6px;
+  font-family:"Pixelify Sans","Courier New",monospace; font-size:14px; color:var(--gold);
+  background:var(--card); border:2px solid var(--edge); box-shadow:3px 3px 0 var(--drop);
+  padding:5px 10px;
+}
+.cxHint{ font-size:12px; color:var(--dim); margin:6px 0 18px }
+
+/* ---------------- 樓層帶
+   名字與數值都藏了之後，樓層帶是這一頁唯一的資訊架構，所以標頭要夠重。 */
+.cxBand{ margin:0 0 26px }
+.cxBandHead{
+  display:flex; align-items:baseline; gap:10px; margin:0 0 10px;
+  padding-bottom:6px; border-bottom:2px solid var(--edge); font-size:15px;
+}
+.cxRange{ color:var(--gold); font-size:15px; font-variant-numeric:tabular-nums }
+.cxBandName{ font-weight:700 }
+.cxCount{ margin-left:auto; color:var(--dim); font-size:13px }
+
+/* 格子：跟著寬度自己排。最小 44px 的欄寬容得下 35px 的圖加邊框。 */
+.cxGrid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(52px,1fr)); gap:8px }
+.cxCell{
+  position:relative; aspect-ratio:1; display:flex; align-items:center; justify-content:center;
+  background:var(--card); border:2px solid var(--edge); box-shadow:3px 3px 0 var(--drop);
+}
+.cxCell:hover{ border-color:var(--hi) }
+.cxCell .pxTile{ display:flex; align-items:center; justify-content:center }
+.cxCell svg{ display:block; image-rendering:pixelated }
+
+/* 兩個姿勢疊在同一格：切換不重建節點，就不會有第一次換姿勢的閃爍。
+   `.u` 用 visibility 而不是 display:none —— 兩張都參與版面，格子高度才不會跳。 */
+.cxCell .n, .cxCell .u{ grid-area:1/1; display:flex }
+.cxCell .u{ position:absolute; inset:0; align-items:center; justify-content:center; visibility:hidden }
+.cxCell:hover .n{ visibility:hidden }
+.cxCell:hover .u{ visibility:visible }
+body.urgentAll .cxCell .n{ visibility:hidden }
+body.urgentAll .cxCell .u{ visibility:visible }
+body.urgentAll .cxCell:hover .n{ visibility:visible }
+body.urgentAll .cxCell:hover .u{ visibility:hidden }
+
+/* 點過的那一格：狀態跟整頁相反（整頁是一般 → 這格 urgent，反之亦然）。
+   跟 hover 同一個意思，只是它是黏住的——觸控要的就是黏住。 */
+.cxCell.on .n{ visibility:hidden }
+.cxCell.on .u{ visibility:visible }
+body.urgentAll .cxCell.on .n{ visibility:visible }
+body.urgentAll .cxCell.on .u{ visibility:hidden }
+
+/* 觸控裝置沒有 hover（而且會把它模擬成「點過就黏住」）。頂欄那顆按鈕才是
+   觸控的入口，所以這裡把 hover 規則整組關掉，不留一個黏住的中間態。 */
+@media (hover:none){
+  .cxCell:hover .n{ visibility:visible } .cxCell:hover .u{ visibility:hidden }
+  body.urgentAll .cxCell:hover .n{ visibility:hidden }
+  body.urgentAll .cxCell:hover .u{ visibility:visible }
+  /* .on 要贏過上面那四條，不然觸控點下去看起來沒反應 */
+  .cxCell.on .n{ visibility:hidden } .cxCell.on .u{ visibility:visible }
+  body.urgentAll .cxCell.on .n{ visibility:visible }
+  body.urgentAll .cxCell.on .u{ visibility:hidden }
+}
+
+/* ---------------- 頁尾 */
+.cxFoot{ display:flex; gap:12px; flex-wrap:wrap; margin:8px 0 0 }
+.cxBtn{
+  font:inherit; font-size:14px; font-weight:700; text-decoration:none; text-align:center;
+  padding:11px 18px; background:var(--gold); color:#16183a;
+  border:3px solid #16183a; box-shadow:5px 5px 0 var(--drop);
+}
+.cxBtn.ghost{ background:var(--card); color:var(--text); border-color:var(--edge) }
+.cxBtn:active{ transform:translate(5px,5px); box-shadow:0 0 0 var(--drop) }
+
+@media (max-width:520px){
+  .cxGrid{ grid-template-columns:repeat(auto-fill,minmax(44px,1fr)); gap:6px }
+  .cxCell svg{ width:28px; height:36px }   /* 仍在 sprites.js 檔頭的 14×18 下限之上 */
+  .cxFoot .cxBtn{ flex:1 }
+}
