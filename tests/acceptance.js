@@ -42,6 +42,21 @@ const SPEC = {
   bandRanges: [[1,10],[11,20],[21,45],[46,70],[71,85],[86,99],[100,9999]],
   floorSteps: 19,          // §5.8：5 + 5×19 = 100
   floorPerStep: 5,
+  // --- 人流的三個旋鈕（#151）---------------------------------------------
+  // **在 #151 之前，84 條檢查裡對這三個東西的引用是 0 次。**
+  // `grep -n 'RATE_EXP\|RATE_PER_WEIGHT' tests/acceptance.js` 零個命中，
+  // 樓層帶的 `pop` 也只有 `from/to` 被抄過（上面那條 bandRanges），`pop` 沒有。
+  // 於是**這三個之中任何一個被偷偷改掉，84 條裡只有第 21 組（煙霧測試，門檻鬆到
+  // 抓崩塌不抓漂移）會有反應**——而人流是這個遊戲所有數字的分母。
+  //
+  // `arrivalRate() = RATE_PER_WEIGHT × W^RATE_EXP × womMult`（sim.js），
+  // `W` 是每一層的 `pop` 加總（`floorWeight()`，逐帶讀 `BANDS[i].pop`）。
+  // 改 `RATE_EXP` 0.50 → 0.65 會讓 100 樓的人次從 4,432 漲到 10,000 以上——
+  // **那是把整個經濟翻倍**，而它在這張表上原本一個字都沒有。
+  ratePerWeight: 0.032,    // §5.x 人流公式的常數
+  rateExp: 0.5,            // §5.x 次線性指數
+  // §5.7 樓層帶表的 pop 欄，順序同 bandRanges（retail…roof）。
+  bandPops: [1.15, 1.00, 0.75, 0.90, 0.55, 0.45, 0.30],
 };
 
 // ---------------------------------------------------------------- 0 對照
@@ -105,6 +120,38 @@ check('樓層帶範圍', () => {
 check('加蓋段數', () => {
   const u = UPGRADES.find(x => x.id === 'floor');
   return eq(u && u.max, SPEC.floorSteps, "UPGRADES['floor'].max");
+});
+// **人流的三個旋鈕**（#151）。寫成一條而不是九條，是因為它們是同一條乘法鏈上的
+// 三個因子：`RATE_PER_WEIGHT × (Σ pop)^RATE_EXP × womMult`。分成九條的話，
+// 紅的時候要在九列裡拼出「這條鏈被動了多少」；寫成一條，紅的訊息一次列出全部落差。
+//
+// **綠的時候也把七個 pop 印出來**（`ok()` 會帶訊息）：#146 的網格證明了
+// 這七個數字是最容易被「調平衡」偷偷搬動的一組，而搬動的方式通常是整排等比拉——
+// 印出來才看得見那個形狀。
+//
+// **這條擋得住什麼／擋不住什麼**：它擋的是「產品的數字改了、抄本沒改」。
+// 它**擋不住**「兩邊一起改」——那要靠 commit 裡引得出的一句裁決（見上面 ORBIT_CASH
+// 那一段）。它也不保證這三個數字是好的平衡，只保證它們是**被決定過**的。
+check('人流三旋鈕：RATE_PER_WEIGHT / RATE_EXP / 七帶 pop', () => {
+  const bad = [];
+  if (C.RATE_PER_WEIGHT !== SPEC.ratePerWeight)
+    bad.push(`RATE_PER_WEIGHT 期望 ${SPEC.ratePerWeight}，實際 ${C.RATE_PER_WEIGHT}`);
+  if (C.RATE_EXP !== SPEC.rateExp)
+    bad.push(`RATE_EXP 期望 ${SPEC.rateExp}，實際 ${C.RATE_EXP}`);
+  const pops = BANDS.map(b => b.pop);
+  if (pops.length !== SPEC.bandPops.length)
+    bad.push(`樓層帶數量 期望 ${SPEC.bandPops.length}，實際 ${pops.length}`);
+  else for (let i = 0; i < pops.length; i++)
+    if (pops[i] !== SPEC.bandPops[i])
+      bad.push(`${BANDS[i].key}.pop 期望 ${SPEC.bandPops[i]}，實際 ${pops[i]}`);
+  return ok(bad.length === 0,
+    bad.length ? `人流的旋鈕被動過而抄本沒跟上（${bad.length} 處）：` + bad.join('；')
+               + `｜人流 = RATE_PER_WEIGHT × W^RATE_EXP × womMult，`
+               + `這三個之中任何一個動了，塔裡每一個數字都會動。`
+               + `改是可以的，但要在 SPEC 這邊留下一句說得出來源的話。`
+      : `RATE_PER_WEIGHT=${C.RATE_PER_WEIGHT}、RATE_EXP=${C.RATE_EXP}、`
+        + `pop=[${BANDS.map(b => b.key + ' ' + b.pop).join('、')}]`
+        + `｜擋的是「產品改了、抄本沒改」；擋不到兩邊一起改，也不保證這組數字是好的平衡。`);
 });
 
 // ---------------------------------------------------------------- 1 天花板
