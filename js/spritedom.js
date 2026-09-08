@@ -81,7 +81,11 @@ function pathFor(rows, sym, ox, oy, rowFrom, rowTo){
 // 回傳 **字串**，不是節點：三個呼叫端裡有兩個（圖鑑 tab、圖鑑頁）本來就是
 // 用 innerHTML 一次貼一大塊，回節點會逼它們改成 append 迴圈，反而更慢。
 export function spriteSVG(typeId, opts = {}){
-  const { rows, acc } = spriteFor(typeId, !!opts.urgent);
+  // `rows` 覆寫（#153）：不是每一張 7×9 的圖都在 `PEOPLE` 裡——問號就不是，而它
+  // **必須走這一支**，才會跟旁邊的人物同一個網格、同一條壓縮路徑、同一個尺寸。
+  // `typeId` 在這條路徑上是 null；下面除了 spriteFor 之外沒有人用到它。
+  const { rows, acc } = opts.rows ? { rows: opts.rows, acc: opts.acc || null }
+                                  : spriteFor(typeId, !!opts.urgent);
   const ink = opts.ink || 'var(--sprite-ink, currentColor)';
   const accCol = opts.silhouette ? ink : (opts.acc || acc);
 
@@ -118,13 +122,12 @@ export function spriteSVG(typeId, opts = {}){
 // 兩個圖鑑（遊戲頁的 tab、獨立的圖鑑頁）共用這一格，所以它住在這裡而不是 ui.js
 // ——不然圖鑑頁就得為了一格小人去 import 整個面板模組。
 //
-// **圖永遠畫，不管載過沒有。** owner 裁決 #149 是**丙**（「公開剪影與圖，藏名字
-// 與數值」），orchestrator 的解讀是它同時套在兩個介面上：
-//   > 「加上圖之後，它應該跟公開頁一樣：圖給看，字不給。……如果公開頁看得到圖、
-//   >   遊戲內看不到，玩家開另一個分頁就破解了，那個藏就沒有意義。」
-// 所以藏的是**名字／單價／耐性／佔位／載過幾次**，不是圖。
+// ⚠ **這一格只給「載過的人」。** #149 那一輪是丙（圖給看、字不給），所以這裡
+// 本來寫著「圖永遠畫，不管載過沒有」。**owner 在 #153 修訂了那個裁決**：
+// 現在是「圖鑑頁 = 圖鑑 tab 的網頁版」，載過的名字＋說明＋數值全給，
+// **沒載過的連圖都不給，換成 `unknownTile()` 的問號**。呼叫端自己分岔。
 //
-// **而且「圖」是完整的圖，不是單色剪影。** orchestrator 量過（我也獨立量過，
+// **載過的那一張是完整的圖，不是單色剪影。** orchestrator 量過（我也獨立量過，
 // 兩邊數字對得上）：78 張的二態剪影兩兩 Hamming，normal 最小 2、urgent 最小 0，
 // ≤ 4 格的有 23 組。純剪影會讓 ceo/closing、guard/tourist 這些在頁面上變成同一個
 // 東西。**配件色才是識別**（第 19 組守著兩兩 ΔE ≥ 9），所以這裡照常上配件色。
@@ -133,6 +136,52 @@ export function spriteSVG(typeId, opts = {}){
 // 窄螢幕由 CSS 縮到 21×27，仍在下限之上。
 export function codexTile(id, opts = {}){
   return `<div class="pxTile">${spriteSVG(id, { cell: 4, ...opts })}</div>`;
+}
+
+// ---------------------------------------------------------------- 沒遇過的那一格
+//
+// owner 修訂了 #149 的裁決（#153）：**圖鑑頁 = 圖鑑 tab 的網頁版**。載過的人
+// 名字、說明、數值全給；**沒載過的，連圖都不給——換成一個問號**。
+// 兩個介面同一條規則（#153 的表）。
+//
+// ---- 為什麼問號在這裡，不在 `js/sprites.js` ----
+// `sprites.js` 是**人物**表，而且檔頭那五條 CIEDE2000 判準（驗收第 15/16/17/19/20 組
+// 在守）守的是「配件識別色」——每一種人靠一個專屬顏色被認出來。
+// **問號沒有配件識別色**，它是「還沒有」這個狀態的圖形，不是第 79 種人。
+// 塞進 `PEOPLE` 會讓那五條 guard 開始守一個不該守的東西（而且 78→79 之後
+// 第 19 組的兩兩 ΔE 母體會多出一列假的配對）。所以它是這一層的常數。
+//
+// ---- 為什麼不是文字的 `?` ----
+// 整頁是 7×9 的像素格。混一個字型的問號進去，字重、基線、抗鋸齒全都跟旁邊
+// 對不上。這裡走同一支 `spriteSVG()`：同一個網格、同一個 `<path>` 壓縮、
+// 同一個 `shape-rendering:crispEdges`，所以它在每一個倍率下都跟人物一樣銳利。
+//
+// 筆畫一律 2 格寬：cell 最小會被 CSS 縮到 3px（窄螢幕 21×27），
+// 1 格寬的筆畫在那個尺寸下會斷。
+export const UNKNOWN_GLYPH = [
+  '.#####.',
+  '##...##',
+  '##...##',
+  '.....##',
+  '...###.',
+  '...##..',
+  '...##..',
+  '.......',
+  '...##..',
+];
+
+// 問號的顏色**不寫死**，走 `--sprite-unknown`。理由是量出來的、也是被修正過的：
+// #153 寫「畫布沒有亮色主題」，那對 `js/theme.js` 的 `ink`（日夜都是 #eaf0fb）成立，
+// **但 `css/style.css` 有 `:root[data-theme="day"]`**（`--text:#16183a`，深色墨）——
+// 遊戲頁的面板是有亮色主題的。寫死一個淺色會在白天的面板上消失。
+// 兩個呼叫端各自把 `--sprite-unknown` 餵成「比 `--sprite-ink` 低一階、但還看得見」。
+export function unknownTile(opts = {}){
+  const { title, ...rest } = opts;
+  return `<div class="pxTile pxUnknown">`
+       + spriteSVG(null, { cell: 4, rows: UNKNOWN_GLYPH,
+                           ink: 'var(--sprite-unknown, var(--sprite-ink, currentColor))',
+                           title, ...rest })
+       + `</div>`;
 }
 
 // ---------------------------------------------------------------- favicon

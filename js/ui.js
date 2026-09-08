@@ -5,7 +5,7 @@ import { derived, upgradeCost, upgradeMaxed, buyUpgrade, buyAutomation, skillCos
          prestigeGain, algoName, save } from './state.js';
 import { fmtShort, dayName, hourOf } from './sim.js';
 import { STYLES as ROOF_STYLES } from './roof.js';
-import { codexTile } from './spritedom.js';
+import { codexTile, unknownTile } from './spritedom.js';
 import { t, L } from './i18n.js';
 
 const $ = s => document.querySelector(s);
@@ -143,24 +143,54 @@ function tabSkills(){
   return h;
 }
 
-function tabCodex(){
-  const st = app.st;
-  const seen = PASSENGERS.filter(p => st.codex[p.id]).length;
-  let h = `<div class="note">${t('codexIntro', seen, PASSENGERS.length)}</div>`;
-  for (const p of PASSENGERS){
-    const n = st.codex[p.id] || 0;
-    // 裁決 #149 是丙：**圖給看，字不給**。所以 unknown 只讓右邊那半淡下去，
-    // 圖維持全不透明——`.card.unknown` 的 opacity 蓋在整張卡上，會把圖一起吃掉。
-    h += `<div class="card pxCard${n ? '' : ' pxHidden'}">
-      ${codexTile(p.id)}
+// ---------------------------------------------------------------- 圖鑑的一張卡
+//
+// **兩個介面的唯一產出點**（#153）。遊戲頁的 tab 與 `codex.html` 都呼叫這一支，
+// 所以「載過給什麼、沒載過給什麼」只有一份實作，不可能兩邊漂開。
+// 上一輪（#149）兩邊各寫一份，結果就是兩邊的規則長得不一樣。
+//
+// owner 裁決（#153，取代 #149 的丙）：
+//   | | 已遇過 | 沒遇過 |
+//   | 人物圖 | 正常顯示 | **問號** |
+//   | 名字 / note / 單價·耐性·佔位 / 載過幾次 | 顯示 | 藏 |
+//
+// 匯出是為了讓 guard 拿得到（驗收第 25 組）。**這不是為了測試而改形狀**：
+// 一條規則套在兩個介面上，本來就該有一個叫得到的產出點。
+//
+// `opts.tileHTML` 覆寫「圖」那一格：圖鑑頁要在同一格裡疊第二個姿勢（hover 換）。
+// **只覆寫圖，不覆寫字**——字那一半是這條裁決的本體，不開任何入口。
+export function codexCardHTML(p, n, opts = {}){
+  if (!n){
+    // 沒載過：**圖也不給**，換成 7×9 的問號（`unknownTile`，走同一支 spriteSVG）。
+    // `.pxHidden` 留著讓右半再淡一階——問號本身已經比人物暗一階，兩層加起來
+    // 才是「這一格是空的」。**這裡一個字都不可以是真的名字、note 或數值**，
+    // `unknownName`／`notCarried`／`notCarriedNote` 三個鍵是常數，不吃 `p`。
+    return `<div class="card pxCard pxHidden">
+      ${unknownTile({ title: t('codexUnknownAlt') })}
       <div class="pxBody">
-      <div class="cardTop"><span class="cName">${n ? L(p,'name','passengers') : t('unknownName')}</span>
-        <span class="cCost">${n ? '×' + fmtShort(n) : t('notCarried')}</span></div>
-      <div class="cDetail">${n ? L(p,'note','passengers') : t('notCarriedNote')}</div>
-      ${n ? `<div class="cHint mono">${t('codexMeta', p.fare, p.patience > 500 ? '∞' : p.patience + 's', p.size)}</div>` : ''}
+      <div class="cardTop"><span class="cName">${t('unknownName')}</span>
+        <span class="cCost">${t('notCarried')}</span></div>
+      <div class="cDetail">${t('notCarriedNote')}</div>
       </div>
     </div>`;
   }
+  return `<div class="card pxCard">
+    ${opts.tileHTML || codexTile(p.id, { title: L(p,'name','passengers') })}
+    <div class="pxBody">
+    <div class="cardTop"><span class="cName">${L(p,'name','passengers')}</span>
+      <span class="cCost">×${fmtShort(n)}</span></div>
+    <div class="cDetail">${L(p,'note','passengers')}</div>
+    <div class="cHint mono">${t('codexMeta', p.fare, p.patience > 500 ? '∞' : p.patience + 's', p.size)}</div>
+    </div>
+  </div>`;
+}
+
+// 純函式版：state 進、HTML 字串出。`tabCodex()` 只是「拿 app.st 餵它」。
+// 第 25 組的 guard 餵一個空 codex 的 state 進來,掃輸出裡有沒有洩漏。
+export function tabCodexHTML(st){
+  const seen = PASSENGERS.filter(p => st.codex[p.id]).length;
+  let h = `<div class="note">${t('codexIntro', seen, PASSENGERS.length)}</div>`;
+  for (const p of PASSENGERS) h += codexCardHTML(p, st.codex[p.id] || 0);
   h += `<div class="sect">${t('secFloorTypes')}</div>`;
   for (const b of BANDS){
     const open = st.floors >= b.from;
@@ -178,6 +208,8 @@ function tabCodex(){
   }
   return h;
 }
+
+function tabCodex(){ return tabCodexHTML(app.st); }
 
 function tabStats(){
   const st = app.st, sim = app.sim, d = derived(st);
