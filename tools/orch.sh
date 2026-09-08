@@ -74,7 +74,10 @@ cmd_serve(){
   local dir; dir="$(resolve_dir "${1:-.}")" || exit 1
   local name; name="$(basename "$dir")"
   [ -f "$dir/__orch_serve.port" ] && die "$name 已經在 serve（port $(cat "$dir/__orch_serve.port")）；先 orch stop $name"
-  [ -f "$dir/$MARKER" ] || write_marker "$dir" "$name"
+  # **每次都重寫，不是「沒有才寫」。** marker 是用來證明「這個 port 上回的是我這棵樹的
+  # 這個 commit」；沿用 wt 當時寫的那一份，工作樹 commit 之後 SHA 就開始說謊——
+  # 名字還對得上（origin 證明仍然成立），但你會拿一個過期的 SHA 去對讀數。
+  write_marker "$dir" "$name"
   local want; want="$(cat "$dir/$MARKER")"
   local port; port="$(free_port)"
   python "$dir/tools/serve.py" "$port" "$dir" > "$dir/__orch_serve.log" 2>&1 &
