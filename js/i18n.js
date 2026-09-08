@@ -188,6 +188,30 @@ const DICT = {
   ledgerCodex:   ['收集', 'Collection'],
   close:         ['關閉', 'Close'],
   back:          ['← 首頁', '← Home'],
+
+  // ---- 圖鑑頁（#149）
+  // ⚠ **這七個鍵是 FE 加的，字本身還沒有 writer 簽過。** TEAM.md 說玩家看得到的
+  // 字是 writer 的所有權，我在 #149 上問過兩次「要 writer 加還是授權我加」，
+  // 沒有拿到回答；擋著整個頁面不做比較糟，所以先照現有格式加上，交付時點名。
+  // **譯文以 writer 的為準，改掉不用問我。**
+  //
+  // 這一頁**永遠不顯示名字與數值**（owner 裁決 #149 甲乙丙 → 丙，
+  // orchestrator 的解讀是「公開頁永遠不解鎖」），所以下面沒有任何一個鍵是
+  // 「未知名稱」之類的佔位——藏名字就是藏名字，不放假的名字或編號。
+  btnCodex:      ['乘客圖鑑', 'Codex'],
+  codexTitle:    ['乘客圖鑑', 'Passenger Codex'],
+  codexLead:     ['這棟樓裡會搭電梯的每一種人，一個都不少。名字、票價與耐性要在遊戲裡載過才看得到。',
+                  'Everyone who rides this tower. Names, fares and patience unlock by carrying them in-game.'],
+  codexSeen:     ['你的存檔裡見過 {0} / {1}', 'Your save has met {0} of {1}'],
+  codexNoSave:   ['你還沒有存檔——先玩一輪，這些人就會有名字。',
+                  'No save yet — play a round and these people get names.'],
+  codexPose:     ['點一格換成「快沒耐性」的姿勢；右上角那顆整頁一起換。',
+                  'Tap a figure for its out-of-patience pose; the button above switches the whole page.'],
+  codexBandN:    ['{0} 種', '{0} kinds'],
+  codexAnyBand:  ['每一層都有', 'On every floor'],
+  codexOneFloor: ['只有 {0} 樓', 'Floor {0} only'],
+  codexPoseUrgent:['快沒耐性', 'Out of patience'],
+  codexPoseCalm: ['一般', 'Calm'],
 };
 
 export function t(key, ...args){

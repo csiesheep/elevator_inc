@@ -149,8 +149,10 @@ function tabCodex(){
   let h = `<div class="note">${t('codexIntro', seen, PASSENGERS.length)}</div>`;
   for (const p of PASSENGERS){
     const n = st.codex[p.id] || 0;
-    h += `<div class="card pxCard ${n ? '' : 'unknown'}">
-      ${codexTile(p.id, n)}
+    // 裁決 #149 是丙：**圖給看，字不給**。所以 unknown 只讓右邊那半淡下去，
+    // 圖維持全不透明——`.card.unknown` 的 opacity 蓋在整張卡上，會把圖一起吃掉。
+    h += `<div class="card pxCard${n ? '' : ' pxHidden'}">
+      ${codexTile(p.id)}
       <div class="pxBody">
       <div class="cardTop"><span class="cName">${n ? L(p,'name','passengers') : t('unknownName')}</span>
         <span class="cCost">${n ? '×' + fmtShort(n) : t('notCarried')}</span></div>

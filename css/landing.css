@@ -101,7 +101,7 @@ body.landing svg  { shape-rendering: crispEdges; }
 
 /* ---------------- 選單 */
 .menu{ width: 100%; display: flex; flex-direction: column; gap: 12px; margin-top: 3px; }
-.menu button, .menu .more{
+.menu button, .menu .more, .menu .codex{
   display: flex; align-items: center; justify-content: center; gap: 10px;
   min-height: 52px; padding: 13px 16px;
   border: 4px solid var(--ink); box-shadow: 6px 6px 0 var(--ink);
@@ -110,15 +110,18 @@ body.landing svg  { shape-rendering: crispEdges; }
   text-decoration: none; cursor: pointer;
   transition: transform .06s steps(2), box-shadow .06s steps(2);
 }
-.menu button:hover, .menu .more:hover{ transform: translate(2px, 2px); box-shadow: 4px 4px 0 var(--ink); }
-.menu button:active, .menu .more:active{ transform: translate(6px, 6px); box-shadow: 0 0 0 var(--ink); }
+.menu button:hover, .menu .more:hover, .menu .codex:hover{ transform: translate(2px, 2px); box-shadow: 4px 4px 0 var(--ink); }
+.menu button:active, .menu .more:active, .menu .codex:active{ transform: translate(6px, 6px); box-shadow: 0 0 0 var(--ink); }
 .menu .big{
   background: var(--red); color: #fff; min-height: 58px;
   font-size: clamp(18px, 2vw, 22px); font-weight: 900; letter-spacing: .04em;
 }
 .menu .more{ background: var(--cyan); }
 .menuRow{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.menuRow .more{ grid-column: 1 / -1; }   /* 窄螢幕時「更多遊戲」自己一列 */
+/* 圖鑑（#149）跟「更多遊戲」一樣自己佔一整列：它們都是換頁，上面兩顆是開浮層。
+   兩顆換頁的擠在同一列會讓四顆看起來是同一種東西。 */
+.menu .codex{ background: var(--grass); }
+.menuRow .codex, .menuRow .more{ grid-column: 1 / -1; }
 
 .foot{ display: flex; gap: 9px; margin-top: 4px;
   font-family: "Pixelify Sans", "Courier New", monospace; font-size: 13px; }
@@ -143,8 +146,11 @@ body.landing svg  { shape-rendering: crispEdges; }
   }
   .city.left{ left: 0; }
   .city.right{ right: 0; }
+  /* 寬螢幕：三欄剛好放「玩法／帳本／圖鑑」——三個都是「關於這款遊戲」，
+     而「更多遊戲」是往外連的，讓它自己一整列。窄螢幕的規則正好相反。 */
   .menuRow{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .menuRow .more{ grid-column: auto; }
+  .menuRow .codex{ grid-column: auto; }
+  .menuRow .more{ grid-column: 1 / -1; }
   .band{ padding-left: 32px; padding-right: 32px; }
 }
 

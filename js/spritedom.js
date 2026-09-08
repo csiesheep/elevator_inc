@@ -118,19 +118,21 @@ export function spriteSVG(typeId, opts = {}){
 // 兩個圖鑑（遊戲頁的 tab、獨立的圖鑑頁）共用這一格，所以它住在這裡而不是 ui.js
 // ——不然圖鑑頁就得為了一格小人去 import 整個面板模組。
 //
-// **`known` 是假的時候不畫圖。** 遊戲頁的圖鑑本來就刻意藏（`unknown` class +
-// `t('unknownName')`），而 sprites.js 檔頭說識別「主要靠輪廓」——把剪影畫出來
-// 等於把它藏的東西從另一個孔漏出去。改成同尺寸的空盤，78 格對齊成一面牆，
-// 那面牆本身就是進度條。
+// **圖永遠畫，不管載過沒有。** owner 裁決 #149 是**丙**（「公開剪影與圖，藏名字
+// 與數值」），orchestrator 的解讀是它同時套在兩個介面上：
+//   > 「加上圖之後，它應該跟公開頁一樣：圖給看，字不給。……如果公開頁看得到圖、
+//   >   遊戲內看不到，玩家開另一個分頁就破解了，那個藏就沒有意義。」
+// 所以藏的是**名字／單價／耐性／佔位／載過幾次**，不是圖。
 //
-// ⚠ 獨立圖鑑頁要不要照樣藏，是 #149 上還沒回答的裁決（甲／乙／丙）。
-// 這支只提供「藏」與「不藏」兩種呼叫方式，**不替裁決做選擇**。
+// **而且「圖」是完整的圖，不是單色剪影。** orchestrator 量過（我也獨立量過，
+// 兩邊數字對得上）：78 張的二態剪影兩兩 Hamming，normal 最小 2、urgent 最小 0，
+// ≤ 4 格的有 23 組。純剪影會讓 ceo/closing、guard/tourist 這些在頁面上變成同一個
+// 東西。**配件色才是識別**（第 19 組守著兩兩 ΔE ≥ 9），所以這裡照常上配件色。
 //
 // cell = 4 → 28×36 px，是 sprites.js 檔頭聲明的 14×18 下限的兩倍；
 // 窄螢幕由 CSS 縮到 21×27，仍在下限之上。
-export function codexTile(id, known, opts = {}){
-  if (!known) return `<div class="pxTile pxLocked" aria-hidden="true"></div>`;
-  return `<div class="pxTile">${spriteSVG(id, { cell: opts.cell || 4, ...opts })}</div>`;
+export function codexTile(id, opts = {}){
+  return `<div class="pxTile">${spriteSVG(id, { cell: 4, ...opts })}</div>`;
 }
 
 // ---------------------------------------------------------------- favicon
