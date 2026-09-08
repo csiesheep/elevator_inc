@@ -51,7 +51,12 @@ export const CONFIG = {
   WOM_MIN:        0.80,   // 評價 0 時的人流倍率（票價乘數已經在懲罰低評價了，別疊太重）
   WOM_MAX:        1.50,   // 評價 5 時的人流倍率
   RATE_PER_WEIGHT: 0.032,  // 人流 = 常數 × 人口權重^RATE_EXP
-  RATE_EXP:        0.5,    // 次線性：樓越高人流會成長，但不是線性成長。
+  // **owner 裁決（#151，逐字）：「就 0.65 / 1.5，不要再比較格子了」。**
+  // 0.5 → 0.65 是 #146 那張 5×5 網格（RATE_EXP × 樓層帶 pop 傾斜 k）挑出來的一格。
+  // orchestrator 提過 0.70/1.5 在網格上是 5/6、這一格是 4/6，也提過「0.65 比較溫和」
+  // 在收入上不成立（$97.4M vs $83.8M）——**owner 看過之後維持原判**。
+  // 指數與下面 BANDS 的七個 pop 是同一格的兩半，要動就要一起動（見 tests 第 0 組那條 guard）。
+  RATE_EXP:        0.65,   // 次線性：樓越高人流會成長，但不是線性成長。
                            // 電梯的吞吐量被井數綁死（最多 9 座），如果人流跟樓層線性成長，
                            // 蓋高就等於自殺。改成「樓高 = 每趟更值錢」而不是「樓高 = 更多人」。
 };
@@ -2161,23 +2166,26 @@ export const PASSENGERS = [
 
 // ---------------------------------------------------------------- 樓層類型（進度軸）
 // pop  = 每層的相對人口（決定這一帶有多少人要搭電梯）
+//        **七個 pop 於 #151 一起改過**：`pop' = pop × (1 + k×i/6)`，k = 1.5、i 是這張表的列序，
+//        也就是往上每一帶多加 1/4——低樓層不動，屋頂那一帶乘 2.5。
+//        跟上面的 `RATE_EXP: 0.65` 是同一格，owner 裁決（#151）逐字：「就 0.65 / 1.5」。
 // peak = 一天之中什麼時候「往這裡去」：up 是進來的尖峰，down 是離開的尖峰（小時）
 // wknd = 週末的人流倍率
 export const BANDS = [
   { key:'retail', from:1,  to:10,  name:'零售',     color:'#3a4a63', tier:1.0,
     pop:1.15, up:[11,20], down:[11,21], wknd:1.5, unlock:'基礎流量' },
   { key:'office', from:11, to:20,  name:'辦公',     color:'#3f5a52', tier:2.6,
-    pop:1.00, up:[8,10],  down:[17,19], wknd:0.22, unlock:'尖峰時段：早上 9 點與傍晚 6 點暴衝' },
+    pop:1.25, up:[8,10],  down:[17,19], wknd:0.22, unlock:'尖峰時段：早上 9 點與傍晚 6 點暴衝' },
   { key:'hotel',  from:21, to:45,  name:'飯店',     color:'#5c4a3a', tier:5.5,
-    pop:0.75, up:[20,24], down:[7,11],  wknd:1.6, unlock:'行李（佔位）、夜間到達與早晨退房' },
+    pop:1.125, up:[20,24], down:[7,11],  wknd:1.6, unlock:'行李（佔位）、夜間到達與早晨退房' },
   { key:'resid',  from:46, to:70,  name:'住宅',     color:'#4a3f5c', tier:10.0,
-    pop:0.90, up:[18,22], down:[7,9],   wknd:1.2, unlock:'常客、搬家公司；早上下樓、晚上回家' },
+    pop:1.575, up:[18,22], down:[7,9],   wknd:1.2, unlock:'常客、搬家公司；早上下樓、晚上回家' },
   { key:'obs',    from:71, to:85,  name:'觀景台',   color:'#3a5570', tier:18.0,
-    pop:0.55, up:[10,18], down:[12,21], wknd:2.0, unlock:'觀光客潮，單向朝聖' },
+    pop:1.10, up:[10,18], down:[12,21], wknd:2.0, unlock:'觀光客潮，單向朝聖' },
   { key:'exp',    from:86, to:99,  name:'實驗樓層', color:'#5c3a4a', tier:30.0,
-    pop:0.45, up:[6,23],  down:[6,23],  wknd:0.8, unlock:'研究員與破壞平衡的東西' },
+    pop:1.0125, up:[6,23],  down:[6,23],  wknd:0.8, unlock:'研究員與破壞平衡的東西' },
   { key:'roof',   from:100, to:9999, name:'屋頂→軌道', color:'#2f4f6b', tier:42.0,
-    pop:0.30, up:[10,20], down:[10,20], wknd:1.4, unlock:'結局' },
+    pop:0.75, up:[10,20], down:[10,20], wknd:1.4, unlock:'結局' },
 ];
 
 export const bandOf = f => BANDS.find(b => f >= b.from && f <= b.to) || BANDS[0];

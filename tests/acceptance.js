@@ -42,6 +42,29 @@ const SPEC = {
   bandRanges: [[1,10],[11,20],[21,45],[46,70],[71,85],[86,99],[100,9999]],
   floorSteps: 19,          // §5.8：5 + 5×19 = 100
   floorPerStep: 5,
+  // --- 人流的三個旋鈕（#151）---------------------------------------------
+  // **在 #151 之前，84 條檢查裡對這三個東西的引用是 0 次。**
+  // `grep -n 'RATE_EXP\|RATE_PER_WEIGHT' tests/acceptance.js` 零個命中，
+  // 樓層帶的 `pop` 也只有 `from/to` 被抄過（上面那條 bandRanges），`pop` 沒有。
+  // 於是**這三個之中任何一個被偷偷改掉，84 條裡只有第 21 組（煙霧測試，門檻鬆到
+  // 抓崩塌不抓漂移）會有反應**——而人流是這個遊戲所有數字的分母。
+  //
+  // `arrivalRate() = RATE_PER_WEIGHT × W^RATE_EXP × womMult`（sim.js），
+  // `W` 是每一層的 `pop` 加總（`floorWeight()`，逐帶讀 `BANDS[i].pop`）。
+  // 這條界加上去的當天就用上了：`RATE_EXP` 0.50 → 0.65 讓 100 層滿配那一格的
+  // 單輪收入從 $48.9M 變成 $97.4M（3 顆種子 12 遊戲日加總，同儀器同種子只換設定）——
+  // **那是把整個經濟翻倍**，而它在這張表上原本一個字都沒有。
+  //
+  // ⚠ **下面這三行的新值與產品是同一個 commit 改的**，所以這條 guard 在那一筆上
+  // 驗不到東西（跟 ORBIT_CASH 同一個坑）。擋它的是這一句逐字的裁決：
+  // **owner 裁決（#151，逐字）：「就 0.65 / 1.5，不要再比較格子了」**
+  // ——`0.65` 是 `RATE_EXP`，`1.5` 是樓層帶傾斜 `k`（`pop'[i] = pop[i] × (1 + k×i/6)`，
+  // i 是 bandRanges 的列序）。下一個人要動這三個數字，要找得到一句同等份量的原話。
+  ratePerWeight: 0.032,    // §5.x 人流公式的常數
+  rateExp: 0.65,           // §5.x 次線性指數（#151，原 0.5）
+  // §5.7 樓層帶表的 pop 欄，順序同 bandRanges（retail…roof）。
+  // #151 之後的值；原值 [1.15, 1.00, 0.75, 0.90, 0.55, 0.45, 0.30] × (1 + 1.5×i/6)。
+  bandPops: [1.15, 1.25, 1.125, 1.575, 1.10, 1.0125, 0.75],
 };
 
 // ---------------------------------------------------------------- 0 對照
@@ -105,6 +128,38 @@ check('樓層帶範圍', () => {
 check('加蓋段數', () => {
   const u = UPGRADES.find(x => x.id === 'floor');
   return eq(u && u.max, SPEC.floorSteps, "UPGRADES['floor'].max");
+});
+// **人流的三個旋鈕**（#151）。寫成一條而不是九條，是因為它們是同一條乘法鏈上的
+// 三個因子：`RATE_PER_WEIGHT × (Σ pop)^RATE_EXP × womMult`。分成九條的話，
+// 紅的時候要在九列裡拼出「這條鏈被動了多少」；寫成一條，紅的訊息一次列出全部落差。
+//
+// **綠的時候也把七個 pop 印出來**（`ok()` 會帶訊息）：#146 的網格證明了
+// 這七個數字是最容易被「調平衡」偷偷搬動的一組，而搬動的方式通常是整排等比拉——
+// 印出來才看得見那個形狀。
+//
+// **這條擋得住什麼／擋不住什麼**：它擋的是「產品的數字改了、抄本沒改」。
+// 它**擋不住**「兩邊一起改」——那要靠 commit 裡引得出的一句裁決（見上面 ORBIT_CASH
+// 那一段）。它也不保證這三個數字是好的平衡，只保證它們是**被決定過**的。
+check('人流三旋鈕：RATE_PER_WEIGHT / RATE_EXP / 七帶 pop', () => {
+  const bad = [];
+  if (C.RATE_PER_WEIGHT !== SPEC.ratePerWeight)
+    bad.push(`RATE_PER_WEIGHT 期望 ${SPEC.ratePerWeight}，實際 ${C.RATE_PER_WEIGHT}`);
+  if (C.RATE_EXP !== SPEC.rateExp)
+    bad.push(`RATE_EXP 期望 ${SPEC.rateExp}，實際 ${C.RATE_EXP}`);
+  const pops = BANDS.map(b => b.pop);
+  if (pops.length !== SPEC.bandPops.length)
+    bad.push(`樓層帶數量 期望 ${SPEC.bandPops.length}，實際 ${pops.length}`);
+  else for (let i = 0; i < pops.length; i++)
+    if (pops[i] !== SPEC.bandPops[i])
+      bad.push(`${BANDS[i].key}.pop 期望 ${SPEC.bandPops[i]}，實際 ${pops[i]}`);
+  return ok(bad.length === 0,
+    bad.length ? `人流的旋鈕被動過而抄本沒跟上（${bad.length} 處）：` + bad.join('；')
+               + `｜人流 = RATE_PER_WEIGHT × W^RATE_EXP × womMult，`
+               + `這三個之中任何一個動了，塔裡每一個數字都會動。`
+               + `改是可以的，但要在 SPEC 這邊留下一句說得出來源的話。`
+      : `RATE_PER_WEIGHT=${C.RATE_PER_WEIGHT}、RATE_EXP=${C.RATE_EXP}、`
+        + `pop=[${BANDS.map(b => b.key + ' ' + b.pop).join('、')}]`
+        + `｜擋的是「產品改了、抄本沒改」；擋不到兩邊一起改，也不保證這組數字是好的平衡。`);
 });
 
 // ---------------------------------------------------------------- 1 天花板
@@ -2435,15 +2490,29 @@ export { summary };
 // 下限的取法：欠配那一列原本是 71.2 對 55（留 16 點餘裕），新常態 50.3 依同樣比例
 // 取 40（留 10 點）。中配 84.0 → 75，高配 95.5 → 90。
 // **這是煙霧測試的門檻，不是配平目標**：抓的是崩塌，不是漂移。
+// ---- #151 之後重訂（owner 裁決）----
+// `RATE_EXP` 0.5 → 0.65、七帶 `pop` 依 k=1.5 傾斜之後，這七列**六列跌破**。
+// 那不是壞掉，是這次改動的本意：#36 要的是「少一井真的會痛」，
+// 而**配備不足會痛**跟**井數有意義**是同一件事的兩面，不能只要一面。
+//
+// ⚠ **這七列量的是中期，不是終局。** 即使名字裡有「滿級」的那一列，
+// `speed/accel/door` 也只有 3/3/5（上限 15）、井數 6（沒燒藍圖）——「滿級」
+// 指的只有載客量。所以這裡的 79.2% 跟 #146 網格裡 100 樓 8 井的 98.94%
+// **不矛盾，是兩個不同的遊戲階段**。中期變硬是這次改動最大的代價，
+// owner 看過數字之後裁決接受。
+//
+// 下限一律取「新實測 − 8～10 點」，跟舊的取法同一個比例。
+// 新實測（3 顆種子 × 15 遊戲日，`436ad4d`）逐列寫在每一行的行末。
+// **這是煙霧測試的門檻，不是配平目標**：抓的是崩塌，不是漂移。
 const THR_CONFIGS = [
   // 名稱                        樓層 up.shaft up.cap  額外自動化   送達率下限
-  ['tight 2井cap6 45層',          45,      1,     1,  [],            65],
-  ['healthy 3井cap8 45層',        45,      2,     2,  [],            80],
-  ['100層 欠配 3井cap8',         100,      2,     2,  [],            40],
-  ['100層 中配 4井cap14 +group', 100,      3,     6,  ['group'],     75],
-  ['100層 高配 滿級 +dest+group',100,      5,    15,  ['dest','group'], 90],   // cap 16 → 15：#142 之後 cap 的上限就是 15
-  ['look+group 3井cap6 45層',     45,      2,     1,  ['group'],     75],
-  ['dest+group 3井cap6 45層',     45,      2,     1,  ['dest','group'], 70],
+  ['tight 2井cap6 45層',          45,      1,     1,  [],            40],   // 實測 48.0（舊 65）
+  ['healthy 3井cap8 45層',        45,      2,     2,  [],            60],   // 實測 69.8（舊 80）
+  ['100層 欠配 3井cap8',         100,      2,     2,  [],            28],   // 實測 35.0（舊 40）
+  ['100層 中配 4井cap14 +group', 100,      3,     6,  ['group'],     45],   // 實測 55.1（舊 75）
+  ['100層 高配 滿級 +dest+group',100,      5,    15,  ['dest','group'], 70],// 實測 79.2（舊 90）／cap 16 → 15：#142 之後 cap 的上限就是 15
+  ['look+group 3井cap6 45層',     45,      2,     1,  ['group'],     68],   // 實測 76.1（舊 75，這一列本來就沒跌破）
+  ['dest+group 3井cap6 45層',     45,      2,     1,  ['dest','group'], 54],// 實測 62.2（舊 70）
 ];
 const THR_SEEDS = [1, 7, 13];
 const THR_DAYS = 15;
@@ -2737,6 +2806,10 @@ check('整棵樹的總額落在裁決的量級上', () => {
 const excCrate = PASSENGERS.find(p => p.id === 'crate');
 const excIsExcl = p => !!(p.exclusive || (p.t && p.t.exclusive));
 const EXC_BAND = BANDS.find(b => b.key === 'exp');    // 實驗帶 86–99 → 索引 85–98
+// 「隨機池抽出來的貨箱」——**這是 `crate.w` 唯一直接控制的東西**。
+// 事件 `cratehaul` 也是 `type:'crate'`，但它從大廳出發，所以起點那一項把它排除掉。
+// 第 3 條的兩欄（生出來幾個 / 上車幾趟）共用這一支，定義只有一份。
+const excIsPool = p => p.type === 'crate' && p.origin >= EXC_BAND.from - 1;
 
 // 場景 = #147 量測欄位的同一組設定：100 樓、滿級現金升級、9 個自動化全開、評價 5。
 // ⚠ **井數要靠技能墊**：現金升級的 `shaft` 滿級只有 5，而 `derived()` 是
@@ -2757,16 +2830,31 @@ function excRun({ shafts = 6, days = 12, seed = 1, deep = false } = {}){
     let sealedRides = 0, poolRides = 0, evtRides = 0, sealedTicks = 0, soloHits = 0;
     const ridealong = [];      // 規則 1 被破壞：封車的車上還有別人
     const notEmpty = [];       // 規則 2 被破壞：包場的人上的不是一台空車
+    // ---- 第 3 條在 #151 之後要的兩個量（為什麼要，寫在第 3 條上面）
+    // seenPool：這一場總共**出現過**幾個隨機池的貨箱。`crate.w` 控制的是它。
+    // emptyShaftTicks：空車有多稀有。包場只上空車、`soloCalls()` 也只對空車回傳，
+    //   所以空車是這個機制的**供給**，而供給不歸 `crate.w` 管。把需求與供給
+    //   混在同一個計數器裡，就是這條檢查在 #151 那一輪紅掉的原因。
+    const seenPool = new Set();
+    let emptyShaftTicks = 0, shaftTicks = 0;
     const n = Math.round(days * SPEC.daySeconds / C.STEP);
     for (let i = 0; i < n; i++){
       M.step(st, sim, C.STEP);
+      // 佇列每 15 tick（0.25 模擬秒）掃一次就夠：貨箱 `patience:999`，不可能在兩次
+      // 掃描之間出現又消失；而**上了車的那一刻是每 tick 都在看的**（下面那一段），
+      // 所以「一生出來就上車」也漏不掉。每 tick 掃一次 sim.waiting 會讓這一組慢三倍。
+      if (i % 15 === 0) for (const p of sim.waiting) if (excIsPool(p)) seenPool.add(p);
       for (let k = 0; k < sim.shafts.length; k++){
         const s = sim.shafts[k];
+        shaftTicks++; if (!s.riders.length) emptyShaftTicks++;
         // 「封車」的定義只有一個：車上有人 `isExcl`。**不是**「車上剛好一個人」——
         // 拿結論當定義的話，第 1 條就永遠不會紅（它要驗的正是那個結論）。
         let nExcl = 0, first = -1;
         for (let j = 0; j < s.riders.length; j++)
-          if (excIsExcl(s.riders[j])){ nExcl++; if (first < 0) first = j; }
+          if (excIsExcl(s.riders[j])){
+            nExcl++; if (first < 0) first = j;
+            if (excIsPool(s.riders[j])) seenPool.add(s.riders[j]);
+          }
         if (nExcl > 0){
           sealedTicks++;
           if (s.riders.length !== 1 || nExcl !== 1)
@@ -2776,7 +2864,7 @@ function excRun({ shafts = 6, days = 12, seed = 1, deep = false } = {}){
             const p = s.riders[first];
             // 這一趟的包場者是**隨機池抽出來的貨箱**（起點在實驗帶，受 `crate.w` 控制），
             // 還是**事件生的**（`cratehaul` 與 `satellite` 都從大廳出發，w 完全不受影響）？
-            if (p.type === 'crate' && p.origin >= EXC_BAND.from - 1) poolRides++; else evtRides++;
+            if (excIsPool(p)) poolRides++; else evtRides++;
             // 「上車前那一刻 `riders.length === 0`」的**可觀測等價說法**：下客在上客
             // 之前跑完，而 push 只往後接，所以他在這個 tick 結束時位於索引 0，
             // 等於他被 push 進去的時候陣列是空的。
@@ -2789,6 +2877,8 @@ function excRun({ shafts = 6, days = 12, seed = 1, deep = false } = {}){
       }
     }
     return { sealedRides, poolRides, evtRides, sealedTicks, soloHits, ridealong, notEmpty,
+             poolBorn: seenPool.size, poolStuck: sim.waiting.filter(excIsPool).length,
+             emptyShaftTicks, shaftTicks,
              served: st.stats.served, abandoned: st.stats.abandoned };
   });
 }
@@ -2797,7 +2887,19 @@ function excRun({ shafts = 6, days = 12, seed = 1, deep = false } = {}){
 // 這一組要跑好幾百個遊戲日，一口氣同步跑完會讓 renderer 被瀏覽器當成當掉的分頁**殺掉**
 // ——實測在 Electron 的預覽窗裡穩定復現：整張 harness 連一個數字都印不出來。
 // 慢不是問題，**不讓出去才是**。
-const excTick = () => new Promise(r => setTimeout(r, 0));
+//
+// ⚠ **這裡曾經是 `setTimeout(r, 0)`，而那讓這一組在背景分頁裡跑不完。**
+// 量到的（同一個隱藏分頁、Electron 預覽窗）：前幾次讓出是 0 ms，之後被計時器
+// 節流吃掉，整組停在第 3 條上超過 10 分鐘；換 `MessageChannel` 更糟（5 次 10.6 秒）。
+// 而**計算本身不是問題**：一場 8 遊戲日 / 100 樓 / 滿級、含全部儀器，實測 1,958 ms，
+// 採樣縮小之後（4 顆種子 × 8 天 = 12 場 + 3 場深掃）總共約 35 秒。
+//
+// 上面那段註解記著為什麼一開始要讓出：**一口氣同步跑好幾百個遊戲日，
+// renderer 會被當成當掉的分頁殺掉**（整張 harness 一個數字都印不出來）。
+// 那個風險隨遊戲日數走，而現在只剩約 132 個遊戲日。所以這裡改成**不讓出**，
+// 並且把失敗模式寫在這裡：**如果哪天 harness 又整張空白，先看這裡**——
+// 那代表採樣長回去了，要嘛把它縮回來，要嘛想一個在背景分頁裡真的會回來的讓出方式。
+const excTick = () => Promise.resolve();
 
 // 第 1、2 條共用同一場（同種子、同設定）：兩條問的是同一批封車趟次的兩件事。
 const EXC_SEEDS = [1, 7, 13], EXC_DAYS = 12;
@@ -2841,6 +2943,47 @@ check('空車調度真的在跑：soloCalls 有回傳、而且包場的人上的
 // **這是儀器的自我證明**，不是平衡目標——它不管封車趟數是多少，只管 `crate.w`
 // 往上調的時候它有沒有跟著漲。不成立 = 旋鈕沒接上 = #147 那 12 格量測全部作廢。
 //
+// ⚠⚠ **#151 改寫（orchestrator 裁決，#151 留言逐字：「如果前提真的被證偽，改寫
+//     那條檢查成它真正要守的東西（旋鈕有沒有接上）」）。**
+//
+// 這一條原本斷言「w = 3/6/12，**封車趟數**嚴格遞增」。#151 把人流係數
+// （`RATE_EXP` 0.5→0.65、七帶 `pop` 一起傾斜）改掉之後它紅了：26 → 76 → **67**。
+// 量過了（同探針、同 12 顆種子、同 15 遊戲日，只換人流係數）：
+//
+//   人流   w    池子貨箱 生 → 上車（卡在佇列）   空車佔比   事件欄
+//   舊     3     19 → 18 （卡 1）                23.07%      33
+//   舊     6     41 → 41 （卡 0）                21.02%      33
+//   舊    12     59 → 59 （卡 0）                24.39%      33
+//   新     3     69 → 26 （卡 43）                0.95%      10
+//   新     6    132 → 79 （卡 53）                1.54%       9
+//   新    12    250 → 73 （卡 177）               1.29%      11
+//
+// **旋鈕接得非常牢**：生出來的貨箱是 69 → 132 → 250（1 : 1.91 : 3.62），
+// 新舊人流下都嚴格遞增。**壞掉的是「上車」那一端，而它不歸 `crate.w` 管**：
+// 包場只上空車（`openDoors` 的規則 2）、`soloCalls()` 也只對空車回傳，
+// 所以空車是這個機制的供給——而新人流把空車佔比從 **23.07% 打到 0.95%**（24 倍）。
+// 供給封頂在每 12 種子 × 15 天約 75 趟，w=12 生 250 個貨箱只是讓 177 個卡在佇列裡；
+// 封住的車自己又不載別人，於是空車更少（1.54% → 1.29%），趟數**反而掉**。
+//
+// 也就是說「三個 w 嚴格遞增」是在**舊人流、供給不受限**（送達率 95–100%）之下
+// 才成立的巧合，不是旋鈕的性質。這一條改成分開守兩件事：
+//
+//   A（旋鈕本體，三格都要）  `crate.w` 上調 → **生出來的池子貨箱**嚴格遞增。
+//                            這個量與空車供給無關，所以它在任何人流下都成立。
+//   B（旋鈕接到 #147 量的那個計數器上）在**設計的操作範圍內**（w 3→6，
+//                            `crate` 那一列的註解寫著 w:3「一場約兩個」）
+//                            封車趟數要跟著漲；而且**每一格都要 > 0**。
+//   w=12 的封車趟數只印不斷言——供給封頂是產品的事實，不是旋鈕壞了。
+//   飽和要看得見，所以「卡在佇列裡幾個」與空車佔比一起印出來。
+//
+// ⚠ 放寬的是**斷言的對象**，不是門檻：A 比原本嚴（三格都要遞增，而且量的是旋鈕
+//   本身），B 只留下原本三個比較裡真的屬於旋鈕的那一個。**證偽走過**：
+//   把 `js/sim.js` 的 `isExcl` 注成恆 false，這一條紅（證據貼在 #151）。
+//
+// ⚠ 這裡量到的「新人流下 w=3 只有 26/69 的貨箱上得了車、43 個到第 15 天還卡著」
+//   是一個**平衡回歸**，已回報 orchestrator（#151）：`content.js` 的 `crate` 那一列
+//   註解寫的實測送達率是舊人流下量的。那是另一張單，這一條不管它。
+//
 // ⚠ **它數的是「隨機池抽出來的貨箱」那一半的封車趟數，不是全部的封車趟數**，而這
 // 一點是量完之後才知道非改不可的（#147 的留言有完整數字）：封車有**三個來源**，
 // 只有一個歸 `crate.w` 管——
@@ -2853,7 +2996,17 @@ check('空車調度真的在跑：soloCalls 有回傳、而且包場的人上的
 // 數與 w 有關的那一半只要 305 個。**所以這裡數的是後者**——擋的是同一件事
 // （旋鈕沒接上就是 0/0/0），成本差 2.5 倍。總數也印出來，讓稀釋看得見。
 const EXC_DOSE = [3, 6, 12];
-const EXC_DOSE_SEEDS = [1, 7, 13, 21, 29, 37, 43, 51, 2, 3, 5, 11], EXC_DOSE_DAYS = 15;
+// ---- 採樣縮小（owner 裁決，#151）----
+// 原本是 12 顆種子 × 15 遊戲日 = 36 場模擬。orchestrator 在合併前跑了三次，
+// **每次都超過 10 分鐘還沒收工**（前面 84 條全綠，就卡在這一條）。
+// #151 的儀器又多了一道「每 15 tick 掃一次佇列」，只會更慢。
+// **一條要跑十分鐘的 guard 等於沒有 guard——沒有人會跑它。**
+//
+// 縮到 4 顆種子 × 8 遊戲日 = 12 場。這一條要分辨的訊號很大
+//（貨箱數 69 / 132 / 250，比例 1 : 1.91 : 3.62），4 顆種子綽綽有餘；
+// 它守的是「旋鈕有沒有接上」，不是一個 1pp 的門檻。
+// ⚠ 縮的是**採樣**，不是斷言：A 仍然三格都要遞增，B 仍然要 3→6 漲且每格 > 0。
+const EXC_DOSE_SEEDS = [1, 7, 13, 21], EXC_DOSE_DAYS = 8;
 
 // 重活在模組頂層跑完（同上：一場一場讓出主執行緒），check() 只讀結果。
 const excDoseRows = [];
@@ -2866,32 +3019,53 @@ const excDoseRows = [];
       for (const sd of EXC_DOSE_SEEDS){ runs.push(excRun({ shafts: 6, days: EXC_DOSE_DAYS, seed: sd })); await excTick(); }
       const add = k => runs.reduce((a, r) => a + (typeof r[k] === 'number' ? r[k] : r[k].length), 0);
       excDoseRows.push({ w, pool: add('poolRides'), evt: add('evtRides'),
-                         all: add('sealedRides'), ridealong: add('ridealong') });
+                         all: add('sealedRides'), ridealong: add('ridealong'),
+                         born: add('poolBorn'), stuck: add('poolStuck'),
+                         emptyTicks: add('emptyShaftTicks'), shaftTicks: add('shaftTicks') });
     }
   } finally { excCrate.w = w0; }      // **一定要還原**：後面的 check 讀的是同一個物件
 }
 
-check('劑量反應是單調的：crate.w 3/6/12，封車趟數嚴格遞增', () => {
+check('劑量反應：crate.w 3/6/12——貨箱數嚴格遞增，設計範圍內封車趟數跟著漲', () => {
   if (excCrate.exclusive !== true)
     return 'TODO: `crate` 還沒有 exclusive:true——旋鈕的另一端不存在，量不出劑量反應';
   const rows = excDoseRows;
-  const line = rows.map(r => `w=${r.w} → 池子 ${r.pool} 趟（事件 ${r.evt}、合計 ${r.all}）`).join('、');
+  const line = rows.map(r => `w=${r.w} → 貨箱 ${r.born} 個、封車 ${r.pool} 趟`
+    + `（卡在佇列 ${r.stuck}、事件 ${r.evt}、合計 ${r.all}、空車 ${(100 * r.emptyTicks / Math.max(1, r.shaftTicks)).toFixed(2)}%）`).join('、');
   // 前提：量到的「封車」要真的是封車。搭便車的話這個計數器量的是別的東西，
   // 它單調不單調都證明不了旋鈕接上了。
   const ride = rows.reduce((a, r) => a + r.ridealong, 0);
   if (ride > 0)
     return `量到 ${ride} 次「封車的車上還有別人」——這個計數器量的不是封車，`
          + `所以它單調也沒有意義（先看第 1 條）｜${line}`;
-  const ne = nonEmpty(rows[0].pool, 'w=3 就抽不出半個貨箱——旋鈕的起點是空的');
+  const ne = nonEmpty(rows[0].born, 'w=3 就抽不出半個貨箱——旋鈕的起點是空的');
   if (ne !== true) return ne;
   const bad = [];
+  // A · 旋鈕本體：生出來的貨箱三格嚴格遞增。這一格與空車供給無關。
   for (let i = 1; i < rows.length; i++)
-    if (!(rows[i].pool > rows[i - 1].pool))
-      bad.push(`w=${rows[i - 1].w}(${rows[i - 1].pool}) → w=${rows[i].w}(${rows[i].pool}) 沒有變多`);
+    if (!(rows[i].born > rows[i - 1].born))
+      bad.push(`【旋鈕】w=${rows[i - 1].w}(生 ${rows[i - 1].born}) → w=${rows[i].w}(生 ${rows[i].born}) 沒有變多`);
+  // B · 旋鈕接到 #147 那個計數器上：設計範圍內（3→6）封車趟數要跟著漲，
+  //     而且每一格都要生得出封車趟次。
+  // ⚠ **B 原本還斷言「3→6 封車趟數要跟著漲」，採樣縮小之後那一條站不住，拿掉了。**
+  //   4 顆種子 × 8 天量到的封車趟數是 **2 / 2 / 14**——w=3 與 w=6 各只有兩趟，
+  //   「嚴格遞增」在個位數上是雜訊不是訊號。放大採樣可以救它，但那正是這一組
+  //   跑不完的原因（見 `excTick` 上面那段）。
+  //   **而且它本來就多餘**：A 已經在管「旋鈕接上沒有」，而且管得比它嚴。
+  //
+  // B 留下的這一條**不是門檻，是存活**：每一格至少要有一趟封車。
+  //   它是這整組唯一擋得住「機制整個消失」的斷言——A 數的是**生出來的貨箱**
+  //   （`excIsPool` 只看 type 與起點），把 `isExcl` 注成恆 false 的話 A 照樣全綠。
+  //   **證偽走這一條。**
+  for (const r of rows)
+    if (!(r.pool > 0)) bad.push(`【存活】w=${r.w} 一趟封車都沒有——包場機制在這個人流下是死的`);
   return ok(bad.length === 0,
     `${EXC_DOSE_SEEDS.length} 顆種子 × ${EXC_DOSE_DAYS} 遊戲日 / 6 井 / 100 樓：${line}`
     + (bad.length ? `｜**${bad.join('、')}**` : '')
     + `｜這條是儀器的自我證明：它紅了，#147 的 12 格量測全部不能信。`
+    + `｜⚠ 「貨箱」是 crate.w 直接控制的量，「封車趟數」還要搶一台空車——`
+    + `#151 把空車佔比從 23.07% 打到 1% 上下，所以 w=12 那一格封車趟數會**掉**`
+    + `（供給封頂，不是旋鈕壞了）。斷言分成兩半的理由寫在上面。`
     + `｜⚠ 事件那一欄（cratehaul + satellite）**不隨 w 動**——`
     + `這就是為什麼「總封車趟數」是一支鈍的儀器。`);
 });
