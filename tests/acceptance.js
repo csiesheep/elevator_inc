@@ -8,6 +8,12 @@ import { section, check, eq, near, ok, nonEmpty, R, summary } from './harness.js
 import { CONFIG as C, BANDS, UPGRADES, PASSENGERS, ACHIEVEMENTS, SKILLS, EVENTS, TENANTS, AUTOMATION } from '../js/content.js';
 import { EN } from '../js/i18n-content.js';
 import { PEOPLE } from '../js/sprites.js';
+import { MOTIFS, GLOW } from '../js/interior.js';
+// 第 26 組（#152）用的兩個模組。`landride.js` 是 `tools/landgen.py` 的產物；
+// `landing.js` 包了一層 `if ($('#btnStart'))` 的守衛，所以 harness import 它不會碰 DOM。
+import { RIDE, LAND_SRC } from '../js/landride.js';
+import { rulesHTML, mountRide, paintRide } from '../js/landing.js';
+import { getLang, setLang } from '../js/i18n.js';
 import * as S from '../js/state.js';
 import * as M from '../js/sim.js';
 
@@ -3281,4 +3287,284 @@ check('問號不是第 79 種人：不在 PEOPLE 裡，spriteFor() 也拿不到�
     + `它住在 js/spritedom.js，不在 js/sprites.js——第 15/16/17/19/20 組那五條`
     + `CIEDE2000 判準守的是**人物**的配件識別色，問號沒有那種東西`
     + (bad.length ? `｜**${bad.join('、')}**` : ''));
+// ================================================================ 25 首頁那段動畫會不會安靜過期（#152 / #150）
+//
+// ⚠⚠ **這一組是 FE 寫的，不是 orchestrator。**
+//     TEAM.md 寫「`tests/` 是 orchestrator 的：peer 可以跑、可以證偽、**不編輯**」，
+//     而 #152 與 #150 兩張單都寫「順手加一條驗收」。兩句話直接矛盾。
+//     我照工單做，但把它們**全部集中在這一塊**：要收回去或改寫，整塊搬走就好，
+//     不會纏到別組。（我已經在 #152 的開工留言上點名這件事。）
+//
+// ---- 這一組在守什麼 ----
+//
+// #148 把方向 B 的主要缺點寫成：「它是演出來的，而且**會無聲過期**——
+// 改 `content.js` 的 `townhall.hours`，首頁繼續說謊，沒有任何 guard 會紅。」
+//
+// 現在那段動畫的圖與字幕都是 `python tools/landgen.py` 從產品生成的，
+// 而產物裡帶著 `LAND_SRC`：**產生當下讀到的每一筆資料原樣**。
+// 下面這幾條拿**活的**模組再算一份同樣的結構，逐字元比。
+//
+// **這是「重新生成 = committed」的等價形式**，換過一次坐標：
+// 從「產出來的 byte」移到「產出所依據的 byte」。因為 harness 跑在瀏覽器裡，
+// 開不了 python，而一把鎖如果只存在於一支要有人想到去跑的腳本裡，它跟沒有一樣。
+// 逐 byte 的那一半在 `python tools/landgen.py --check`（這一組最後一條會提醒你跑它）。
+//
+// 它抓不到的那一半：有人改了 `landgen.py` 的**排版邏輯**（不是資料）卻沒重新生成。
+// 那只有 `--check` 抓得到。寫下來是因為一句只說自己守什麼、不說自己不守什麼的描述，
+// 讀的人會自己補一條比事實大的界線。
+section('26 首頁動畫會不會安靜過期（#152）');
+
+// 排序過的 JSON。兩邊都跑這一支，所以 key 的順序不會變成假的差異。
+const canon = v =>
+  Array.isArray(v) ? '[' + v.map(canon).join(',') + ']' :
+  (v && typeof v === 'object')
+    ? '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}'
+    : JSON.stringify(v);
+
+// 第一個不同的字元周圍那一段——紅的時候要看得出**哪一個欄位**變了，
+// 不是只報「不一樣」。
+function firstDiff(a, b){
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  return `第 ${i} 個字元起分家｜ committed：…${a.slice(Math.max(0, i - 50), i + 70)}…`
+       + `｜活的資料：…${b.slice(Math.max(0, i - 50), i + 70)}…`;
+}
+
+const REGEN = '→ 跑 `python tools/landgen.py` 重新生成（然後 commit 產物）。';
+
+// 活的模組 → 跟 landgen.land_src() 一模一樣的結構。
+// **欄位、大小寫、順序都要跟那邊對齊**（landgen 對顏色做了 .lower()）。
+const liveEvents = () => LAND_SRC.events.map(row => {
+  const e = EVENTS.find(x => x.id === row.id);
+  return e ? { id: e.id, name: e.name, n: e.n, at: e.at, to: e.to, hours: e.hours }
+           : { id: row.id, missing: true };
+});
+const liveBands = () => BANDS.map(b => ({ key: b.key, from: b.from, to: b.to,
+                                          name: b.name, color: b.color.toLowerCase() }));
+const livePeople = () => LAND_SRC.people.map(row => {
+  const p = PEOPLE[row.id];
+  return p ? { id: row.id, acc: p.acc.toLowerCase(), normal: p.normal, urgent: p.urgent }
+           : { id: row.id, missing: true };
+});
+const liveMotifs = () => LAND_SRC.motifs.map(row => ({
+  key: row.key, glow: (row.key in GLOW) ? GLOW[row.key] : null, rows: MOTIFS[row.key] || null,
+}));
+
+// theme.js 的 DAY 沒有 export（`P()` 混過白天夜晚，不是原表），
+// 所以跟 landgen 一樣從原碼剖。**兩邊都只拿原始 token 字串**：
+// float 一過 JSON 兩邊就分家（Python 的 `1.0` vs JS 的 `1`）。
+function livePalette(src){
+  const at = src.indexOf('const DAY = {');
+  if (at < 0) return null;
+  const seg = src.slice(at, src.indexOf('\n};', at));
+  const raw = {};
+  for (const m of seg.matchAll(/(\w+):\s*'(#[0-9a-fA-F]{6})'/g)) raw[m[1]] = m[2];
+  for (const m of seg.matchAll(/(\w+):\s*([0-9.]+),/g)) if (!(m[1] in raw)) raw[m[1]] = m[2];
+  return raw;
+}
+
+// 母體非空：這五條都是「兩邊一樣」型的斷言，
+// LAND_SRC 是空的話它們全部永遠通過。
+check('LAND_SRC 本身非空', () => {
+  const n = ['events', 'bands', 'people', 'motifs'].map(k => (LAND_SRC[k] || []).length);
+  const pal = Object.keys(LAND_SRC.palette || {}).length;
+  const ne = nonEmpty(Math.min(...n, pal),
+    'LAND_SRC 有一組是空的，下面五條「兩邊一樣」就沒有試過任何東西');
+  if (ne !== true) return ne;
+  return ok(true, `事件 ${n[0]} 筆、樓層帶 ${n[1]} 筆、小人 ${n[2]} 張、家具小景 ${n[3]} 組、DAY 色表 ${pal} 格`);
+});
+
+check('四站的事件資料 = 活的 EVENTS', () => {
+  const a = canon(LAND_SRC.events), b = canon(liveEvents());
+  return ok(a === b, `首頁畫的事件跟現在的 EVENTS 對不上。${REGEN}\n${firstDiff(a, b)}`);
+});
+
+check('七個樓層帶的起訖與顏色 = 活的 BANDS', () => {
+  const a = canon(LAND_SRC.bands), b = canon(liveBands());
+  return ok(a === b, `首頁畫的樓層帶跟現在的 BANDS 對不上。${REGEN}\n${firstDiff(a, b)}`);
+});
+
+check('畫進去的小人 = 活的 PEOPLE', () => {
+  const a = canon(LAND_SRC.people), b = canon(livePeople());
+  return ok(a === b, `首頁畫的小人跟現在的 sprites.js 對不上。${REGEN}\n${firstDiff(a, b)}`);
+});
+
+check('畫進去的家具小景 = 活的 MOTIFS / GLOW', () => {
+  const a = canon(LAND_SRC.motifs), b = canon(liveMotifs());
+  return ok(a === b, `首頁畫的家具小景跟現在的 interior.js 對不上。${REGEN}\n${firstDiff(a, b)}`);
+});
+
+check('用到的 DAY 色表 = 活的 theme.js', () => {
+  if (!THEME_SRC) return 'TODO: 拿不到 js/theme.js 的原碼（fetch 失敗），這條沒有驗到任何東西';
+  const live = livePalette(THEME_SRC);
+  if (!live) return 'TODO: theme.js 裡找不到 `const DAY = {`，剖法跟 landgen.py 已經分家了';
+  const a = canon(LAND_SRC.palette), b = canon(live);
+  return ok(a === b, `首頁用的 DAY 色表跟現在的 theme.js 對不上。${REGEN}\n${firstDiff(a, b)}`);
+});
+
+// 節拍表自己也要站得住：相機停在一層沒有畫出來的樓，
+// 上面那五條全綠而畫面是空的。
+check('四站停的樓都在自己的樓層帶裡、且不超過 MAX_FLOORS', () => {
+  const bad = [];
+  for (const b of RIDE.beats){
+    if (b.floor > C.MAX_FLOORS) bad.push(`${b.floor} 樓 > MAX_FLOORS ${C.MAX_FLOORS}`);
+    const band = BANDS.find(x => b.floor >= x.from && b.floor <= x.to);
+    if (!band) { bad.push(`${b.floor} 樓不屬於任何樓層帶`); continue; }
+    if (band.key !== b.band) bad.push(`${b.floor} 樓：產物寫 ${b.band}，實際是 ${band.key}`);
+  }
+  const ne = nonEmpty(RIDE.beats.length, '節拍表是空的');
+  if (ne !== true) return ne;
+  return ok(bad.length === 0,
+    `${RIDE.beats.length} 站：` + RIDE.beats.map(b => `${b.clock} ${b.floor}F ${b.ev.id}`).join(' → ')
+    + (bad.length ? '｜' + bad.join('｜') : ''));
+});
+
+check('時鐘牌上的小時落在事件自己的時段裡', () => {
+  // 設計稿上這一行本來是手寫的，而且**寫錯了**：第一站的時鐘寫 08:42，
+  // 而 anniversary 的 hours 是 10–12 點。現在小時是從 hours[0] 生出來的，
+  // 這條守的是下一個人又把它改回手寫。
+  const bad = RIDE.beats.filter(b => {
+    const h = Number(b.clock.slice(0, 2));
+    return !(h >= b.ev.hours[0] && h < Math.max(b.ev.hours[1], b.ev.hours[0] + 1));
+  }).map(b => `${b.ev.id} 時鐘寫 ${b.clock}，事件時段是 ${b.ev.hours[0]}–${b.ev.hours[1]}`);
+  const ne = nonEmpty(RIDE.beats.length, '節拍表是空的');
+  if (ne !== true) return ne;
+  return ok(bad.length === 0, bad.join('｜') || RIDE.beats.map(b => b.clock).join(' / '));
+});
+
+// ---- 字幕真的長得出來嗎 ----
+//
+// 上面那幾條**一條都沒有碰過畫面**：它們全部在比資料。
+// `landing.js` 的 `mountRide()` / `paintRide()` 壞掉（i18n 的鍵拼錯、
+// `placeName()` 找不到樓層帶、`RIDE.beats` 換了欄位名）的話，
+// 上面每一條還是綠的，而**首頁的字幕是空的**。
+//
+// harness 跑在瀏覽器裡，所以這一條真的把那四格建出來、兩種語言各讀一次、再拆掉。
+// 期望值是**這裡自己從 EVENTS / EN 導的**，不是呼叫 landing.js 的同一支函式。
+check('四站的字幕真的長得出來，而且逐字來自活的 EVENTS（中英各一次）', () => {
+  const host = document.createElement('div');
+  host.id = 'ride';
+  host.style.cssText = 'position:absolute;left:-99999px;width:1px;height:1px;overflow:hidden';
+  document.body.appendChild(host);
+  const back = getLang();
+  try {
+    mountRide();
+    const ne = nonEmpty(host.querySelectorAll('.rideBeat').length, 'mountRide() 一格字幕都沒有建出來');
+    if (ne !== true) return ne;
+    const bad = [];
+    const seen = {};
+    for (const lang of ['zh', 'en']){
+      setLang(lang); paintRide();
+      seen[lang] = [];
+      for (const b of RIDE.beats){
+        const at = host.querySelector(`[data-beat-at="${b.i}"]`);
+        const ev = host.querySelector(`[data-beat-ev="${b.i}"]`);
+        if (!at || !ev){ bad.push(`${lang}：第 ${b.i} 站沒有字幕節點`); continue; }
+        const live = EVENTS.find(x => x.id === b.ev.id);
+        if (!live){ bad.push(`${lang}：EVENTS 裡沒有 ${b.ev.id} 了`); continue; }
+        const want = lang === 'en' ? ((EN.events || {})[live.id] || {}).name : live.name;
+        const line = ev.textContent, head = at.textContent;
+        seen[lang].push(head + ' / ' + line);
+        if (!head.trim() || !line.trim()){ bad.push(`${lang}：第 ${b.i} 站的字幕是空的`); continue; }
+        if (head.indexOf(String(b.floor)) < 0) bad.push(`${lang}：第 ${b.i} 站沒有寫出樓層 ${b.floor}（"${head}"）`);
+        if (want && line.indexOf(want) < 0) bad.push(`${lang}：第 ${b.i} 站沒有寫出事件名「${want}」（"${line}"）`);
+        if (line.indexOf(String(live.n[0])) < 0 || line.indexOf(String(live.n[1])) < 0)
+          bad.push(`${lang}：第 ${b.i} 站沒有寫出人數 ${live.n[0]}–${live.n[1]}（"${line}"）`);
+      }
+    }
+    // 兩種語言要真的不一樣——都回中文的話上面每一條 en 都還是綠的（中文名也在 EN 那一行裡找得到嗎？
+    // 不會，但樓層數字會）。這一條把「語言切換其實沒有生效」擋掉。
+    if (seen.zh.join('|') === seen.en.join('|')) bad.push('中英兩次讀到一模一樣的字，語言切換沒有生效');
+    if (host.getAttribute('aria-label') === null || !host.getAttribute('aria-label').trim())
+      bad.push('動畫沒有 aria-label（它是 role="img"，讀螢幕的人只有這一句）');
+    return ok(bad.length === 0, bad.join('｜') || `中英各 ${RIDE.beats.length} 站｜zh：${seen.zh[0]}｜en：${seen.en[0]}`);
+  } finally {
+    setLang(back);
+    host.remove();
+  }
+});
+
+// ---- 兩個產物之間的那條縫 ----
+//
+// 上面那幾條守的是「資料」。但產物有**兩個檔**（`js/landride.js` 的 SVG 與
+// `css/landride.css` 的 @keyframes），而它們是靠 class 名接起來的。
+// 有人改了產生器裡的 class 名或 prefix、只重新生成了一半 → 圖還在、**動畫不見了**，
+// 而 `LAND_SRC` 一個字都沒變 → 上面五條全綠。這一條守那條縫。
+const RIDECSS_SRC = await fetch(new URL('../css/landride.css', import.meta.url) + '?probe=' + Math.random())
+  .then(r => r.ok ? r.text() : null).catch(() => null);
+
+check('landride.css 動的每一個 class，在 landride.js 的產物裡都找得到', () => {
+  if (!RIDECSS_SRC) return 'TODO: 拿不到 css/landride.css（fetch 失敗），這條沒有驗到任何東西';
+  const rules = [...RIDECSS_SRC.matchAll(/\.(ride[A-Za-z0-9]*)\s*\{[^}]*animation:\s*(ride-[A-Za-z0-9]+)/g)]
+    .map(m => ({ cls: m[1], kf: m[2] }));
+  const ne = nonEmpty(rules.length, 'landride.css 裡一條 animation 都沒有，這條沒有試過任何東西');
+  if (ne !== true) return ne;
+  const bad = [];
+  for (const { cls, kf } of rules){
+    if (RIDECSS_SRC.indexOf('@keyframes ' + kf + ' ') < 0) bad.push(`${kf}：CSS 在用它，但同一個檔裡沒有這組 @keyframes`);
+    // 相機／兩台車／兩片門在 SVG 裡；字幕那幾格是 landing.js 照 RIDE.beats 生的。
+    if (!/^rideBeat\d+$/.test(cls) && RIDE_SVG.indexOf('class="' + cls + '"') < 0)
+      bad.push(`.${cls}：CSS 在動它，但產物的 SVG 裡沒有這個 class（動畫會靜靜地不跑）`);
+  }
+  const beatRules = rules.filter(r => /^rideBeat\d+$/.test(r.cls)).length;
+  if (beatRules !== RIDE.beats.length)
+    bad.push(`字幕：CSS 有 ${beatRules} 條 .rideBeatN，節拍表有 ${RIDE.beats.length} 站`);
+  return ok(bad.length === 0,
+    bad.join('｜') || `${rules.length} 條 animation：` + rules.map(r => '.' + r.cls).join(' ') + `｜${REGEN}`);
+});
+
+check('逐 byte 那一半在 harness 以外', () => ok(true,
+  '上面八條守的是「產物所依據的資料」。'
+  + '「重新生成的檔跟 committed 逐 byte 相同」要跑 `python tools/landgen.py --check`'
+  + '（瀏覽器開不了 python）。它多守一件事：有人改了 landgen.py 的排版邏輯而沒有重新生成。'));
+
+// ---------------------------------------------------------------- #150：規則文案裡的結局價碼
+//
+// #150：`js/landing.js` 兩種語言都硬寫了 `ORBIT_CASH`（EN `$20M`、ZH `$2000 萬`），
+// 而 owner 把它從 2e7 改成 1e7 之後沒人改文案。**現行的八十幾條沒有一條看得到。**
+//
+// 這條守的不是「現在寫 10 還是 20」（那只能守一次），
+// 而是**文案算出來的 HTML 裡要含有由 `C.ORBIT_CASH` 導出的數字**。
+// 下一個人又把它寫成字面值，改常數的那一天這條就紅。
+//
+// ⚑ 預期值是**這裡自己導的**，不是呼叫 landing.js 的格式化函式——
+//   兩邊呼叫同一支函式的話，那支函式錯了這條還是綠的。
+check('規則文案（中英）都含有由 C.ORBIT_CASH 導出的數字', () => {
+  const back = getLang();
+  try {
+    // EN：遊戲裡那顆按鈕是 `'$' + fmtShort(C.ORBIT_CASH)`（ui.js:100），
+    //     文案要跟它逐字相同，不然首頁跟遊戲內會報兩個不同的價碼。
+    setLang('en');
+    const en = rulesHTML();
+    const wantEn = '$' + M.fmtShort(C.ORBIT_CASH);
+    // ZH：原句是「$2000 萬」，量詞是中文自己的，所以預期值在這裡另外導：
+    //     1e7 → 「1000」+「萬」。1e8 以上要改成「億」，這條會告訴你。
+    setLang('zh');
+    const zh = rulesHTML();
+    const unit = C.ORBIT_CASH >= 1e8 ? '億' : '萬';
+    const wantZh = String(C.ORBIT_CASH / (C.ORBIT_CASH >= 1e8 ? 1e8 : 1e4)).replace(/\.0+$/, '');
+    const bad = [];
+    if (en.indexOf(wantEn) < 0)
+      bad.push(`英文找不到 "${wantEn}"（ORBIT_CASH = ${C.ORBIT_CASH}）`);
+    if (zh.indexOf(wantZh) < 0 || zh.indexOf(unit) < 0)
+      bad.push(`中文找不到 "${wantZh} ${unit}"（ORBIT_CASH = ${C.ORBIT_CASH}）`);
+    if (en.indexOf(String(C.ORBIT_BP)) < 0 || zh.indexOf(String(C.ORBIT_BP)) < 0)
+      bad.push(`藍圖數 ${C.ORBIT_BP} 有一邊文案沒寫到`);
+    return ok(bad.length === 0,
+      bad.join('｜') || `EN 寫 "${wantEn}"、ZH 寫 "${wantZh} ${unit}"，兩邊都從 ORBIT_CASH=${C.ORBIT_CASH} 導出`);
+  } finally { setLang(back); }
+});
+
+// 母體非空：上面那條是「字串裡要有 X」，而一個空字串永遠沒有 X——
+// 文案函式如果回了空的，上面那條會紅得很困惑。這一條先把那個可能性拆掉。
+check('規則文案兩種語言都真的有內容', () => {
+  const back = getLang();
+  try {
+    setLang('en'); const en = rulesHTML();
+    setLang('zh'); const zh = rulesHTML();
+    const ne = nonEmpty(Math.min(en.length, zh.length), 'rulesHTML() 有一邊是空的');
+    if (ne !== true) return ne;
+    return ok(en.length > 800 && zh.length > 600 && en !== zh,
+      `EN ${en.length} 字元、ZH ${zh.length} 字元`);
+  } finally { setLang(back); }
 });
