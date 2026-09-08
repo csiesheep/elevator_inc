@@ -150,12 +150,8 @@ const DICT = {
   presBody:      ['這一輪換到 <b>📐 {0}</b> 張藍圖。<br>樓沒了，圖紙還在。',
                   'This run paid <b>📐 {0}</b> blueprints.<br>The tower is gone. The drawings are not.'],
   presBtn:       ['蓋新的', 'Build again'],
-  offlineTitle:  ['你不在的時候', 'While you were away'],
-  offlineBody:   ['大樓自己跑了 <b>{0}</b>。<br>離線收益（50% 效率、上限 {1} 小時）：<b>${2}</b>',
-                  'The building ran itself for <b>{0}</b>.<br>Offline earnings (50% rate, {1} hour cap): <b>${2}</b>'],
-  offlineBtn:    ['收下', 'Collect'],
-  hours:         ['{0} 小時 {1} 分', '{0}h {1}m'],
-  minutes:       ['{0} 分', '{0} min'],
+  // offlineTitle／offlineBody／offlineBtn 在 #155 拿掉了（離線收益移除）。
+  // hours／minutes 一起走：它們**唯一的讀者**是那個 overlay 的時長字串（main.js）。
   endTitle:      ['離開大氣層', 'Out of the atmosphere'],
   endBody:       ['電梯沒有在屋頂停下來。<br><br>井道繼續往上，穿過雲層、穿過對流層頂，最後停在一個沒有樓層編號的地方。<br><br>你蓋了 <b>{0}</b> 層，送了 <b>{1}</b> 個人，賺了 <b>${2}</b>。<br><br><span class="dim">遊戲結束了。你還是可以繼續蓋，但它已經沒有更高的地方可以去。</span>',
                   'The car does not stop at the roof.<br><br>The shaft keeps going, through the cloud deck, past the tropopause, and halts somewhere with no floor number at all.<br><br>You built <b>{0}</b> floors, carried <b>{1}</b> people, and earned <b>${2}</b>.<br><br><span class="dim">That is the ending. You can keep building, but there is nowhere higher to go.</span>'],
