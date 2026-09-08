@@ -188,7 +188,7 @@ function openSheet(title, html){
 //
 // ⚑ **字幕裡沒有任何一個數字是這裡寫的。** 時段、人數、起訖、樓層都從
 //   `RIDE.beats[].ev` 來，而那一欄是產生的時候從 `EVENTS` 抄下來的。
-//   資料改了而沒有重新生成 → 驗收第 25 組紅。
+//   資料改了而沒有重新生成 → 驗收第 26 組紅。
 function placeName(key){
   if (key === 'lobby') return t('landRideLobby');
   const b = BANDS.find(x => x.key === key);
@@ -208,7 +208,7 @@ function evLine(b){
           t('landRideCount', ev.n[0], ev.n[1])].join(' · ');
 }
 
-// ⚑ `mountRide` / `paintRide` 是匯出的，因為驗收第 25 組會**真的把那四格建出來**
+// ⚑ `mountRide` / `paintRide` 是匯出的，因為驗收第 26 組會**真的把那四格建出來**
 //   再讀一次（harness 跑在瀏覽器裡）。上面那些 guard 全部只讀資料，
 //   一條都沒有碰過畫面——這兩支壞掉的話首頁的字幕是空的，而它們還是綠的。
 //
@@ -251,7 +251,7 @@ function paint(){
 }
 
 // ⚑ **這一段包在一個守衛裡是故意的。**
-//   `rulesHTML()` 現在是匯出的（驗收第 25 組要 import 它來檢查 #150 那兩句），
+//   `rulesHTML()` 現在是匯出的（驗收第 26 組要 import 它來檢查 #150 那兩句），
 //   而模組頂層直接 `$('#btnStart').addEventListener` 會讓任何一個
 //   沒有首頁 DOM 的頁面（harness）一 import 就爆在 null 上。
 if ($('#btnStart')){

@@ -957,7 +957,7 @@ B_COST = ('<span class="k">節奏是演出來的——但只剩節奏。</span>'
           '<span class="k">其他每一個字都從 <code>EVENTS</code> 生成</span>：'
           '事件名、起訖、時段、人數，連隊伍多長都是 <code>(n0+n1)//2</code>。'
           'BE 明天把 <code>townhall</code> 的 <code>hours</code> 從 9-11 改成 8-10，'
-          'committed 的產物跟活的 <code>EVENTS</code> 對不上 → <span class="k">harness 紅</span>（#152 第 25 組）。'
+          'committed 的產物跟活的 <code>EVENTS</code> 對不上 → <span class="k">harness 紅</span>（#152 第 26 組）。'
           '剩下的代價是它有 18 秒：三秒就離開的訪客只會看到第一站。')
 
 
@@ -1308,7 +1308,7 @@ def page_c():
 #   css/landride.css  相機／轎廂／車門／字幕的 @keyframes
 #
 # **為什麼要 LAND_SRC**：#148 說 B「會安靜過期」——BE 改 `townhall.hours`，首頁繼續說謊。
-# 驗收（tests/acceptance.js 第 25 組）拿**活的** EVENTS / BANDS / PEOPLE / MOTIFS /
+# 驗收（tests/acceptance.js 第 26 組）拿**活的** EVENTS / BANDS / PEOPLE / MOTIFS /
 # theme.js 的 DAY 重新算一份同樣的結構，跟 LAND_SRC 逐字元比。
 # 對不上 = 有人改了資料而沒有重新生成 = 紅。
 #
@@ -1509,6 +1509,13 @@ def render_all():
 
 
 if __name__ == '__main__':
+    # Windows 的 stdout 預設是 cp1252，而下面每一句診斷都是中文。
+    # 不接這一行的話，`--check` 全綠的時候會在最後一句 print 上
+    # UnicodeEncodeError 而以 exit 1 收場：鎖本身是綠的，回傳值却是紅的。
+    for _s in (sys.stdout, sys.stderr):
+        try: _s.reconfigure(encoding='utf-8', errors='replace')
+        except Exception: pass
+
     files = render_all()
     check = '--check' in sys.argv
     bad = 0
