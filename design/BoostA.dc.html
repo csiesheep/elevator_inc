@@ -35,12 +35,15 @@
 
     /* 方向 A 的鈕：**同一個盒模型語彙，四個維度一起改**
        ── 尺寸（38→44 高、方形→帶字）、顏色（--edge→--gold 邊）、
-          形狀（有兩行字，工具鈕永遠只有一個字符）、位置（隔一條線）。
+          形狀（多一個詞，工具鈕永遠只有一個字符）、位置（隔一條線）。
        靜止就不同級，不必等按下去。 */
+    /* #157：owner 選了 A，但要拿掉第二行「按住 SPACE」。只剩一行之後，
+       原本 `flex-direction:column` + `gap:2px` 那組值會讓字偏上——
+       44px 的框裡放一行要重新置中，所以這裡改成單純的 row。 */
     .boost { background:var(--chipBg); border:3px solid var(--gold); color:var(--text);
              height:44px; border-radius:0; box-shadow:4px 4px 0 var(--drop);
-             display:inline-flex; flex-direction:column; align-items:center; justify-content:center;
-             gap:2px; padding:0 12px; }
+             display:inline-flex; align-items:center; justify-content:center;
+             gap:5px; padding:0 12px; }
     .boost.held { background:var(--gold); border-color:var(--gold); color:#16183a;
                   transform:translate(4px,4px); box-shadow:0 0 0 var(--drop); }
 
@@ -73,7 +76,7 @@
           問題是「靜止時它跟三顆工具鈕同一階」，那就把它從那條 CSS 規則裡拿出來，
           <b>四個維度一起改：大小、顏色、形狀、位置。</b>
           任何一個維度單獨改都能被主題或色盲吃掉，四個一起就吃不掉。
-          代價是這一版的全部：一條新 CSS 規則、`game.html` 裡兩個字、兩支 i18n 字串。
+          代價是這一版的全部：一條新 CSS 規則、`game.html` 裡兩個字、<b>一支</b> i18n 字串。
         </div>
       </div>
       <div class="box" style="border-color:#d63b3b; box-shadow:4px 4px 0 #d63b3b;">
@@ -119,7 +122,6 @@
             <span style="font-size: 16px;">🔥</span>
             <span class="han" style="font-size: 13px; font-weight: 900; color: var(--gold);">超速</span>
           </div>
-          <div style="font-size: 9.5px; letter-spacing: .12em; color: var(--dim); line-height: 1;">按住 SPACE</div>
         </div>
       </div>
     </div>
@@ -205,7 +207,8 @@
       </div>
       <!-- .btns：width:100%; margin-left:0（css/style.css:61）。
            三顆工具鈕靠左成一組，超速用 margin-left:auto 推到右緣，
-           中間**空出 120px 的真空氣**——這條行本來就有多的寬度，分隔是免費的。 -->
+           中間**空出一大段真空氣**——這條行本來就有多的寬度，分隔是免費的。
+           （#157 拿掉第二行之後鈕變窄，真空氣比原稿更多。） -->
       <div style="display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 8px;">
         <div class="chip">🏠</div>
         <div class="chip pxs" style="font-size: 12px; font-weight: 700;">EN</div>
@@ -216,7 +219,6 @@
             <span style="font-size: 16px;">🔥</span>
             <span class="han" style="font-size: 13px; font-weight: 900; color: var(--gold);">超速</span>
           </div>
-          <div style="font-size: 9.5px; letter-spacing: .12em; color: var(--dim); line-height: 1;">按住</div>
         </div>
       </div>
     </div>
@@ -305,7 +307,6 @@
             <div style="display:flex; align-items:center; gap:5px; line-height:1;">
               <span style="font-size:16px;">🔥</span>
               <span class="han" style="font-size:13px; font-weight:900; color:var(--gold);">超速</span></div>
-            <div style="font-size:9.5px; letter-spacing:.12em; color:var(--dim); line-height:1;">按住 SPACE</div>
           </div>
         </div>
       </div>
@@ -324,7 +325,6 @@
             <div style="display:flex; align-items:center; gap:5px; line-height:1;">
               <span style="font-size:16px;">🔥</span>
               <span class="han" style="font-size:13px; font-weight:900; color:var(--gold);">超速</span></div>
-            <div style="font-size:9.5px; letter-spacing:.12em; color:var(--dim); line-height:1;">按住 SPACE</div>
           </div>
         </div>
       </div>
@@ -339,7 +339,6 @@
         <div class="boost pxs" style="display:inline-flex;">
           <div style="display:flex; align-items:center; gap:5px; line-height:1;">
             <span style="font-size:16px;">🔥</span><span class="han" style="font-size:13px;font-weight:900;color:var(--gold);">超速</span></div>
-          <div style="font-size:9.5px; letter-spacing:.12em; color:var(--dim); line-height:1;">按住 SPACE</div>
         </div>
       </div>
       <div>
@@ -347,7 +346,6 @@
         <div class="boost held pxs" style="display:inline-flex;">
           <div style="display:flex; align-items:center; gap:5px; line-height:1;">
             <span style="font-size:16px;">🔥</span><span class="han" style="font-size:13px;font-weight:900;color:#16183a;">超速</span></div>
-          <div style="font-size:9.5px; letter-spacing:.12em; color:#16183a; line-height:1; opacity:.75;">放開停止</div>
         </div>
       </div>
       <div>
@@ -355,7 +353,6 @@
         <div class="boost held pxs" style="display:inline-flex;">
           <div style="display:flex; align-items:center; gap:5px; line-height:1;">
             <span style="font-size:16px;">🔥</span><span class="han" style="font-size:13px;font-weight:900;color:#16183a;">超速</span></div>
-          <div style="font-size:9.5px; letter-spacing:.12em; color:#16183a; line-height:1; opacity:.75;">放開停止</div>
         </div>
         <div class="pxs" style="font-size:10px; color:var(--dim); margin-top:6px; line-height:1.5;">跟 2 逐像素相同</div>
       </div>
@@ -364,7 +361,6 @@
         <div class="boost held pxs" style="display:inline-flex;">
           <div style="display:flex; align-items:center; gap:5px; line-height:1;">
             <span style="font-size:16px;">🔥</span><span class="han" style="font-size:13px;font-weight:900;color:#16183a;">超速</span></div>
-          <div style="font-size:9.5px; letter-spacing:.12em; color:#16183a; line-height:1; opacity:.75;">放開停止</div>
         </div>
         <div class="pxs" style="font-size:10px; color:var(--dim); margin-top:6px; line-height:1.5;">也跟 2 相同</div>
       </div>
@@ -392,9 +388,10 @@
       <div style="font-size: 13px; line-height: 1.8; color: #16183a;">
         `css/style.css`：把 `#boost` 從 `#top button, #top a` 那條規則抽出來，加一條新規則 + 一條分隔線。<br>
         `game.html`：`#boost` 換成兩行內容，`#sound` 移到 `#boost` 之前。<br>
-        <b style="color:#d63b3b;">`js/i18n.js`：新增 2 支字串（`boostLabel`「超速 / OVERDRIVE」、`boostHold`「按住 / HOLD」）——
-        依 TEAM.md 那是 writer 的檔案。</b><br>
-        一支 media query 讓手機的副標從「按住 SPACE」縮成「按住」。<br>
+        <b style="color:#d63b3b;">`js/i18n.js`：新增 1 支字串（`boostLabel`「超速 / Overdrive」）——
+        依 TEAM.md 那是 writer 的檔案。`boostTitle` 已經存在，不必新增。</b><br>
+        <b style="color:#d63b3b;">#157：第二行整行拿掉，所以原本的 `boostHold` 不需要了，
+        「手機把副標縮短」那支 media query 也不需要了。</b><br>
         `js/`：<b>不動</b>。
       </div>
     </div>
