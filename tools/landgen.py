@@ -68,22 +68,36 @@ def parse_motifs():
 
 
 def parse_day_pal():
+    """回傳 (typed, raw)。
+
+    `raw` 是**原始 token 的字串**（`'#3a4a63'` / `'0.5'`），不是 float。
+    這是為了 LAND_SRC 那條 guard：驗收在瀏覽器裡拿同一段 regex 再剖一次，逐字元比。
+    float 一過 JSON 兩邊的寫法就會分家（Python `1.0` vs JS `1`），
+    所以**跨過 JSON 的那一份永遠是字串**。
+    """
     src = JS('theme.js')
     seg = src[src.index('const DAY = {'):]
     seg = seg[:seg.index('\n};')]
-    pal = {}
+    pal, raw = {}, {}
     for m in re.finditer(r"(\w+):\s*'(#[0-9a-fA-F]{6})'", seg):
-        pal[m.group(1)] = m.group(2)
+        pal[m.group(1)] = m.group(2); raw[m.group(1)] = m.group(2)
     for m in re.finditer(r"(\w+):\s*([0-9.]+),", seg):
-        pal.setdefault(m.group(1), float(m.group(2)))
-    return pal
+        if m.group(1) in pal: continue
+        pal[m.group(1)] = float(m.group(2)); raw[m.group(1)] = m.group(2)
+    return pal, raw
 
 
 BANDS = parse_bands_full()
 EVENTS = parse_events()
 MOTIFS, GLOW = parse_motifs()
-PAL = parse_day_pal()
+PAL, PAL_RAW = parse_day_pal()
 BAND = {b['key']: b for b in BANDS}
+
+
+def band_key_of(floor):
+    for b in BANDS:
+        if b['frm'] <= floor <= b['to']: return b['key']
+    raise KeyError(floor)
 
 GLYPH = {
     '0': ['###', '#.#', '#.#', '#.#', '###'], '1': ['.#.', '##.', '.#.', '.#.', '###'],
@@ -678,7 +692,14 @@ def page_a():
 
 
 # ================================================================ 方向二：一趟到頂
-B_GROUPS = [
+#
+# ⚠⚠ **節拍表 B_BEATS 是這一段唯一手寫的東西，而且它只寫得下「節奏」。**
+#     哪一秒停、停多久、時鐘牌上的分鐘——這三樣資料裡沒有，是編排。
+#     **其他每一個字都是從 EVENTS 那一列讀出來的**：事件名、起訖、時段、人數，
+#     連隊伍多長都是 (n0+n1)//2。所以 BE 改了 `townhall.hours`，這裡跟著變，
+#     committed 的產物就跟活的資料對不上 —— 那就是 #152 要的那把鎖。
+#
+B_ALL_GROUPS = [
     ('roof',   [100]),
     ('exp',    [93, 92]),
     ('obs',    [81, 80, 79, 78]),
@@ -697,13 +718,91 @@ B_QUEUES = {
          ('photocrew', 1, False), ('student', 1, False), ('deckguide', 1, False)],
     80: [('observer', 1, False), ('student', 1, False)],
     100: [('towerctl', 1, False), ('astronaut', 1, False), ('cableeng', 1, False)],
+    93: [('nightlab', 93, False), ('keeper', 93, True), ('nightlab', 93, False),
+         ('scientist', 93, False)],
     30: [('guest', 1, False), ('jamcart', 1, False)],
     57: [('resident', 1, False), ('dogwalker', 1, False)],
     92: [('scientist', 93, False), ('hazmat', 93, False)],
 }
-B_TOTALS = {13: 21, 79: 25, 1: 5, 100: 3}
 CUT_RIDE = 120              # 直達段的高度：相機要走得夠遠，一趟到頂才像一趟
 VW, VH = 448, 420
+# 字幕帶的高度（.rideCap + 邊距）。**相機的下界要留這麼多。**
+# 不留的話：第一站停在 1 樓，而 1 樓已經是圖的最底一列，
+# 相機卡在底→**大廳整列精好藏在它自己的字幕背後**（兩欄模式下我看到的）。
+# 改了這個數字要跟 `css/landing.css` 的 `.rideCap` 一起改。
+CAP_FOOT = 62
+
+# 18 秒一圈。**一列 = 一站**：
+#   t0 / t1  相機停在這一站的區間（秒）——編排
+#   floor    停在哪一層——編排
+#   minute   時鐘牌上的分鐘——編排（**小時從事件的 hours[0] 生出來，不手寫**）
+#   ev       EVENTS 的 id —— 名字、起訖、時段、人數全部從那一列讀
+#
+# ⚠ **最後一列在等 owner 裁決（#152）**：現在停在 93 樓實驗樓層的夜班交接。
+#   裁決如果是「相機要帶到 100 樓」，把最後一列換成
+#   `(15.2, 18.0, 100, 30, 'boarding')` 再跑一次 landgen.py ——
+#   **改一列，樓層、相機關鍵影格、字幕全部自動跟上。**
+B_BEATS = [
+    (0.0,  2.2,    1,  5, 'anniversary'),
+    (4.4,  7.6,   13,  5, 'townhall'),
+    (10.0, 13.2,  79, 40, 'deckclose'),
+    (15.2, 18.0,  93, 10, 'handover'),
+]
+LOOP = 18.0
+
+# 轎廂裡的乘客。兩台車、反向跑——「先接誰」就是這個遊戲的問題本身。
+RIDER_UP = ['office', 'tourist']
+RIDER_DOWN = ['guest', 'observer']
+
+# 相機到得了的最高樓 = 節拍表的最高一站。**不是另外一個常數**——
+# 兩個常數會分家，然後某一天相機停在一層沒有畫出來的樓。
+B_TOP = max(b[2] for b in B_BEATS)
+B_GROUPS = [(k, [f for f in fl if f <= B_TOP]) for k, fl in B_ALL_GROUPS]
+B_GROUPS = [g for g in B_GROUPS if g[1]]
+
+# EVENTS 的 at/to 用 'lobby'，那不是 BANDS 的 key，所以要一張小對照表。
+ZH_PLACE = {'lobby': '大廳'}
+
+
+def place_zh(key):
+    return ZH_PLACE.get(key) or BAND[key]['name']
+
+
+def beat_rows():
+    """把節拍表展開成完整的一站。**除了 t0/t1/floor/minute，每個欄位都來自 EVENTS。**"""
+    out = []
+    for i, (t0, t1, fl, mi, eid) in enumerate(B_BEATS):
+        ev = EVENTS[eid]
+        out.append(dict(
+            i=i, t0=t0, t1=t1, floor=fl, minute=mi,
+            # 1 樓是大廳，不是「零售 1 樓」——事件那一列自己也是這樣寫的（at:'lobby'）。
+            place=('lobby' if fl == 1 else band_key_of(fl)),
+            band=band_key_of(fl),
+            clock='%02d:%02d' % (ev['hours'][0], mi),
+            ev=dict(id=ev['id'], name=ev['name'], n=ev['n'],
+                    at=ev['at'], to=ev['to'], hours=ev['hours']),
+            # 隊伍多長也是資料：事件人數區間的中位數，不是我挑的。
+            total=(ev['n'][0] + ev['n'][1]) // 2,
+        ))
+    return out
+
+
+B_ROWS = beat_rows()
+B_TOTALS = {b['floor']: b['total'] for b in B_ROWS}
+
+
+def beat_zh(b):
+    """設計稿上那一行中文字幕。**逐字由 EVENTS 生出來，寫不出跟資料矛盾的句子。**"""
+    ev = b['ev']
+    hrs = ('任何時段' if ev['hours'] == [0, 24]
+           else '%d–%d 點' % (ev['hours'][0], ev['hours'][1]))
+    return ('%s %s · %s→%s · %s · %d–%d 人'
+            % (ev['id'], ev['name'], place_zh(ev['at']), place_zh(ev['to']),
+               hrs, ev['n'][0], ev['n'][1]))
+
+
+def beat_place_zh(b):
+    return '%s %d 樓' % (place_zh(b['place']), b['floor'])
 
 
 def build_ride():
@@ -741,16 +840,6 @@ def build_ride():
     return '<defs>' + ''.join(defs) + '</defs>' + ''.join(body), total, ys
 
 
-# 18 秒一圈。四站都是真的事件，時間、人數、起訖全部抄自 EVENTS。
-B_BEATS = [
-    (0.0,  2.2,  1,   '08:42', '大廳 1F', 'anniversary 週年慶開門 · 大廳→零售 · 10-12 點 · 14-24 人'),
-    (4.4,  7.6,  13,  '09:05', '辦公 11-20F', 'townhall 全員大會 · 辦公→辦公 · 9-11 點 · 14-24 人'),
-    (10.0, 13.2, 79,  '22:40', '觀景 71-85F', 'deckclose 觀景台清場 · 觀景→大廳 · 22-24 點 · 18-28 人'),
-    (15.2, 18.0, 100, '23:10', '屋頂 100F+', 'boarding 軌道班機登機 · 大廳→屋頂 · 16-24 人'),
-]
-LOOP = 18.0
-
-
 def dedupe(frames):
     seen, out = set(), []
     for k, v in frames:
@@ -764,42 +853,48 @@ def kf(name, frames):
         name, ''.join('      %s { %s }\n' % (k, v) for k, v in frames))
 
 
-def build_b_css(ys, total):
-    """相機、轎廂、車門、字幕的關鍵影格 -- 全部由 B_BEATS 與 ys 算出來，不手寫百分比。"""
+def build_b_css(ys, total, prefix=''):
+    """相機、轎廂、車門、字幕的關鍵影格 -- 全部由 B_ROWS 與 ys 算出來，不手寫百分比。
+
+    prefix 給產品用（`ride-`），免得首頁的 keyframes 撞到別人的 `camera` / `doorL`。
+    回傳 (css, t=0 的相機位移)——後者是 reduced-motion 那一格的定格位置。
+    """
+    BB = [(b['t0'], b['t1'], b['floor']) for b in B_ROWS]
+    nm = lambda n: prefix + n
     def pct(t): return '%.4g%%' % (t / LOOP * 100)
-    def cam_y(f): return max(-(total - VH), min(0, VH / 2 - ys[f] - FH / 2))
+    def cam_y(f): return max(-(total - VH + CAP_FOOT), min(0, VH / 2 - ys[f] - FH / 2))
 
     frames, prev = [], None
-    for i, (t0, t1, f, _c, _n, _e) in enumerate(B_BEATS):
+    for i, (t0, t1, f) in enumerate(BB):
         v = 'transform: translateY(%.1fpx);' % cam_y(f)
         if prev is not None and prev != t0:
-            frames.append((pct(prev), 'transform: translateY(%.1fpx);' % cam_y(B_BEATS[i - 1][2])))
+            frames.append((pct(prev), 'transform: translateY(%.1fpx);' % cam_y(BB[i - 1][2])))
         frames.append((pct(t0), v)); frames.append((pct(t1), v))
         prev = t1
-    frames.append(('100%', 'transform: translateY(%.1fpx);' % cam_y(B_BEATS[-1][2])))
-    css = kf('camera', dedupe(frames))
+    frames.append(('100%', 'transform: translateY(%.1fpx);' % cam_y(BB[-1][2])))
+    css = kf(nm('camera'), dedupe(frames))
 
-    base = B_BEATS[0][2]
+    base = BB[0][2]
     cf, prev = [], None
-    for i, (t0, t1, f, _c, _n, _e) in enumerate(B_BEATS):
+    for i, (t0, t1, f) in enumerate(BB):
         v = 'transform: translateY(%.1fpx);' % (ys[f] - ys[base])
         if prev is not None and prev != t0:
-            cf.append((pct(prev), 'transform: translateY(%.1fpx);' % (ys[B_BEATS[i - 1][2]] - ys[base])))
+            cf.append((pct(prev), 'transform: translateY(%.1fpx);' % (ys[BB[i - 1][2]] - ys[base])))
         cf.append((pct(t0), v)); cf.append((pct(t1), v))
         prev = t1
-    cf.append(('100%', 'transform: translateY(%.1fpx);' % (ys[B_BEATS[-1][2]] - ys[base])))
-    css += kf('carUp', dedupe(cf))
+    cf.append(('100%', 'transform: translateY(%.1fpx);' % (ys[BB[-1][2]] - ys[base])))
+    css += kf(nm('carUp'), dedupe(cf))
 
     # 第二座井反向跑：同一批人、兩台車，「先接誰」就是這個遊戲的問題
     df = []
-    order = [B_BEATS[3][2], B_BEATS[2][2], B_BEATS[1][2], B_BEATS[0][2]]
+    order = [b[2] for b in reversed(BB)]
     for i, f in enumerate(order):
         df.append(('%.4g%%' % (i / (len(order) - 1.0) * 100),
                    'transform: translateY(%.1fpx);' % (ys[f] - ys[base])))
-    css += kf('carDown', df)
+    css += kf(nm('carDown'), df)
 
     dl, dr = [], []
-    for (t0, t1, _f, _c, _n, _e) in B_BEATS:
+    for (t0, t1, _f) in BB:
         a, b = t0 + 0.35, t1 - 0.35
         for lst, sgn in ((dl, -1), (dr, 1)):
             lst.append((pct(max(0.0, t0 - 0.01)), 'transform: translateX(0);'))
@@ -807,48 +902,63 @@ def build_b_css(ys, total):
             lst.append((pct(b), 'transform: translateX(%dpx);' % (sgn * 22)))
             lst.append((pct(min(LOOP, t1 + 0.01)), 'transform: translateX(0);'))
     keyf = lambda x: float(x[0][:-1])
-    css += kf('doorL', dedupe(sorted(dl, key=keyf)))
-    css += kf('doorR', dedupe(sorted(dr, key=keyf)))
+    css += kf(nm('doorL'), dedupe(sorted(dl, key=keyf)))
+    css += kf(nm('doorR'), dedupe(sorted(dr, key=keyf)))
 
-    for i, (t0, t1, _f, _c, _n, _e) in enumerate(B_BEATS):
-        f = [('0%', 'opacity: 0;'), (pct(max(0.0, t0 - 0.3)), 'opacity: 0;'),
+    for i, (t0, t1, _f) in enumerate(BB):
+        # ⚠ 第一站的 t0 是 0，所以 `pct(t0)` 也是 `'0%'`——跟開場那一格擞 key。
+        #   dedupe 留前面那一個，所以寫死 `'0%': opacity 0` 的話，
+        #   第一站的字幕**在自己的節拍裡是看不見的**，
+        #   反而會在 t1 之後（2.2–2.6s，相機已經在往上跑）閃一下。
+        #   開場那一格的值要跟著 t0 走。
+        head = 'opacity: %d;' % (1 if t0 <= 0 else 0)
+        f = [('0%', head), (pct(max(0.0, t0 - 0.3)), head),
              (pct(t0), 'opacity: 1;'), (pct(t1), 'opacity: 1;'),
              (pct(min(LOOP, t1 + 0.4)), 'opacity: 0;'), ('100%', 'opacity: 0;')]
         seen, uniq = set(), []
         for k2, v2 in sorted(f, key=keyf):
             if k2 in seen: continue
             seen.add(k2); uniq.append((k2, v2))
-        css += kf('beat%d' % i, uniq)
+        css += kf(nm('beat%d') % i, uniq)
+    return css, cam_y(BB[0][2])
+
+
+def build_b_css_doc(ys, total):
+    """設計稿那一份：keyframes 不加 prefix，reduced-motion 的退路寫在同一段裡。"""
+    css, cam0 = build_b_css(ys, total)
     css += ('    [class^="beat"] { opacity: 0; }\n'
             '    @media (prefers-reduced-motion: reduce) {\n'
             '      .camera { transform: translateY(%.1fpx); }\n'
             '      .doorL  { transform: translateX(-22px); }\n'
             '      .doorR  { transform: translateX(22px); }\n'
             '      .beat0  { opacity: 1; }\n'
-            '    }\n' % cam_y(B_BEATS[0][2]))
+            '    }\n' % cam0)
     return css
 
 
 B_INTRO = ('一段<span class="k">手工編排</span>的 18 秒循環：相機從大廳出發，'
-           '一路往上經過辦公、觀景，停在 100 樓。'
+           '一路往上經過辦公、觀景，停在 %d 樓。'
            '素材與 A 完全相同（真的樓層帶、真的家具、真的小人），差別是<span class="k">它會動</span>——'
            '車在跑、門在開、隊伍在特定的時間出現、耐性條在掉。'
-           '四站都是 <code>EVENTS</code> 表上真的事件，時間與人數逐字對得上；'
-           '兩座井故意反向跑，因為「先接誰」就是這個遊戲的問題本身。')
+           '四站都是 <code>EVENTS</code> 表上真的事件，<span class="k">字幕逐字由那一列生成</span>；'
+           '兩座井故意反向跑，因為「先接誰」就是這個遊戲的問題本身。') % B_TOP
 
 B_MOTIVE = ('<span class="k">它是唯一一個把「來不及」演出來的方向。</span>'
-            '9 點 05 分 13 樓一次湧出 21 個人、耐性條由綠轉紅、一台車在門口只吃得下四個——'
+            '9 點 05 分 13 樓一次湧出十幾個人、耐性條由綠轉紅、一台車在門口只吃得下四個——'
             '這一段五秒鐘講完了規則書那句「你買的不是自動點擊器，是更好的調度演算法」，'
             '而規則書要點進去才看得到。往上爬的相機也把「樓越高人越不一樣」講成一件'
-            '<span class="k">會發生的事</span>，不是一張對照表：你是<em>經過</em>那七群人的。')
+            '<span class="k">會發生的事</span>，不是一張對照表：你是<em>經過</em>那幾群人的。')
 
-B_COST = ('<span class="k">它是演出來的，而且會安靜地過期。</span>'
-          '時間軸是我寫的、人數是我挑的、隊伍長度是我排的。'
-          'BE 明天把 <code>townhall</code> 的 <code>hours</code> 從 9-11 改成 8-10、'
-          '或把 <code>n</code> 從 14-24 改小，首頁不會知道，也不會有任何 guard 紅。'
-          '（時間與人數可以從 <code>content.js</code> 產生出來——這份稿就是這樣做的——'
-          '但<span class="k">節奏</span>，什麼時候停、停多久，沒有辦法從資料生出來。）'
-          '第二個代價是它有 18 秒：三秒就離開的訪客只會看到第一站。')
+# ⚠ 這一段在 #148 寫的是「它會安靜地過期，不會有任何 guard 紅」。
+#   #152 把 B 做成真的首頁的時候把那個缺點解掉了，所以這裡跟著改寫——
+#   **留著一句已經不成立的「主要缺點」，比沒有寫還糟。**
+B_COST = ('<span class="k">節奏是演出來的——但只剩節奏。</span>'
+          '什麼時候停、停多久、時鐘牌上的分鐘，這三樣資料裡沒有，是我寫的。'
+          '<span class="k">其他每一個字都從 <code>EVENTS</code> 生成</span>：'
+          '事件名、起訖、時段、人數，連隊伍多長都是 <code>(n0+n1)//2</code>。'
+          'BE 明天把 <code>townhall</code> 的 <code>hours</code> 從 9-11 改成 8-10，'
+          'committed 的產物跟活的 <code>EVENTS</code> 對不上 → <span class="k">harness 紅</span>（#152 第 25 組）。'
+          '剩下的代價是它有 18 秒：三秒就離開的訪客只會看到第一站。')
 
 
 def page_b():
@@ -860,13 +970,13 @@ def page_b():
         '<div style="position: absolute; left: 12px; bottom: 10px; right: 12px; background: rgba(22,24,58,.86); '
         'color: #fff8ea; padding: 7px 10px; font-size: 12px; line-height: 1.55;">'
         '<b style="color: #ffd23f;">%s</b><br><span style="opacity: .8; font-size: 11px;">%s</span></div></div>'
-        % (i, i, LOOP, c, n, e) for i, (_a, _b, _f, c, n, e) in enumerate(B_BEATS))
+        % (b['i'], b['i'], LOOP, b['clock'], beat_place_zh(b), beat_zh(b)) for b in B_ROWS)
 
-    base = B_BEATS[0][2]
+    base = B_ROWS[0]['floor']
     car_svg = (
         '<g class="carUp">%s</g><g class="carDown">%s</g>'
-        % (car(SHAFT_X, ys[base] + 1, 48, ['office', 'tourist'], 0, False, skip_doors=True),
-           car(SHAFT_X + 48, ys[base] + 1, 48, ['guest', 'observer'], 0, False)))
+        % (car(SHAFT_X, ys[base] + 1, 48, RIDER_UP, 0, False, skip_doors=True),
+           car(SHAFT_X + 48, ys[base] + 1, 48, RIDER_DOWN, 0, False)))
     doors = ('<g class="carUp">%s</g>'
              % door_leaves(SHAFT_X, ys[base] + 1, 48, 0, 'doorL', 'doorR'))
 
@@ -886,8 +996,9 @@ def page_b():
     p = phone_frame(ph_vis, ph_h)
 
     rows = [
-        ('18 秒的四站', ' &nbsp;→&nbsp; '.join('%s %s（%.1f–%.1fs）' % (c, n, a, b)
-                                              for (a, b, _f, c, n, _e) in B_BEATS)),
+        ('18 秒的四站', ' &nbsp;→&nbsp; '.join(
+            '%s %s（%.1f–%.1fs）' % (b['clock'], beat_place_zh(b), b['t0'], b['t1'])
+            for b in B_ROWS)),
         ('關鍵影格怎麼來的', '不是手寫百分比：<code>tools/landgen.py</code> 從 <code>B_BEATS</code> 與'
                              '每一層樓的 y 算出 <code>camera</code> / <code>carUp</code> / '
                              '<code>carDown</code> / <code>doorL</code> / <code>doorR</code> 五組 '
@@ -895,20 +1006,29 @@ def page_b():
         ('reduced-motion', '五組動畫全部 <code>animation: none</code>，畫面停在 <span class="k">t=0</span>：'
                            '大廳、門開著、三個人要上車。那一格自己就成立——'
                            '<span class="k">方向 A 就是這個退路的完整版</span>。'),
-        ('手機 390px', '視窗縮到 0.68（305×286），四站的字幕列還讀得到（11–12px）。'
-                       '真的實作要把視窗改成 <code>aspect-ratio</code> + <code>clamp()</code> 而不是縮放——'
-                       '縮放會讓像素落在半格上，這一頁的 <code>shape-rendering: crispEdges</code> 就白設了。'),
-        ('一個要 owner 裁決的問題',
+        ('手機 390px', '這一格是用 <code>scale(0.66)</code> 縮的，<span class="k">而真的首頁沒有這樣做</span>：'
+                       '產品那一份把 <code>&lt;svg&gt;</code> 設成 <code>width: 100%</code> + '
+                       '外框 <code>aspect-ratio</code>。相機的 <code>translateY</code> 是 viewBox 的 '
+                       'user unit，會跟著自己縮，所以不需要 CSS <code>scale()</code>，'
+                       '<code>shape-rendering: crispEdges</code> 還救得回來。'),
+        ('100 樓那題（#152 待裁決）',
          '相機往上爬是「樓越高人越不一樣」最好的表達，但它同時暗示「你會一路蓋到 100 樓」。'
-         '規則書寫得很清楚：100 樓要 $2000 萬加 20 張藍圖，<span class="k">不是第一棟樓就到得了的地方</span>。'
-         '首頁演一趟到頂，是不是在承諾一件很遠的事？'),
-        ('要新文案嗎', '不用。四站的字幕用的是事件自己的名字（<code>EVENTS[].name</code>），'
-                       '中英兩版 <code>i18n-content.js</code> 已經有了。'),
+         '100 樓是 <code>ENDING_FLOOR</code>，規則書寫得很清楚：那要 <b>$1000 萬加 20 張藍圖</b>，'
+         '<span class="k">不是第一棟樓就到得了的地方</span>。'
+         '<span class="k">這份稿現在停在 93 樓</span>（實驗樓層的夜班交接）。'
+         '裁決如果是「帶到 100 樓」，把 <code>B_BEATS</code> 最後一列換成 '
+         '<code>(15.2, 18.0, 100, 30, &#39;boarding&#39;)</code> 重新生成就換完了：'
+         '樓層、相機關鍵影格、字幕全部自動跟上。'),
+        ('要新文案嗎', '事件名與樓層帶名不用（<code>EVENTS[].name</code> / <code>BANDS[].name</code>，'
+                       '<code>i18n-content.js</code> 中英兩版都有）。真的首頁另外需要六個接合詞的鍵'
+                       '（<code>landRideAt</code> / <code>landRideHours</code> / <code>landRideCount</code> / '
+                       '<code>landRideAllDay</code> / <code>landRideLobby</code> / <code>landRideAlt</code>），'
+                       '已經照 #149 的先例加在 <code>js/i18n.js</code>。'),
     ]
     return (doc_head('方向 B ── 一趟到頂', '編排過的 18 秒循環，距離遊戲中等', B_INTRO)
             + '<div style="display: flex; gap: 40px; align-items: flex-start;">'
             + d + p + '</div>'
-            + note_block(B_MOTIVE, B_COST, rows) + '</div>'), build_b_css(ys, total)
+            + note_block(B_MOTIVE, B_COST, rows) + '</div>'), build_b_css_doc(ys, total)
 
 
 # ================================================================ 方向三：真的跑一場
@@ -1181,15 +1301,167 @@ def page_c():
             + proof + note_block(C_MOTIVE, C_COST, rows) + '</div>')
 
 
+# ================================================================ 產品：首頁真的跑的那一段（#152）
+#
+# 這一段產生**兩個 committed 的產物**，首頁直接載入：
+#   js/landride.js    動畫的 SVG + 節拍資料 + LAND_SRC
+#   css/landride.css  相機／轎廂／車門／字幕的 @keyframes
+#
+# **為什麼要 LAND_SRC**：#148 說 B「會安靜過期」——BE 改 `townhall.hours`，首頁繼續說謊。
+# 驗收（tests/acceptance.js 第 25 組）拿**活的** EVENTS / BANDS / PEOPLE / MOTIFS /
+# theme.js 的 DAY 重新算一份同樣的結構，跟 LAND_SRC 逐字元比。
+# 對不上 = 有人改了資料而沒有重新生成 = 紅。
+#
+# 逐 byte 的那一半在 `python tools/landgen.py --check`（瀏覽器開不了 python）。
+
+RECT_RE = re.compile(r'<rect x="(-?[\d.]+)" y="(-?[\d.]+)" width="([\d.]+)" height="([\d.]+)" '
+                     r'fill="(#[0-9a-fA-F]{6})"/>')
+
+
+def pack_svg(src):
+    """把**連續同色**的 <rect> 併成一個 <path>。純機械，畫出來一模一樣。
+
+    首頁那一段有 4090 個 <rect>、243KB。一個 rect 約 62 bytes，一段 path 約 17 bytes，
+    而且四千個節點會縮到幾百個 —— 這是 spritedom.js（#149）在圖鑑上用過的同一招，
+    差別是那邊每張圖分開壓，這裡整段掃過去壓。
+    帶 opacity / stroke 的 rect 屬性不一樣，regex 不會命中，原樣留著。
+    """
+    out, pos, state = [], 0, {'fill': None, 'run': []}
+
+    def flush():
+        run = state['run']
+        if not run: return
+        if len(run) == 1:
+            out.append(run[0][1])
+        else:
+            out.append('<path fill="%s" d="%s"/>' % (state['fill'], ''.join(d for d, _ in run)))
+        state['run'] = []
+
+    for m in RECT_RE.finditer(src):
+        if m.start() != pos:
+            flush(); state['fill'] = None
+            out.append(src[pos:m.start()])
+        x, y, w, h, f = m.groups()
+        if f != state['fill']:
+            flush(); state['fill'] = f
+        state['run'].append(('M%s %sh%sv%sh-%sz' % (x, y, w, h, w), m.group(0)))
+        pos = m.end()
+    flush()
+    out.append(src[pos:])
+    return ''.join(out)
+
+
+def land_src():
+    """產生當下讀到的**每一筆產品資料**，原樣。驗收會從活的模組再算一份來比。
+
+    只收「這段動畫真的用到的」：畫進去的小人、畫進去的樓層帶小景、四站的事件。
+    BANDS 與 DAY 整張收——它們小、而且動到任何一格都代表要重新生成。
+    """
+    drawn_people, drawn_bands = set(), set()
+    for key, fl in B_GROUPS:
+        drawn_bands.add(key)
+        for f in fl:
+            for pid, _d, _u in B_QUEUES.get(f, []):
+                drawn_people.add(pid)
+    for pid in RIDER_UP + RIDER_DOWN:
+        drawn_people.add(pid)
+    return {
+        'events': [{'id': b['ev']['id'], 'name': b['ev']['name'], 'n': b['ev']['n'],
+                    'at': b['ev']['at'], 'to': b['ev']['to'], 'hours': b['ev']['hours']}
+                   for b in B_ROWS],
+        'bands': [{'key': b['key'], 'from': b['frm'], 'to': b['to'],
+                   'name': b['name'], 'color': b['color']} for b in BANDS],
+        'people': [{'id': pid, 'acc': PEOPLE[pid]['acc'],
+                    'normal': PEOPLE[pid]['normal'], 'urgent': PEOPLE[pid]['urgent']}
+                   for pid in sorted(drawn_people)],
+        'motifs': [{'key': k, 'glow': GLOW.get(k), 'rows': MOTIFS[k]}
+                   for k in sorted(drawn_bands)],
+        'palette': PAL_RAW,
+    }
+
+
+LANDRIDE_HEAD = """// landride.js \u2014 \u9996\u9801\u90a3\u4e00\u6bb5 18 \u79d2\u5faa\u74b0\u7684\u8cc7\u6599\u8207\u5716\u3002
+//
+// \u26a0\u26a0\u26a0 **\u9019\u500b\u6a94\u662f `python tools/landgen.py` \u751f\u51fa\u4f86\u7684\u3002\u4e0d\u8981\u624b\u6539\u3002** \u26a0\u26a0\u26a0
+//
+// \u8981\u6539\u5c31\u6539 `tools/landgen.py` \u7684 `B_BEATS` / `B_QUEUES` / `B_ALL_GROUPS`\uff0c
+// \u6539\u5b8c\u91cd\u8dd1\u4e00\u6b21\u3002
+//
+// \u4e0b\u9762\u7684 `LAND_SRC` \u662f\u7522\u751f\u7576\u4e0b\u5f9e `content.js` / `sprites.js` / `interior.js` /
+// `theme.js` \u8b80\u5230\u7684**\u6bcf\u4e00\u7b46\u8cc7\u6599\u539f\u6a23**\u3002\u9a57\u6536\u7b2c 25 \u7d44\u62ff\u6d3b\u7684\u6a21\u7d44
+// \u518d\u7b97\u4e00\u4efd\u4f86\u9010\u5b57\u5143\u6bd4\uff1a**BE \u6539\u4e86 `townhall.hours` \u800c\u6c92\u6709\u91cd\u65b0\u751f\u6210 \u2192 harness \u7d05\u3002**
+"""
+
+
+def build_product():
+    svg, total, ys = build_ride()
+    base = B_ROWS[0]['floor']
+    car_svg = ('<g class="rideUp">%s</g><g class="rideDown">%s</g>'
+               % (car(SHAFT_X, ys[base] + 1, 48, RIDER_UP, 0, False, skip_doors=True),
+                  car(SHAFT_X + 48, ys[base] + 1, 48, RIDER_DOWN, 0, False)))
+    doors = ('<g class="rideUp">%s</g>'
+             % door_leaves(SHAFT_X, ys[base] + 1, 48, 0, 'rideDoorL', 'rideDoorR'))
+    full = pack_svg('<svg class="rideSvg" viewBox="0 0 %d %d" '
+                    'xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
+                    '<g class="rideCam">%s%s%s</g></svg>'
+                    % (VW, total, svg, car_svg, doors))
+
+    css_body, cam0 = build_b_css(ys, total, prefix='ride-')
+    css = (u'/* landride.css \u2014 \u9996\u9801\u52d5\u756b\u7684\u95dc\u9375\u5f71\u683c\u3002\n'
+           u'   \u26a0\u26a0 **\u7531 `python tools/landgen.py` \u7522\u751f\uff0c\u4e0d\u8981\u624b\u6539\u3002**\n'
+           u'   \u767e\u5206\u6bd4\u662f\u5f9e `B_BEATS` \u8207\u6bcf\u4e00\u5c64\u6a13\u7684 y \u7b97\u51fa\u4f86\u7684\uff1b\n'
+           u'   \u624b\u6539\u4e00\u7d44\uff0c\u5225\u7684\u56db\u7d44\u5c31\u8ddf\u5b83\u5c0d\u4e0d\u4e0a\u4e86\u3002*/\n'
+           '.rideCam   { animation: ride-camera %(l)gs linear infinite; }\n'
+           '.rideUp    { animation: ride-carUp %(l)gs linear infinite; }\n'
+           '.rideDown  { animation: ride-carDown %(l)gs linear infinite; }\n'
+           '.rideDoorL { animation: ride-doorL %(l)gs linear infinite; }\n'
+           '.rideDoorR { animation: ride-doorR %(l)gs linear infinite; }\n'
+           '.rideBeat  { opacity: 0; }\n' % {'l': LOOP})
+    css += ''.join('.rideBeat%d { animation: ride-beat%d %gs steps(1) infinite; }\n'
+                   % (b['i'], b['i'], LOOP) for b in B_ROWS)
+    css += ('\n' + css_body.replace('    @keyframes', '@keyframes')
+            .replace('\n      ', '\n  ').replace('\n    }', '\n}'))
+    css += (u'\n/* \u9000\u8def\uff1a\u5b9a\u683c\u5728 t=0 \u2014\u2014 \u5927\u5ef3\u3001\u9580\u958b\u8457\u3001\u7b2c\u4e00\u7ad9\u7684\u5b57\u5e55\u9084\u5728\u3002\n'
+            u'   \u90a3\u4e00\u683c\u81ea\u5df1\u5c31\u6210\u7acb\uff08#148 \u65b9\u5411 A \u5c31\u662f\u9019\u500b\u9000\u8def\u7684\u5b8c\u6574\u7248\uff09\u3002*/\n'
+            '@media (prefers-reduced-motion: reduce) {\n'
+            '  .rideCam, .rideUp, .rideDown, .rideDoorL, .rideDoorR,\n'
+            '  [class*="rideBeat"] { animation: none !important; }\n'
+            '  .rideCam   { transform: translateY(%.1fpx); }\n'
+            '  .rideDoorL { transform: translateX(-22px); }\n'
+            '  .rideDoorR { transform: translateX(22px); }\n'
+            '  .rideBeat0 { opacity: 1; }\n'
+            '}\n' % cam0)
+
+    data = {
+        'loop': LOOP,
+        'view': {'w': VW, 'h': VH, 'total': total},
+        'beats': [{'i': b['i'], 't0': b['t0'], 't1': b['t1'], 'floor': b['floor'],
+                   'place': b['place'], 'band': b['band'], 'clock': b['clock'],
+                   'total': b['total'], 'ev': b['ev']} for b in B_ROWS],
+    }
+    js = (LANDRIDE_HEAD
+          + '\nexport const RIDE = ' + json.dumps(data, ensure_ascii=False, indent=2) + ';\n'
+          + '\nexport const RIDE_SVG = ' + json.dumps(full, ensure_ascii=False) + ';\n'
+          + u'\n// \u7522\u751f\u7576\u4e0b\u8b80\u5230\u7684\u6bcf\u4e00\u7b46\u8cc7\u6599\u3002'
+            u'**\u9a57\u6536\u7b2c 25 \u7d44\u62ff\u6d3b\u7684\u6a21\u7d44\u518d\u7b97\u4e00\u4efd\u4f86\u6bd4\u3002**\n'
+          + 'export const LAND_SRC = '
+          + json.dumps(land_src(), ensure_ascii=False, indent=1, sort_keys=True) + ';\n')
+    return js, css
+
+
 # ================================================================ 輸出
-def write(path, doc, extra_css='', rm_extra=''):
-    head = HEAD.replace('__EXTRA_CSS__', extra_css).replace('__RM_EXTRA', rm_extra)
-    open(os.path.join(ROOT, 'design', path), 'w', encoding='utf-8').write(head + doc + TAIL)
-    print('%-28s %7.1f KB' % (path, os.path.getsize(os.path.join(ROOT, 'design', path)) / 1024))
+def render_all():
+    """三份設計稿 + 兩個產品產物，**全部算到記憶體裡**，回傳 {相對路徑: 內容}。
 
+    寫檔與 --check 走同一條路徑：不然「檢查的產物」跟「寫出去的產物」可以分家。
+    """
+    out = {}
 
-if __name__ == '__main__':
-    write('LandCutaway.dc.html', page_a())
+    def doc(path, body, extra_css='', rm_extra=''):
+        out['design/' + path] = (HEAD.replace('__EXTRA_CSS__', extra_css)
+                                 .replace('__RM_EXTRA', rm_extra) + body + TAIL)
+
+    doc('LandCutaway.dc.html', page_a())
     doc_b, css_b = page_b()
     anim = ('    .camera { animation: camera %gs linear infinite; }\n'
             '    .carUp  { animation: carUp %gs linear infinite; }\n'
@@ -1197,32 +1469,80 @@ if __name__ == '__main__':
             '    .doorL  { animation: doorL %gs linear infinite; }\n'
             '    .doorR  { animation: doorR %gs linear infinite; }\n'
             % (LOOP, LOOP, LOOP, LOOP, LOOP)) + css_b
-    write('LandOneRide.dc.html', doc_b, anim,
-          ', .camera, .carUp, .carDown, .doorL, .doorR, [class^="beat"]')
-    write('LandLiveRun.dc.html', page_c())
+    doc('LandOneRide.dc.html', doc_b, anim,
+        ', .camera, .carUp, .carDown, .doorL, .doorR, [class^="beat"]')
+    doc('LandLiveRun.dc.html', page_c())
 
     canvas = {
         "artboards": [
             {"file": "LandCutaway.dc.html", "x": 0,    "y": 0, "w": 1870, "h": 1620,
-             "title": "方向 A ── 剖面"},
+             "title": "\u65b9\u5411 A \u2500\u2500 \u5256\u9762"},
             {"file": "LandOneRide.dc.html", "x": 1990, "y": 0, "w": 1870, "h": 1620,
-             "title": "方向 B ── 一趟到頂"},
+             "title": "\u65b9\u5411 B \u2500\u2500 \u4e00\u8d9f\u5230\u9802"},
             {"file": "LandLiveRun.dc.html", "x": 3980, "y": 0, "w": 1870, "h": 2180,
-             "title": "方向 C ── 真的跑一場"},
+             "title": "\u65b9\u5411 C \u2500\u2500 \u771f\u7684\u8dd1\u4e00\u5834"},
         ],
         "annotations": [
             {"id": "axis", "x": 0, "y": -230, "w": 1400,
-             "text": "#148 三個方向，沿「首頁跟遊戲的距離」由遠到近排。\n"
-                     "A 靜態剖面 → B 編排過的 18 秒循環 → C 真的接上 sim.js。\n"
-                     "三份用的是同一批素材（真的樓層帶色、真的 16×8 家具、真的 7×9 小人、"
-                     "真的 3×5 樓層號），由 tools/landgen.py 從產品讀出來產生，沒有手抄的顏色。"},
+             "text": "#148 \u4e09\u500b\u65b9\u5411\uff0c\u6cbf\u300c\u9996\u9801\u8ddf\u904a\u6232\u7684\u8ddd\u96e2\u300d\u7531\u9060\u5230\u8fd1\u6392\u3002\n"
+                     "A \u975c\u614b\u5256\u9762 \u2192 B \u7de8\u6392\u904e\u7684 18 \u79d2\u5faa\u74b0 \u2192 C \u771f\u7684\u63a5\u4e0a sim.js\u3002\n"
+                     "\u4e09\u4efd\u7528\u7684\u662f\u540c\u4e00\u6279\u7d20\u6750\uff08\u771f\u7684\u6a13\u5c64\u5e36\u8272\u3001\u771f\u7684 16\u00d78 \u5bb6\u5177\u3001\u771f\u7684 7\u00d79 \u5c0f\u4eba\u3001"
+                     "\u771f\u7684 3\u00d75 \u6a13\u5c64\u865f\uff09\uff0c\u7531 tools/landgen.py \u5f9e\u7522\u54c1\u8b80\u51fa\u4f86\u7522\u751f\uff0c\u6c92\u6709\u624b\u6284\u7684\u984f\u8272\u3002"},
+            {"id": "picked", "x": 1990, "y": -370, "w": 1400,
+             "text": "owner \u9078\u4e86 B\u3002#152 \u628a\u5b83\u505a\u6210\u771f\u7684\u9996\u9801\uff1a\n"
+                     "\u540c\u4e00\u652f landgen.py \u53e6\u5916\u7522\u751f js/landride.js \u8207 css/landride.css\uff0c\n"
+                     "\u9a57\u6536\u7b2c 25 \u7d44\u62ff\u6d3b\u7684 EVENTS/BANDS/PEOPLE/MOTIFS/DAY \u8ddf\u7522\u7269\u88e1\u7684 LAND_SRC \u9010\u5b57\u5143\u6bd4\u3002\n"
+                     "\u76f8\u6a5f\u73fe\u5728\u505c\u5728 93 \u6a13\uff1b100 \u6a13\u90a3\u984c\u5728 #152 \u7b49 owner \u88c1\u6c7a\u3002"},
             {"id": "warning", "x": 3980, "y": -230, "w": 1400,
-             "text": "C 有一個幾何上的限制，工單裡沒有預料到：448×420 的畫布上，"
-                     "「看得到一個一個的人」與「看得到七個樓層帶」互斥。\n"
-                     "細節與並排的證明在 C 的稿裡。"},
+             "text": "C \u6709\u4e00\u500b\u5e7e\u4f55\u4e0a\u7684\u9650\u5236\uff0c\u5de5\u55ae\u88e1\u6c92\u6709\u9810\u6599\u5230\uff1a448\u00d7420 \u7684\u756b\u5e03\u4e0a\uff0c"
+                     "\u300c\u770b\u5f97\u5230\u4e00\u500b\u4e00\u500b\u7684\u4eba\u300d\u8207\u300c\u770b\u5f97\u5230\u4e03\u500b\u6a13\u5c64\u5e36\u300d\u4e92\u65a5\u3002\n"
+                     "\u7d30\u7bc0\u8207\u4e26\u6392\u7684\u8b49\u660e\u5728 C \u7684\u7a3f\u88e1\u3002"},
         ],
         "launch": {"view": "canvas"},
     }
-    json.dump(canvas, open(os.path.join(ROOT, 'design', 'canvas.json'), 'w', encoding='utf-8'),
-              ensure_ascii=False, indent=2)
-    print('canvas.json')
+    out['design/canvas.json'] = json.dumps(canvas, ensure_ascii=False, indent=2)
+
+    js, css = build_product()
+    out['js/landride.js'] = js
+    out['css/landride.css'] = css
+    return out
+
+
+if __name__ == '__main__':
+    files = render_all()
+    check = '--check' in sys.argv
+    bad = 0
+
+    for rel in sorted(files):
+        path = os.path.join(ROOT, *rel.split('/'))
+        data = files[rel].encode('utf-8')
+        if not check:
+            open(path, 'wb').write(data)
+            print('%-28s %7.1f KB' % (rel, len(data) / 1024))
+            continue
+        # \u884c\u5c3e\u6b78\u4e00\uff1agit \u5728 Windows \u4e0a\u62ff CRLF \u7d66\u5de5\u4f5c\u6a39\uff0c\u5eab\u88e1\u662f LF\u3002
+        # \u90a3\u662f\u5e73\u53f0\u7684\u4e8b\uff0c\u4e0d\u662f\u300c\u6709\u4eba\u6539\u4e86\u8cc7\u6599\u300d\u3002
+        norm = lambda b: b.replace(b'\r\n', b'\n')
+        old = open(path, 'rb').read() if os.path.exists(path) else None
+        if old is not None and norm(old) == norm(data):
+            print('OK    %-28s %7.1f KB' % (rel, len(data) / 1024))
+            continue
+        bad += 1
+        if old is None:
+            print('\u7f3a    %-28s \u91cd\u65b0\u751f\u6210\u6703\u5efa\u7acb\u9019\u500b\u6a94\uff0c\u4f46\u5b83\u4e0d\u5728\u6a39\u4e0a' % rel)
+            continue
+        a, b = norm(old), norm(data)
+        k = next((i for i in range(min(len(a), len(b))) if a[i] != b[i]), min(len(a), len(b)))
+        print('\u7d05    %-28s \u7b2c %d \u500b byte \u8d77\u4e0d\u540c'
+              '\uff08committed %d bytes / \u91cd\u65b0\u751f\u6210 %d bytes\uff09' % (rel, k, len(a), len(b)))
+        print('      committed  : ...%s...' % a[max(0, k - 40):k + 60].decode('utf-8', 'replace'))
+        print('      \u91cd\u65b0\u751f\u6210: ...%s...' % b[max(0, k - 40):k + 60].decode('utf-8', 'replace'))
+
+    if check:
+        if bad:
+            print('\n\u26a0 %d \u500b\u7522\u7269\u8ddf\u91cd\u65b0\u751f\u6210\u7684\u4e0d\u4e00\u6a23\u3002'
+                  '\u6709\u4eba\u6539\u4e86\u8cc7\u6599\uff08content.js / sprites.js / interior.js / theme.js\uff09'
+                  '\u6216\u6539\u4e86 landgen.py \u800c\u6c92\u6709\u91cd\u65b0\u751f\u6210\u3002'
+                  '\u8dd1 `python tools/landgen.py`\u3002' % bad)
+            sys.exit(1)
+        print('\n\u5168\u90e8\u9010 byte \u76f8\u540c\u3002')

@@ -1,0 +1,116 @@
+/* landride.css — 首頁動畫的關鍵影格。
+   ⚠⚠ **由 `python tools/landgen.py` 產生，不要手改。**
+   百分比是從 `B_BEATS` 與每一層樓的 y 算出來的；
+   手改一組，別的四組就跟它對不上了。*/
+.rideCam   { animation: ride-camera 18s linear infinite; }
+.rideUp    { animation: ride-carUp 18s linear infinite; }
+.rideDown  { animation: ride-carDown 18s linear infinite; }
+.rideDoorL { animation: ride-doorL 18s linear infinite; }
+.rideDoorR { animation: ride-doorR 18s linear infinite; }
+.rideBeat  { opacity: 0; }
+.rideBeat0 { animation: ride-beat0 18s steps(1) infinite; }
+.rideBeat1 { animation: ride-beat1 18s steps(1) infinite; }
+.rideBeat2 { animation: ride-beat2 18s steps(1) infinite; }
+.rideBeat3 { animation: ride-beat3 18s steps(1) infinite; }
+
+@keyframes ride-camera {
+  0% { transform: translateY(-1228.0px); }
+  12.22% { transform: translateY(-1228.0px); }
+  24.44% { transform: translateY(-964.0px); }
+  42.22% { transform: translateY(-964.0px); }
+  55.56% { transform: translateY(-164.0px); }
+  73.33% { transform: translateY(-164.0px); }
+  84.44% { transform: translateY(0.0px); }
+  100% { transform: translateY(0.0px); }
+}
+@keyframes ride-carUp {
+  0% { transform: translateY(0.0px); }
+  12.22% { transform: translateY(0.0px); }
+  24.44% { transform: translateY(-384.0px); }
+  42.22% { transform: translateY(-384.0px); }
+  55.56% { transform: translateY(-1184.0px); }
+  73.33% { transform: translateY(-1184.0px); }
+  84.44% { transform: translateY(-1480.0px); }
+  100% { transform: translateY(-1480.0px); }
+}
+@keyframes ride-carDown {
+  0% { transform: translateY(-1480.0px); }
+  33.33% { transform: translateY(-1184.0px); }
+  66.67% { transform: translateY(-384.0px); }
+  100% { transform: translateY(0.0px); }
+}
+@keyframes ride-doorL {
+  0% { transform: translateX(0); }
+  1.944% { transform: translateX(-22px); }
+  10.28% { transform: translateX(-22px); }
+  12.28% { transform: translateX(0); }
+  24.39% { transform: translateX(0); }
+  26.39% { transform: translateX(-22px); }
+  40.28% { transform: translateX(-22px); }
+  42.28% { transform: translateX(0); }
+  55.5% { transform: translateX(0); }
+  57.5% { transform: translateX(-22px); }
+  71.39% { transform: translateX(-22px); }
+  73.39% { transform: translateX(0); }
+  84.39% { transform: translateX(0); }
+  86.39% { transform: translateX(-22px); }
+  98.06% { transform: translateX(-22px); }
+  100% { transform: translateX(0); }
+}
+@keyframes ride-doorR {
+  0% { transform: translateX(0); }
+  1.944% { transform: translateX(22px); }
+  10.28% { transform: translateX(22px); }
+  12.28% { transform: translateX(0); }
+  24.39% { transform: translateX(0); }
+  26.39% { transform: translateX(22px); }
+  40.28% { transform: translateX(22px); }
+  42.28% { transform: translateX(0); }
+  55.5% { transform: translateX(0); }
+  57.5% { transform: translateX(22px); }
+  71.39% { transform: translateX(22px); }
+  73.39% { transform: translateX(0); }
+  84.39% { transform: translateX(0); }
+  86.39% { transform: translateX(22px); }
+  98.06% { transform: translateX(22px); }
+  100% { transform: translateX(0); }
+}
+@keyframes ride-beat0 {
+  0% { opacity: 1; }
+  12.22% { opacity: 1; }
+  14.44% { opacity: 0; }
+  100% { opacity: 0; }
+}
+@keyframes ride-beat1 {
+  0% { opacity: 0; }
+  22.78% { opacity: 0; }
+  24.44% { opacity: 1; }
+  42.22% { opacity: 1; }
+  44.44% { opacity: 0; }
+  100% { opacity: 0; }
+}
+@keyframes ride-beat2 {
+  0% { opacity: 0; }
+  53.89% { opacity: 0; }
+  55.56% { opacity: 1; }
+  73.33% { opacity: 1; }
+  75.56% { opacity: 0; }
+  100% { opacity: 0; }
+}
+@keyframes ride-beat3 {
+  0% { opacity: 0; }
+  82.78% { opacity: 0; }
+  84.44% { opacity: 1; }
+  100% { opacity: 1; }
+}
+
+/* 退路：定格在 t=0 —— 大廳、門開著、第一站的字幕還在。
+   那一格自己就成立（#148 方向 A 就是這個退路的完整版）。*/
+@media (prefers-reduced-motion: reduce) {
+  .rideCam, .rideUp, .rideDown, .rideDoorL, .rideDoorR,
+  [class*="rideBeat"] { animation: none !important; }
+  .rideCam   { transform: translateY(-1228.0px); }
+  .rideDoorL { transform: translateX(-22px); }
+  .rideDoorR { transform: translateX(22px); }
+  .rideBeat0 { opacity: 1; }
+}

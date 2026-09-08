@@ -34,6 +34,13 @@
       "text": "#148 三個方向，沿「首頁跟遊戲的距離」由遠到近排。\nA 靜態剖面 → B 編排過的 18 秒循環 → C 真的接上 sim.js。\n三份用的是同一批素材（真的樓層帶色、真的 16×8 家具、真的 7×9 小人、真的 3×5 樓層號），由 tools/landgen.py 從產品讀出來產生，沒有手抄的顏色。"
     },
     {
+      "id": "picked",
+      "x": 1990,
+      "y": -370,
+      "w": 1400,
+      "text": "owner 選了 B。#152 把它做成真的首頁：\n同一支 landgen.py 另外產生 js/landride.js 與 css/landride.css，\n驗收第 25 組拿活的 EVENTS/BANDS/PEOPLE/MOTIFS/DAY 跟產物裡的 LAND_SRC 逐字元比。\n相機現在停在 93 樓；100 樓那題在 #152 等 owner 裁決。"
+    },
+    {
       "id": "warning",
       "x": 3980,
       "y": -230,
