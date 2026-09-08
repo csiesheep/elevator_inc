@@ -195,17 +195,38 @@ body.landing svg  { shape-rendering: crispEdges; }
      特異性一樣，後面的贏；排在前面的話 980 以上會吃到 700 那一段的
      `position: absolute; bottom: 0`——城市會縮進左欄裡，兩顆疊在畫面中間。 */
 @media (min-width: 980px){
-  #land{ flex-direction: row; align-items: stretch; }
+  /* 兩欄是**一組**，一起置中（#154）。多出來的寬度不再進到任何一欄，
+     由 `justify-content` 平分到兩側——螢幕再寬，那一組也只是往中間靠，
+     中間的間距有上限（1900 上從 416px 變成 104px）。
+     置中的是**內容**：`.ground` 與 `.city` 都在 `.scene` 底下、不在這個 flex 流裡，
+     所以地平線還是滿版、城市還是貼在視窗的左右底角（見下面 .city 那一段）。 */
+  #land{ flex-direction: row; align-items: stretch; justify-content: center; }
 
   .ground{ height: 21vh; background: var(--grass); border-top: 10px solid var(--grassDk); }
 
+  /* 左欄夾在「窗 + 自己的左右 padding」，不再把右欄以外的寬度整碗端走。
+
+     ⚠ **`flex` 一定要維持 `1 1 auto`，不可以改成 `0 1 auto`。**
+        改成內容寬的話，`.ride` 的 `--rideW` 裡那個 `100%` 在量測時解不出容器寬
+        （那是循環），實測 1900×900 上窗會從 448 縮成 308——上面 `.ride` 那條
+        「窗一定要 448:420」就破了。所以左欄還是靠 flex 拿一個**確定的**寬度，
+        只是被 max-width 夾住。
+
+     `--rideMax` 是這裡唯一的真相：窗實際會有多寬（448，矮視窗再被高度換算下去）。
+     max-width 跟 `.ride` 都從它算，兩邊不會各持一份而慢慢對不上。
+
+     980 那條算式（448 + 24 + 40 + 420 = 932）仍然成立而且變成真的用得到：
+     980 上這一組現在佔 927px，中間留 59px，比算式裡編的 40px 間距還寬。 */
   .towerWrap{
+    --rideMax: min(448px, calc((79dvh - 60px) * 1.0667));
+    --twPad: clamp(16px, 3vw, 56px);
     flex: 1 1 auto; min-width: 0;
-    padding: 0 clamp(16px, 3vw, 56px);
+    max-width: calc(var(--rideMax) + 2 * var(--twPad));
+    padding: 0 var(--twPad);
     align-items: flex-end;
     margin-bottom: 0; padding-bottom: calc(21vh - 14px);
   }
-  .ride{ --rideW: min(448px, 100%, calc((79dvh - 60px) * 1.0667)); }
+  .ride{ --rideW: min(var(--rideMax), 100%); }
 
   /* 右欄：綠色交給 .ground，這一欄只剩「置中的一疊字與按鈕」。
      `position: relative` 是必要的，不是裝飾：`.city` 是 fixed（= positioned），
