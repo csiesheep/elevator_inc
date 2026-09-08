@@ -2895,3 +2895,216 @@ check('劑量反應是單調的：crate.w 3/6/12，封車趟數嚴格遞增', ()
     + `｜⚠ 事件那一欄（cratehaul + satellite）**不隨 w 動**——`
     + `這就是為什麼「總封車趟數」是一支鈍的儀器。`);
 });
+
+// ---------------------------------------------------------------- 25 圖鑑（#153）
+//
+// **為什麼這一組存在。** #149 那一趟做完之後，FE 自己做了一次證偽：故意把
+// `js/codex.js` 的分組打壞，**harness 一動也不動（84 → 84）**。也就是說整個圖鑑
+// ——兩個介面、78 張圖、spritedom 的渲染層——**一條 guard 都沒有**，
+// 而那一趟的交付卻可以寫「測試 84/0/0」。那個數字當時不是正確性的證據。
+//
+// owner 在 #153 裁決的規則（取代 #149 的丙）：
+//
+//   | | 已遇過 | 沒遇過 |
+//   |---|---|---|
+//   | 人物圖 | 正常顯示 | **問號** |
+//   | 名字 / 說明(note) / 單價·耐性·佔位 / 載過幾次 | 顯示 | **藏** |
+//
+// **兩個介面同一條規則**：遊戲頁的圖鑑 tab（`js/ui.js`）與 `codex.html`（`js/codex.js`）。
+//
+// ---- 這一組的四條，以及為什麼不是一條 ----
+// 1. 空 `st.codex` → 兩個介面都不洩漏名字 / note / 數值。**這是本體。**
+// 2. 空 `st.codex` → 人物圖也要換成問號（#153 明文：#149 那種「圖還在，只把字調暗」不算）。
+// 3. 滿 `st.codex` → 78 個名字全部出現。**只有第 1 條的話，「整頁永遠空白」也會通過**
+//    ——這正是 harness.js 開頭第 3 點說的「母體是空的儀器會回報一個充滿自信的零」。
+// 4. 問號不是第 79 種人：它不在 `PEOPLE` 裡，`spriteFor()` 也拿不到它。
+//    （它進了 `PEOPLE` 的話，第 15/16/17/19/20 組那五條 CIEDE2000 判準會開始守
+//     一個沒有配件識別色的東西，而那五條是針對**人物**的。）
+section('25 圖鑑：沒遇過的不可以洩漏（#153）');
+
+// 兩個介面的入口用**動態 import**：它們是產品檔，抓不到或炸掉的時候要變成
+// 一條說得出「缺什麼」的 TODO，而不是把整包 84 條一起帶走。
+const CX_UI   = await import('../js/ui.js').catch(e => ({ __err: (e && e.message) || String(e) }));
+const CX_PAGE = await import('../js/codex.js').catch(e => ({ __err: (e && e.message) || String(e) }));
+const CX_DOM  = await import('../js/spritedom.js').catch(e => ({ __err: (e && e.message) || String(e) }));
+const I18N    = await import('../js/i18n.js').catch(e => ({ __err: (e && e.message) || String(e) }));
+
+// 兩個介面各自的「state → HTML」。缺了任何一支就沒有可驗的產出點。
+function cxEntry(){
+  if (CX_UI.__err)   return `TODO: 匯入 js/ui.js 失敗（${CX_UI.__err}）`;
+  if (CX_PAGE.__err) return `TODO: 匯入 js/codex.js 失敗（${CX_PAGE.__err}）`;
+  if (I18N.__err)    return `TODO: 匯入 js/i18n.js 失敗（${I18N.__err}）`;
+  if (typeof CX_UI.tabCodexHTML !== 'function')
+    return 'TODO: js/ui.js 沒有匯出 tabCodexHTML(st)——遊戲頁的圖鑑 tab 沒有可以驗的產出點';
+  if (typeof CX_PAGE.codexBodyHTML !== 'function')
+    return 'TODO: js/codex.js 沒有匯出 codexBodyHTML(st)——圖鑑頁沒有可以驗的產出點';
+  return null;
+}
+
+// **只看文字，不看標記；而且只看乘客那幾張卡。** 兩件事各有一個量到的理由：
+//
+// 1. class 名、CSS 變數、SVG 的 path 資料裡本來就會有各種字母數字，拿整串 HTML
+//    做 indexOf 會抓到一堆假陽性。所以丟進真的 DOM 再取 textContent——
+//    玩家眼睛看得到的就是這一份。
+// 2. 遊戲頁的圖鑑 tab 除了 78 張乘客卡，**還有樓層帶與成就兩段**，而那兩段的
+//    文案本來就會提到乘客（樓層帶的解鎖說明、成就的敘述）。掃整頁的話
+//    **量到 60 筆假陽性**（`觀光客` `CEO` `幽靈` `搬家公司` …，全部來自那兩段，
+//    圖鑑頁那邊 0 筆——因為它沒有那兩段）。那兩段不在 #153 的裁決範圍裡：
+//    這條裁決管的是「一張乘客卡在沒載過的時候給不給身分」。
+//    所以母體是 `.pxCard`（兩個介面共用的那個 class），而**張數本身也是判準**
+//    ——不然「把卡片改成別的 class」就能繞過整條 guard。
+function cxCards(html){
+  const d = document.createElement('div');
+  d.innerHTML = html;
+  return [...d.querySelectorAll('.pxCard')].map(e => e.textContent.replace(/\s+/g, ' '));
+}
+
+// 兩個介面在同一個語言下的完整輸出。`st` 為 null = 沒有存檔（圖鑑頁的訪客路徑）。
+function cxSurfaces(st){
+  return { tab: CX_UI.tabCodexHTML(st || S.newGame()), page: CX_PAGE.codexBodyHTML(st) };
+}
+
+// 一種乘客在「已遇過」時會露出來的每一串字。這一份就是第 1 條要找的東西。
+function cxSecrets(p, n){
+  return [
+    { what: '名字', s: I18N.L(p, 'name', 'passengers') },
+    { what: 'note', s: I18N.L(p, 'note', 'passengers') },
+    { what: '數值', s: I18N.t('codexMeta', p.fare, p.patience > 500 ? '∞' : p.patience + 's', p.size) },
+    { what: '載過幾次', s: '×' + M.fmtShort(n) },
+  ].filter(x => x.s && String(x.s).trim().length >= 2);   // 一個字的字串當不了指紋
+}
+
+check('空的 st.codex：兩個介面都不洩漏名字 / note / 數值（中英各驗一次）', () => {
+  const gate = cxEntry();
+  if (gate) return gate;
+
+  const lang0 = I18N.getLang();
+  const full = S.newGame();
+  for (const p of PASSENGERS) full.codex[p.id] = 3;      // 全滿：母體非空的證明
+  const empty = S.newGame();                             // 全空：要驗的那一個
+
+  const leaks = [], langs = ['zh', 'en'];
+  let proven = 0;
+  try {
+    for (const lang of langs){
+      I18N.setLang(lang);
+      // **先證明現場非空**（harness.js 第 3 點）：同樣兩支函式在「全滿」時
+      // 必須真的印得出這些字。印不出來的話，「空的時候找不到」是廢話——
+      // 一頁永遠空白的實作會安靜地通過下面那圈。
+      const shown = cxSurfaces(full);
+      const sTab = cxCards(shown.tab).join('  '), sPage = cxCards(shown.page).join('  ');
+      for (const p of PASSENGERS)
+        for (const x of cxSecrets(p, 3)){
+          if (sTab.includes(x.s)) proven++;
+          if (sPage.includes(x.s)) proven++;
+        }
+
+      const hidden = cxSurfaces(empty);
+      const hTabA = cxCards(hidden.tab), hPageA = cxCards(hidden.page);
+      // 張數也是判準：卡片被改成別的 class 的話，上面那個 querySelectorAll 會
+      // 撈到空集合，而「空集合裡找不到名字」是一個充滿自信的零。
+      if (hTabA.length !== PASSENGERS.length)
+        leaks.push(`[${lang}] 遊戲頁 tab 只有 ${hTabA.length} 張 .pxCard，應該是 ${PASSENGERS.length} 張`);
+      if (hPageA.length !== PASSENGERS.length)
+        leaks.push(`[${lang}] 圖鑑頁只有 ${hPageA.length} 張 .pxCard，應該是 ${PASSENGERS.length} 張`);
+      const hTab = hTabA.join('  '), hPage = hPageA.join('  ');
+      for (const p of PASSENGERS)
+        for (const x of cxSecrets(p, 1)){
+          if (hTab.includes(x.s)) leaks.push(`[${lang}] 遊戲頁 tab · ${p.id} 的${x.what}：「${x.s}」`);
+          if (hPage.includes(x.s)) leaks.push(`[${lang}] 圖鑑頁 · ${p.id} 的${x.what}：「${x.s}」`);
+        }
+    }
+  } finally { I18N.setLang(lang0); }
+
+  const ne = nonEmpty(proven, '全滿的時候兩個介面一個字都印不出來——這條 guard 從來沒有試過');
+  if (ne !== true) return ne;
+
+  return ok(leaks.length === 0,
+    `中英各一輪、兩個介面 × ${PASSENGERS.length} 張 .pxCard × 4 種字串：全滿時對得上 ${proven} 處、`
+    + `全空時洩漏 ${leaks.length} 處`
+    + (leaks.length ? `｜**${leaks.slice(0, 6).join('；')}**`
+                    + (leaks.length > 6 ? `…（另外 ${leaks.length - 6} 處）` : '') : '')
+    + `｜沒有存檔的訪客會看到 ${PASSENGERS.length} 個問號，owner 逐字裁決過那是可以的`
+    + `（「圖鑑就是要蒐集的」，#153）——所以這條紅了不要去加「沒存檔就全部給看」的旁路。`);
+});
+
+check('空的 st.codex：人物圖也要換成問號，兩個介面都是', () => {
+  const gate = cxEntry();
+  if (gate) return gate;
+  if (CX_DOM.__err) return `TODO: 匯入 js/spritedom.js 失敗（${CX_DOM.__err}）`;
+  if (!Array.isArray(CX_DOM.UNKNOWN_GLYPH))
+    return 'TODO: js/spritedom.js 沒有 UNKNOWN_GLYPH——7×9 的問號字模還不存在';
+  if (typeof CX_DOM.spriteSVG !== 'function') return 'TODO: js/spritedom.js 沒有匯出 spriteSVG';
+
+  // 問號走的是同一支 spriteSVG，所以它在頁面上的 path 資料就是這一串。
+  const qd = /d="([^"]+)"/.exec(CX_DOM.spriteSVG(null, { rows: CX_DOM.UNKNOWN_GLYPH }));
+  if (!qd) return '問號畫不出任何 path——UNKNOWN_GLYPH 是空的？';
+  const q = qd[1];
+
+  const s = cxSurfaces(S.newGame());
+  const bad = [];
+  for (const [name, html] of [['遊戲頁 tab', s.tab], ['圖鑑頁', s.page]]){
+    const n = html.split(q).length - 1;
+    if (n !== PASSENGERS.length) bad.push(`${name} 只有 ${n} 個問號，應該是 ${PASSENGERS.length} 個`);
+    // 而且**不可以還畫著本人**：抽三張圖去比對它們的 path 有沒有留在輸出裡。
+    for (const p of [PASSENGERS[0], PASSENGERS[Math.floor(PASSENGERS.length / 2)],
+                     PASSENGERS[PASSENGERS.length - 1]]){
+      const m = /d="([^"]+)"/.exec(CX_DOM.spriteSVG(p.id, {}));
+      if (m && html.includes(m[1])) bad.push(`${name} 還畫著 ${p.id} 本人的圖`);
+    }
+  }
+  return ok(bad.length === 0,
+    `兩個介面各 ${PASSENGERS.length} 個 7×9 問號（走同一支 spriteSVG，`
+    + `${CX_DOM.UNKNOWN_GLYPH.length} 列 × ${CX_DOM.UNKNOWN_GLYPH[0].length} 行）`
+    + (bad.length ? `｜**${bad.join('、')}**` : ''));
+});
+
+check('滿的 st.codex：78 個名字與數值全部出現（不然「整頁空白」也會通過上面那條）', () => {
+  const gate = cxEntry();
+  if (gate) return gate;
+  const full = S.newGame();
+  for (const p of PASSENGERS) full.codex[p.id] = 7;
+  const s = cxSurfaces(full);
+  const sTab = cxCards(s.tab).join('  '), sPage = cxCards(s.page).join('  ');
+  const missing = [];
+  for (const p of PASSENGERS){
+    const nm = I18N.L(p, 'name', 'passengers');
+    if (!sTab.includes(nm))  missing.push(`遊戲頁 tab 少了 ${p.id}（${nm}）`);
+    if (!sPage.includes(nm)) missing.push(`圖鑑頁少了 ${p.id}（${nm}）`);
+    const meta = I18N.t('codexMeta', p.fare, p.patience > 500 ? '∞' : p.patience + 's', p.size);
+    if (!sTab.includes(meta))  missing.push(`遊戲頁 tab 少了 ${p.id} 的數值`);
+    if (!sPage.includes(meta)) missing.push(`圖鑑頁少了 ${p.id} 的數值`);
+  }
+  return ok(missing.length === 0,
+    `兩個介面各 ${PASSENGERS.length} 個名字 + ${PASSENGERS.length} 組數值`
+    + (missing.length ? `｜**${missing.slice(0, 6).join('、')}**`
+       + (missing.length > 6 ? `…（另外 ${missing.length - 6} 筆）` : '') : ''));
+});
+
+check('問號不是第 79 種人：不在 PEOPLE 裡，spriteFor() 也拿不到它', () => {
+  if (CX_DOM.__err) return `TODO: 匯入 js/spritedom.js 失敗（${CX_DOM.__err}）`;
+  const g = CX_DOM.UNKNOWN_GLYPH;
+  if (!Array.isArray(g)) return 'TODO: js/spritedom.js 沒有 UNKNOWN_GLYPH——7×9 的問號字模還不存在';
+  const bad = [];
+  if (g.length !== 9) bad.push(`列數 ${g.length}，應該是 9`);
+  for (const r of g){
+    if (r.length !== 7) bad.push(`「${r}」寬 ${r.length}，應該是 7`);
+    if (/[^#o.]/.test(r)) bad.push(`「${r}」有 #o. 以外的符號`);
+  }
+  // 配件格（'o'）= 配件識別色。問號沒有身分，不該有配件——有的話它就開始
+  // 需要第 19/20 組那種「配件色要分得開」的判準，而那正是不放進 sprites.js 的理由。
+  if (g.some(r => r.includes('o'))) bad.push('問號有配件格（o）——它沒有配件識別色');
+  const key = a => a.join('|');
+  const ids = Object.keys(PEOPLE);
+  const ne = nonEmpty(ids.length, 'PEOPLE 是空的，這條 guard 從來沒有試過');
+  if (ne !== true) return ne;
+  for (const id of ids){
+    if (key(PEOPLE[id].normal) === key(g) || key(PEOPLE[id].urgent) === key(g))
+      bad.push(`PEOPLE.${id} 跟問號逐格相同——問號被塞進人物表了`);
+  }
+  return ok(bad.length === 0,
+    `問號 7×9、只有 # 與 .、跟 ${ids.length} 種人物逐格比對後都不相同；`
+    + `它住在 js/spritedom.js，不在 js/sprites.js——第 15/16/17/19/20 組那五條`
+    + `CIEDE2000 判準守的是**人物**的配件識別色，問號沒有那種東西`
+    + (bad.length ? `｜**${bad.join('、')}**` : ''));
+});

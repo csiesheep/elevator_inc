@@ -14,6 +14,10 @@
 }
 
 *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+/* 空狀態卡與計數條是互斥的（#153），codex.js 用 `hidden` 切。
+   **這一條是必要的**：瀏覽器預設的 `[hidden]{display:none}` 特異性比
+   `.cxSeen{display:inline-flex}` 低，沒有它的話沒有存檔時會留下一個空盒子。 */
+[hidden]{ display:none !important }
 html,body{height:auto; margin:0}
 body.codexPage{
   background:var(--bg); color:var(--text);
@@ -54,6 +58,17 @@ body.urgentAll #pose{ background:var(--bad); color:#16183a; border-color:#16183a
 }
 .cxHint{ font-size:12px; color:var(--dim); margin:6px 0 18px }
 
+/* 空狀態（#153）。owner 已經裁決「沒存檔就是 78 個問號」可以接受
+   （「圖鑑就是要蒐集的」），所以這一塊**不是道歉，是入口**：
+   一句話 + 一顆開始遊戲。上一版它只是 .cxSeen 裡的一行小字，
+   而在一頁 78 個問號的畫面上，那一行小字是唯一能解釋眼前是什麼的東西。 */
+.cxEmpty{
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  margin:4px 0 10px; padding:14px 16px;
+  background:var(--card); border:3px solid var(--gold); box-shadow:5px 5px 0 var(--drop);
+}
+.cxEmptyLine{ margin:0; flex:1 1 260px; font-size:15px; font-weight:700; color:var(--gold) }
+
 /* ---------------- 樓層帶
    名字與數值都藏了之後，樓層帶是這一頁唯一的資訊架構，所以標頭要夠重。 */
 .cxBand{ margin:0 0 26px }
@@ -65,44 +80,79 @@ body.urgentAll #pose{ background:var(--bad); color:#16183a; border-color:#16183a
 .cxBandName{ font-weight:700 }
 .cxCount{ margin-left:auto; color:var(--dim); font-size:13px }
 
-/* 格子：跟著寬度自己排。最小 44px 的欄寬容得下 35px 的圖加邊框。 */
-.cxGrid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(52px,1fr)); gap:8px }
-.cxCell{
-  position:relative; aspect-ratio:1; display:flex; align-items:center; justify-content:center;
+/* ---------------- 卡片（#153）
+   這一頁現在是「圖鑑 tab 的網頁版」，所以卡片的**標記**整段來自 ui.js 的
+   `codexCardHTML`（.card / .pxCard / .pxTile / .cardTop / .cName / .cCost /
+   .cDetail / .cHint）。**這一頁不載 style.css**（那個檔給 html/body 上了
+   overflow:hidden，這一頁要能捲），所以那幾個 class 的樣式在這裡重寫一份，
+   刻意跟 style.css 對齊——同一條規則、同一個外觀，只是兩個檔各有各的版面前提。
+   上一版的 .cxCell（52px 的無名方格）連同它的 hover 規則整組刪掉，不留死路。 */
+.cxGrid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:10px }
+.cxGrid .card{
   background:var(--card); border:2px solid var(--edge); box-shadow:3px 3px 0 var(--drop);
+  padding:9px 11px;
 }
-.cxCell:hover{ border-color:var(--hi) }
-.cxCell .pxTile{ display:flex; align-items:center; justify-content:center }
-.cxCell svg{ display:block; image-rendering:pixelated }
+.cxGrid .pxCard{
+  --sprite-ink:var(--text);
+  /* 問號比人物暗一階但讀得到。這一頁只有一種底色（--card #1d2046），
+     所以直接用 --dim #8f95d6：對 --card 讀得出來，對 --text #e8eaf0 明顯低一階。 */
+  --sprite-unknown:var(--dim);
+  display:flex; align-items:flex-start; gap:10px;
+}
+/* 盤子固定尺寸，圖不撐它：一整欄的左邊界要對齊成一條線，
+   而 cat（6 列）跟 office（9 列）的圖高度本來就不同。 */
+.cxGrid .pxTile{
+  flex:0 0 auto; width:34px; height:42px; display:flex;
+  align-items:center; justify-content:center;
+  background:var(--panel); border:2px solid var(--edge);
+}
+.cxGrid .pxTile.pxUnknown{ border-style:dashed }
+.cxGrid .pxTile svg{ display:block; image-rendering:pixelated }
+.cxGrid .pxBody{ flex:1; min-width:0 }
+.cxGrid .cardTop{ display:flex; align-items:baseline; gap:8px }
+.cxGrid .cName{ font-weight:700; font-size:13.5px }
+.cxGrid .cCost{ margin-left:auto; font-size:13px; color:var(--gold);
+  font-variant-numeric:tabular-nums; white-space:nowrap }
+.cxGrid .cDetail{ font-size:12px; opacity:.85; margin-top:3px }
+.cxGrid .cHint{ font-size:11px; color:var(--dim); margin-top:3px }
+.cxGrid .cHint.mono{ font-family:"Pixelify Sans","Courier New",monospace; font-size:12px }
+/* 沒載過的：圖是問號，右半再淡一階。整卡 opacity 會把問號一起吃掉，
+   而問號正是這一格唯一要被看見的東西。 */
+.cxGrid .pxCard.pxHidden .pxBody{ opacity:.5 }
 
-/* 兩個姿勢疊在同一格：切換不重建節點，就不會有第一次換姿勢的閃爍。
-   `.u` 用 visibility 而不是 display:none —— 兩張都參與版面，格子高度才不會跳。 */
-.cxCell .n, .cxCell .u{ grid-area:1/1; display:flex }
-.cxCell .u{ position:absolute; inset:0; align-items:center; justify-content:center; visibility:hidden }
-.cxCell:hover .n{ visibility:hidden }
-.cxCell:hover .u{ visibility:visible }
-body.urgentAll .cxCell .n{ visibility:hidden }
-body.urgentAll .cxCell .u{ visibility:visible }
-body.urgentAll .cxCell:hover .n{ visibility:visible }
-body.urgentAll .cxCell:hover .u{ visibility:hidden }
+/* 兩個姿勢疊在同一個盤子：切換不重建節點，就不會有第一次換姿勢的閃爍。
+   `.u` 用 visibility 而不是 display:none —— 兩張都參與版面，卡片高度才不會跳。
+   **只有載過的卡有 .cxSwap**（問號沒有 urgent 姿勢），所以下面每一條都掛在它下面，
+   問號那些卡完全不受 hover 與 urgentAll 影響。 */
+.cxSwap{ position:relative; flex:0 0 auto; display:flex }
+.cxSwap .n, .cxSwap .u{ display:flex }
+.cxSwap .u{ position:absolute; inset:0; visibility:hidden }
+.pxCard:hover .cxSwap .n{ visibility:hidden }
+.pxCard:hover .cxSwap .u{ visibility:visible }
+body.urgentAll .cxSwap .n{ visibility:hidden }
+body.urgentAll .cxSwap .u{ visibility:visible }
+body.urgentAll .pxCard:hover .cxSwap .n{ visibility:visible }
+body.urgentAll .pxCard:hover .cxSwap .u{ visibility:hidden }
+.cxGrid .pxCard:has(.cxSwap){ cursor:pointer }
+.cxGrid .pxCard:has(.cxSwap):hover{ border-color:var(--hi) }
 
-/* 點過的那一格：狀態跟整頁相反（整頁是一般 → 這格 urgent，反之亦然）。
+/* 點過的那一張：狀態跟整頁相反（整頁是一般 → 這張 urgent，反之亦然）。
    跟 hover 同一個意思，只是它是黏住的——觸控要的就是黏住。 */
-.cxCell.on .n{ visibility:hidden }
-.cxCell.on .u{ visibility:visible }
-body.urgentAll .cxCell.on .n{ visibility:visible }
-body.urgentAll .cxCell.on .u{ visibility:hidden }
+.pxCard.on .cxSwap .n{ visibility:hidden }
+.pxCard.on .cxSwap .u{ visibility:visible }
+body.urgentAll .pxCard.on .cxSwap .n{ visibility:visible }
+body.urgentAll .pxCard.on .cxSwap .u{ visibility:hidden }
 
 /* 觸控裝置沒有 hover（而且會把它模擬成「點過就黏住」）。頂欄那顆按鈕才是
    觸控的入口，所以這裡把 hover 規則整組關掉，不留一個黏住的中間態。 */
 @media (hover:none){
-  .cxCell:hover .n{ visibility:visible } .cxCell:hover .u{ visibility:hidden }
-  body.urgentAll .cxCell:hover .n{ visibility:hidden }
-  body.urgentAll .cxCell:hover .u{ visibility:visible }
+  .pxCard:hover .cxSwap .n{ visibility:visible } .pxCard:hover .cxSwap .u{ visibility:hidden }
+  body.urgentAll .pxCard:hover .cxSwap .n{ visibility:hidden }
+  body.urgentAll .pxCard:hover .cxSwap .u{ visibility:visible }
   /* .on 要贏過上面那四條，不然觸控點下去看起來沒反應 */
-  .cxCell.on .n{ visibility:hidden } .cxCell.on .u{ visibility:visible }
-  body.urgentAll .cxCell.on .n{ visibility:visible }
-  body.urgentAll .cxCell.on .u{ visibility:hidden }
+  .pxCard.on .cxSwap .n{ visibility:hidden } .pxCard.on .cxSwap .u{ visibility:visible }
+  body.urgentAll .pxCard.on .cxSwap .n{ visibility:visible }
+  body.urgentAll .pxCard.on .cxSwap .u{ visibility:hidden }
 }
 
 /* ---------------- 頁尾 */
@@ -116,7 +166,8 @@ body.urgentAll .cxCell.on .u{ visibility:hidden }
 .cxBtn:active{ transform:translate(5px,5px); box-shadow:0 0 0 var(--drop) }
 
 @media (max-width:520px){
-  .cxGrid{ grid-template-columns:repeat(auto-fill,minmax(44px,1fr)); gap:6px }
-  .cxCell svg{ width:28px; height:36px }   /* 仍在 sprites.js 檔頭的 14×18 下限之上 */
+  .cxGrid{ grid-template-columns:1fr; gap:8px }   /* 卡片有字，兩欄在 375px 下擠不下 */
+  .cxGrid .pxTile{ width:27px; height:33px }
+  .cxGrid .pxTile svg{ width:21px; height:27px }  /* 仍在 sprites.js 檔頭的 14×18 下限之上 */
   .cxFoot .cxBtn{ flex:1 }
 }

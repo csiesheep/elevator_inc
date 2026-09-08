@@ -31,7 +31,15 @@
 
 <main class="cxMain">
   <p class="cxLead" data-i18n="codexLead"></p>
-  <p class="cxSeen" id="seenLine"></p>
+  <!-- 空狀態（#153）。owner 已經裁決過「沒存檔就是 78 個問號」是可以接受的
+       （「圖鑑就是要蒐集的」），所以這裡**不是**一個道歉，是這一頁的入口：
+       整塊卡 + 開始遊戲的按鈕。上一輪它只是 .cxSeen 裡的一行小字。
+       有存檔就換成 #seenLine 的計數條；兩者互斥，由 codex.js 切 hidden。 -->
+  <div class="cxEmpty" id="emptyBox" hidden>
+    <p class="cxEmptyLine" data-i18n="codexNoSave"></p>
+    <a class="cxBtn" href="game.html" data-i18n="btnStart"></a>
+  </div>
+  <p class="cxSeen" id="seenLine" hidden></p>
   <p class="cxHint" data-i18n="codexPose"></p>
   <div id="bands"></div>
   <footer class="cxFoot">
