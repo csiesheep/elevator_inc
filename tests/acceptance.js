@@ -11,7 +11,7 @@ import { PEOPLE } from '../js/sprites.js';
 import { MOTIFS, GLOW } from '../js/interior.js';
 // 第 26 組（#152）用的兩個模組。`landride.js` 是 `tools/landgen.py` 的產物；
 // `landing.js` 包了一層 `if ($('#btnStart'))` 的守衛，所以 harness import 它不會碰 DOM。
-import { RIDE, LAND_SRC } from '../js/landride.js';
+import { RIDE, RIDE_SVG, LAND_SRC } from '../js/landride.js';
 import { rulesHTML, mountRide, paintRide } from '../js/landing.js';
 import { getLang, setLang } from '../js/i18n.js';
 import * as S from '../js/state.js';
@@ -3287,7 +3287,9 @@ check('問號不是第 79 種人：不在 PEOPLE 裡，spriteFor() 也拿不到�
     + `它住在 js/spritedom.js，不在 js/sprites.js——第 15/16/17/19/20 組那五條`
     + `CIEDE2000 判準守的是**人物**的配件識別色，問號沒有那種東西`
     + (bad.length ? `｜**${bad.join('、')}**` : ''));
-// ================================================================ 25 首頁那段動畫會不會安靜過期（#152 / #150）
+});
+
+// ================================================================ 26 首頁那段動畫會不會安靜過期（#152 / #150）
 //
 // ⚠⚠ **這一組是 FE 寫的，不是 orchestrator。**
 //     TEAM.md 寫「`tests/` 是 orchestrator 的：peer 可以跑、可以證偽、**不編輯**」，
@@ -3331,6 +3333,15 @@ function firstDiff(a, b){
 }
 
 const REGEN = '→ 跑 `python tools/landgen.py` 重新生成（然後 commit 產物）。';
+
+// 綠的那一列也要說實話。`ok(cond, msg)` 兩種狀態共用同一句 msg，
+// 所以直接寫「對不上」的話，**通過的時候印出來的也是「對不上」**。
+// 這支把兩邊分開：綠的說它比了幾筆、紅的說哪一個字分家。
+function sameAs(what, a, b, n){
+  const eq = a === b;
+  return ok(eq, eq ? `${n} 筆逐字元相同（${what}）`
+                   : `首頁畫的${what}跟現在的對不上。${REGEN}\n${firstDiff(a, b)}`);
+}
 
 // 活的模組 → 跟 landgen.land_src() 一模一樣的結構。
 // **欄位、大小寫、順序都要跟那邊對齊**（landgen 對顏色做了 .lower()）。
@@ -3376,22 +3387,22 @@ check('LAND_SRC 本身非空', () => {
 
 check('四站的事件資料 = 活的 EVENTS', () => {
   const a = canon(LAND_SRC.events), b = canon(liveEvents());
-  return ok(a === b, `首頁畫的事件跟現在的 EVENTS 對不上。${REGEN}\n${firstDiff(a, b)}`);
+  return sameAs('事件（EVENTS）', a, b, LAND_SRC.events.length);
 });
 
 check('七個樓層帶的起訖與顏色 = 活的 BANDS', () => {
   const a = canon(LAND_SRC.bands), b = canon(liveBands());
-  return ok(a === b, `首頁畫的樓層帶跟現在的 BANDS 對不上。${REGEN}\n${firstDiff(a, b)}`);
+  return sameAs('樓層帶（BANDS）', a, b, LAND_SRC.bands.length);
 });
 
 check('畫進去的小人 = 活的 PEOPLE', () => {
   const a = canon(LAND_SRC.people), b = canon(livePeople());
-  return ok(a === b, `首頁畫的小人跟現在的 sprites.js 對不上。${REGEN}\n${firstDiff(a, b)}`);
+  return sameAs('小人（sprites.js）', a, b, LAND_SRC.people.length);
 });
 
 check('畫進去的家具小景 = 活的 MOTIFS / GLOW', () => {
   const a = canon(LAND_SRC.motifs), b = canon(liveMotifs());
-  return ok(a === b, `首頁畫的家具小景跟現在的 interior.js 對不上。${REGEN}\n${firstDiff(a, b)}`);
+  return sameAs('家具小景（interior.js）', a, b, LAND_SRC.motifs.length);
 });
 
 check('用到的 DAY 色表 = 活的 theme.js', () => {
@@ -3399,7 +3410,7 @@ check('用到的 DAY 色表 = 活的 theme.js', () => {
   const live = livePalette(THEME_SRC);
   if (!live) return 'TODO: theme.js 裡找不到 `const DAY = {`，剖法跟 landgen.py 已經分家了';
   const a = canon(LAND_SRC.palette), b = canon(live);
-  return ok(a === b, `首頁用的 DAY 色表跟現在的 theme.js 對不上。${REGEN}\n${firstDiff(a, b)}`);
+  return sameAs('DAY 色表（theme.js）', a, b, Object.keys(LAND_SRC.palette).length);
 });
 
 // 節拍表自己也要站得住：相機停在一層沒有畫出來的樓，
