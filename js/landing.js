@@ -3,9 +3,29 @@
 import { t, L, getLang, toggleLang } from './i18n.js';
 import { PASSENGERS, ACHIEVEMENTS, BANDS, CONFIG as C } from './content.js';
 import { fmtShort } from './sim.js';
+// 首頁中間那一段 18 秒循環（#152）。
+// **這個模組是 `python tools/landgen.py` 產生的，不要手改。**
+import { RIDE, RIDE_SVG } from './landride.js';
 
 const $ = s => document.querySelector(s);
 const SAVE_KEY = 'elevator_inc_v1';
+
+// ---------------------------------------------------------------- 錢怎麼寫
+//
+// #150：規則書的結局那一段兩種語言都**硬寫了 `ORBIT_CASH`**，
+// 而 owner 把它從 $20M 改成 $10M 之後，首頁繼續說「要兩倍的錢」。
+// 修法不是把 20 改成 10，是把數字改成從常數算出來（`js/ui.js:100` 的做法）。
+//
+// 英文直接用 `fmtShort()`——跟遊戲裡那顆按鈕逐字相同。
+// 中文不行：原句是「$2000 萬」不是「$20M」，`fmtShort()` 會吐出 `10.0M`。
+// 量詞要分開處理，**不能為了省事把中文改成英文寫法**。
+//
+// ⚑ 這一支只服務首頁。別的地方要用的話，它應該搬到 `sim.js` 的 `fmtShort` 旁邊去（BE 的檔）。
+function fmtHan(n){
+  if (n >= 1e8) return (n / 1e8).toString().replace(/\.0+$/, '') + ' 億';
+  if (n >= 1e4)  return (n / 1e4).toString().replace(/\.0+$/, '') + ' 萬';
+  return String(Math.round(n));
+}
 
 function readSave(){
   try {
@@ -17,7 +37,7 @@ function readSave(){
 }
 
 // ---------------------------------------------------------------- 說明
-function rulesHTML(){
+export function rulesHTML(){
   const en = getLang() === 'en';
   if (en) return `
     <h3>The loop</h3>
@@ -65,9 +85,10 @@ function rulesHTML(){
     <h3>The ending</h3>
     <p>Demolish the tower to convert a run into blueprints, which never disappear. You can do it
     whenever you like — there is no minimum.</p>
-    <p>The hundredth floor unlocks the way out of the atmosphere. It is not free: <b>$20M and
-    20 blueprints</b>, and the cash has to be sitting there in a <i>single</i> run, because
-    demolishing resets it. That is not somewhere you get to on your first tower.</p>`;
+    <p>Floor ${C.ENDING_FLOOR} unlocks the way out of the atmosphere. It is not free:
+    <b>$${fmtShort(C.ORBIT_CASH)} and ${C.ORBIT_BP} blueprints</b>, and the cash has to be sitting
+    there in a <i>single</i> run, because demolishing resets it. That is not somewhere you get to on
+    your first tower.</p>`;
 
   return `
     <h3>核心循環</h3>
@@ -106,7 +127,7 @@ function rulesHTML(){
 
     <h3>結局</h3>
     <p>拆掉大樓可以把這一輪換成藍圖，藍圖永遠不會消失。什麼時候拆都可以，沒有門檻。</p>
-    <p>蓋到<b>第 100 層</b>會解鎖離開大氣層的路。它不是免費的：<b>$2000 萬加 20 張藍圖</b>，
+    <p>蓋到<b>第 ${C.ENDING_FLOOR} 層</b>會解鎖離開大氣層的路。它不是免費的：<b>$${fmtHan(C.ORBIT_CASH)}加 ${C.ORBIT_BP} 張藍圖</b>，
     而且現金必須在<i>同一輪</i>裡存到——拆樓會把現金歸零。那不是第一棟樓就到得了的地方。</p>`;
 }
 
@@ -160,6 +181,62 @@ function openSheet(title, html){
   $('#sheetHost').appendChild(wrap);
 }
 
+// ---------------------------------------------------------------- 中間那一段動畫（#152）
+//
+// 圖與節拍資料全部在 `landride.js`（產生檔），這裡只做兩件事：
+// 把 SVG 貼上去、把四站的字幕用現在的語言寫出來。
+//
+// ⚑ **字幕裡沒有任何一個數字是這裡寫的。** 時段、人數、起訖、樓層都從
+//   `RIDE.beats[].ev` 來，而那一欄是產生的時候從 `EVENTS` 抄下來的。
+//   資料改了而沒有重新生成 → 驗收第 26 組紅。
+function placeName(key){
+  if (key === 'lobby') return t('landRideLobby');
+  const b = BANDS.find(x => x.key === key);
+  return b ? L(b, 'name', 'bands') : key;
+}
+
+function hoursText(h){
+  // hours [0,24) 是「任何時段」（例如 boarding），寫「0–24 點」是對的但是廢話。
+  return (h[0] === 0 && h[1] === 24) ? t('landRideAllDay') : t('landRideHours', h[0], h[1]);
+}
+
+function evLine(b){
+  const ev = b.ev;
+  return [L(ev, 'name', 'events'),
+          placeName(ev.at) + '\u2192' + placeName(ev.to),
+          hoursText(ev.hours),
+          t('landRideCount', ev.n[0], ev.n[1])].join(' · ');
+}
+
+// ⚑ `mountRide` / `paintRide` 是匯出的，因為驗收第 26 組會**真的把那四格建出來**
+//   再讀一次（harness 跑在瀏覽器裡）。上面那些 guard 全部只讀資料，
+//   一條都沒有碰過畫面——這兩支壞掉的話首頁的字幕是空的，而它們還是綠的。
+//
+// SVG 只貼一次（110KB）。語言切換只改文字節點，
+// **不重建 DOM**——重建會把正在跑的 CSS 動畫全部重新開始，
+// 相機跟字幕會從不同的相位重新跑，看起來就是對不上。
+export function mountRide(){
+  const host = $('#ride');
+  if (!host) return;
+  host.innerHTML = RIDE_SVG + RIDE.beats.map(b =>
+    `<div class="rideBeat rideBeat${b.i}">
+       <span class="rideClock">${b.clock}</span>
+       <div class="rideCap"><b data-beat-at="${b.i}"></b><span data-beat-ev="${b.i}"></span></div>
+     </div>`).join('');
+}
+
+export function paintRide(){
+  const host = $('#ride');
+  if (!host) return;
+  host.setAttribute('aria-label', t('landRideAlt'));
+  for (const b of RIDE.beats){
+    const at = host.querySelector(`[data-beat-at="${b.i}"]`);
+    const ev = host.querySelector(`[data-beat-ev="${b.i}"]`);
+    if (at) at.textContent = t('landRideAt', placeName(b.place), b.floor);
+    if (ev) ev.textContent = evLine(b);
+  }
+}
+
 // ---------------------------------------------------------------- 畫面
 function paint(){
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
@@ -170,14 +247,22 @@ function paint(){
         (st.rating || 0).toFixed(1))
     : t('landNoSave');
   $('#lang').textContent = getLang() === 'zh' ? 'EN' : '中';
+  paintRide();
 }
 
-$('#btnStart').addEventListener('click', () => { location.href = 'game.html'; });
-$('#btnRules').addEventListener('click', () => openSheet(t('rulesTitle'), rulesHTML()));
-$('#btnLedger').addEventListener('click', () => openSheet(t('ledgerTitle'), ledgerHTML()));
-$('#lang').addEventListener('click', () => {
-  toggleLang(); paint();
-  document.querySelectorAll('.sheetWrap').forEach(w => w.remove());
-});
+// ⚑ **這一段包在一個守衛裡是故意的。**
+//   `rulesHTML()` 現在是匯出的（驗收第 26 組要 import 它來檢查 #150 那兩句），
+//   而模組頂層直接 `$('#btnStart').addEventListener` 會讓任何一個
+//   沒有首頁 DOM 的頁面（harness）一 import 就爆在 null 上。
+if ($('#btnStart')){
+  $('#btnStart').addEventListener('click', () => { location.href = 'game.html'; });
+  $('#btnRules').addEventListener('click', () => openSheet(t('rulesTitle'), rulesHTML()));
+  $('#btnLedger').addEventListener('click', () => openSheet(t('ledgerTitle'), ledgerHTML()));
+  $('#lang').addEventListener('click', () => {
+    toggleLang(); paint();
+    document.querySelectorAll('.sheetWrap').forEach(w => w.remove());
+  });
 
-paint();
+  mountRide();
+  paint();
+}
