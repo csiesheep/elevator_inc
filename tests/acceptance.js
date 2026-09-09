@@ -3894,6 +3894,12 @@ check('boostLabel 不是 rowBoost 的別名（中文那半會壞在鈕面上）'
 //    **沒有這條，把 `refreshUI()` 改成空函式可以讓 1～3 全部變綠**——
 //    那是這一組最貴的假綠，因為面板會安靜地凍住而沒有任何一條紅。
 //
+// ⚠ 第 1 / 3 條要先讓面板**真的有東西要改**（`clkNudge()`），而且要**證明它改了**。
+// 這是被自己的證偽逼出來的：第一版拿「動現金」當差異，但現金在升級頁不印在卡片上，
+// 字串一模一樣，於是「字沒變就整段跳過」的實作根本不進 DOM——把 `patch()` 注回
+// `innerHTML` 之後，第 1 條紅了而**第 3 條照樣是綠的**。現在兩條都會先斷言
+// 那一次 `refreshUI()` 真的動過面板的 HTML，動不了就直接說自己沒驗到東西。
+//
 // ⚠ **它守不到的（誠實寫在這裡）：** 真的滑鼠。harness 派不出 trusted 事件，
 // 所以第 2 / 3 條是拿 UI Events 那條規則（最近共同包含祖先）自己算出 click 的目標，
 // **規則是從規格抄的，不是從產品讀的**，跟 SPEC 常數同一個性質。
@@ -3958,18 +3964,32 @@ function clkAt(root, p){
   for (const i of p){ if (!n) return null; n = n.childNodes[i]; }
   return n || null;
 }
-// 一次「按下 →（可能有一次重建）→ 放開」。回傳這一下有沒有變成 click。
+// **讓面板真的有東西要改。**
+//
+// 這一支是被自己的證偽逼出來的。原本用「動現金」當差異來源，結果現金在升級頁
+// **根本不出現在 HTML 裡**（只影響 `.dis`，而測試用的金額兩邊都買得起），
+// 所以字串一模一樣。任何一個「這一輪跟上一輪的字相同就整段跳過」的實作
+// ——包括修好之後的 `js/ui.js` 就有這條捷徑——都會讓那次 `refreshUI()`
+// 一個節點都不碰，於是「重建之後還是同一個物件」變成廢話。
+// 證據：把 `patch()` 注回 `innerHTML` 之後，第 1 條紅了、**第 3 條照樣是綠的**。
+// 升級的等級與價錢是直接印在卡片上的，動它保證字串會變。
+function clkNudge(st){ st.up.accel = (st.up.accel + 1) % 12; }
+
+// 一次「按下 →（可能有一次重建）→ 放開」。回傳這一下有沒有變成 click，
+// 以及 `between` 期間面板的 HTML 到底有沒有動過（沒動過的話這一次量的是空氣）。
 function clkPress(body, sel, between){
   const card = body.querySelector(sel);
   if (!card) return { err: `面板上找不到 ${sel}` };
   const down = card.querySelector('.cName') || card;
   const path = clkPath(body, down);
   down.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+  const h0 = body.innerHTML;
   if (between) between();
+  const changed = body.innerHTML !== h0;
   const upEl = clkAt(body, path);
   const tgt = clkNCA(down, upEl);
   if (tgt) tgt.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-  return { dispatched: !!tgt, sameNode: down === upEl, downConnected: down.isConnected };
+  return { dispatched: !!tgt, sameNode: down === upEl, downConnected: down.isConnected, changed };
 }
 
 check('兩次 refreshUI() 之間，面板的卡片是同一個物件（頂欄那幾個也是）', () => {
@@ -3983,11 +4003,14 @@ check('兩次 refreshUI() 之間，面板的卡片是同一個物件（頂欄那
     // 頂欄是 game.html 的靜態元素，#159 的預測說它們不受影響——一起量。
     const chrome = ['#cash', '#rate', '#bp', '#rating', '#hud', '#tabs', '#grabber']
       .map(s => [s, document.querySelector(s)]);
-    // **先讓面板真的有東西要改。** 現金不動的話，一個「這一輪的字跟上一輪一樣就
-    // 整段跳過」的實作會讓這條變成廢話（什麼都沒寫，當然是同一個物件）。
-    // 遊戲裡現金每一幀都在動，所以「有差異」才是常態，這裡照常態量。
-    m.st.cash = 1234;
+    // **先讓面板真的有東西要改**（理由見 clkNudge 上面那段），
+    // 而且要**證明它真的改了**：字串沒動的實作可以什麼都不寫就通過這一條。
+    const h0 = m.body.innerHTML;
+    clkNudge(m.st);
     CLK_UI.refreshUI();
+    if (m.body.innerHTML === h0)
+      return `refreshUI() 前後面板的 HTML 一個字都沒變——這一次根本沒有重建，`
+           + `這條沒有驗到任何東西（探針要挑一個真的會印在卡片上的差異）`;
     const after = [...m.body.querySelectorAll('[data-act]')];
     if (before.length !== after.length)
       return `refreshUI() 之後卡片數從 ${before.length} 變成 ${after.length}（資料沒變，數量不該變）`;
@@ -4023,18 +4046,23 @@ check('按下 → refreshUI() → 放開，這一下也要買得到東西（#159
   const m = clkMount(); if (m.todo) return m.todo;
   try {
     const lv0 = m.st.up.speed;
-    // 重建之前先動現金：理由同上一條，不然「沒有差異就整段跳過」的實作
-    // 會讓這一條在完全沒有重建發生的情況下變綠。5e8 仍然買得起巡航速度。
+    // 重建之前先動一格等級（理由見 clkNudge），不然「沒有差異就整段跳過」的實作
+    // 會讓這一條在完全沒有重建發生的情況下變綠。動的是加速度那張，不是要按的那張。
     const r = clkPress(m.body, '[data-act="up"][data-id="speed"]',
-      () => { m.st.cash = 5e8; CLK_UI.refreshUI(); });
+      () => { clkNudge(m.st); CLK_UI.refreshUI(); });
     if (r.err) return `TODO: ${r.err}，這條沒有驗到任何東西`;
+    // 母體非空的第二半：那一次 refreshUI() 真的重建了東西嗎？
+    if (!r.changed)
+      return `按下與放開之間那一次 refreshUI() 完全沒有動到面板的 HTML——`
+           + `這條沒有驗到任何東西（探針要挑一個真的會印在卡片上的差異）`;
     return ok(m.bought.length === 1 && m.st.up.speed === lv0 + 1,
       m.bought.length !== 1 || m.st.up.speed !== lv0 + 1
         ? `按下之後、放開之前插進一次 refreshUI()：按下的那張卡 isConnected=${r.downConnected}、`
           + `放開時同一個位置上還是同一個物件嗎=${r.sameNode}、有沒有派出 click=${r.dispatched}；`
           + `結果 onBuy 收到 ${m.bought.length} 次、巡航速度 ${lv0}→${m.st.up.speed}`
           + `——這就是 owner 說的「有時候點了沒反應」`
-        : `重建卡在按下與放開之間，click 照樣派得出來、巡航速度 ${lv0}→${m.st.up.speed}`);
+        : `重建（面板 HTML 真的變了）卡在按下與放開之間，click 照樣派得出來、`
+          + `巡航速度 ${lv0}→${m.st.up.speed}`);
   } finally { m.done(); }
 });
 
