@@ -4091,3 +4091,185 @@ check('refreshUI() 不是空函式：文字與 class 要跟著資料變', () => 
       || `等級「${txt0}」→「${txt1}」、.dis ${dis0}→${dis1}、頂欄 ${cash0}→${cash1}`);
   } finally { m.done(); }
 });
+
+// ---------------------------------------------------------------- 29 大樓寬度的上限與置中（#160）
+//
+// **這一組是 FE 寫的（分支 `fe/tower-width`，#160）。** 照第 27 組（BE / #155）與
+// 第 28 組（FE / #157）的先例放成一組、連在一起、上面點名作者。`tests/` 是
+// orchestrator 的檔——**land 之前請自己證偽這四條**，工單上寫明了會這麼做。
+//
+// ---- 這一組在守什麼 ----
+//
+// #160 之前 `layout()` 的寬度是 `skyPad = min(62, max(14, W*0.085))`，**上限 62px**，
+// 所以畫布多寬、大樓就多寬。實測（48 層、4 井）：1920 的視窗上大樓 1450px 寬、
+// 塔高 743px（**1.95 : 1**），2560 上是 **2.73 : 1**。那不是一棟塔，是一條色帶。
+//
+// **owner 裁決（#160，逐字）：「大樓在寬螢幕上太寬，改成 k = 0.75」**
+// ——k 是「大樓寬 ÷ 塔高」的上限，塔高的定義寫在工單上：
+// `towerH = horizon - (skyTop + roofH + deck)`。
+//
+// 這一組是**幾何**，不是外觀，所以 harness 真的看得見（跟 #154 / #157 的版面不同：
+// 那兩輪的結論是「只有人打開頁面看得到」）。四條各自擋一種不同的做錯法：
+//
+//   1 上限成立      —— 沒夾／夾錯方向。**現行 main 上這一條是紅的**（1450 > 560）。
+//   2 置中          —— 只夾了右邊（`bx1 = bx0 + bw`），大樓黏在左緣。
+//   3 窄螢幕沒變窄  —— 用固定像素上限或忘了取 min，手機上樓會比以前更細。
+//   4 井道跟著動    —— **`layout()` 跑完之後補一刀改 `view.bx*`**。那樣 `fx*` 與
+//                      `shaftX` 還是舊的，大樓的外牆會離開它自己的樓層。
+//
+// ⚠ **它守不到的：** 好不好看。0.75 是 owner 看了算圖之後挑的，這裡只驗那個數字
+// 被執行了，不驗它是對的數字。也不驗天空／地平線／遠景城市有沒有延伸到畫面邊緣
+// ——那三個在 `sky.js` 裡本來就吃 `W` 不吃 `bx*`（`drawFar(ctx, W, …)`），
+// 這一輪沒有動它們，而「畫面邊緣」是外觀，只有人打開頁面看得到。
+section('30 大樓寬度夾在塔高的 0.75 倍（#160）');
+
+// **owner 裁決（#160，逐字）：「改成 k = 0.75」。** 抄本，不從 render.js 讀。
+const K160 = 0.75;
+
+// #160 **之前**的寬度算法，逐字抄在這裡當基準線。第 3 條要比「跟改動前逐位相同」，
+// 那個「改動前」不可以從產品讀——讀了就永遠相同。
+const bw160Legacy = w => {
+  const pad = Math.round(Math.min(62, Math.max(14, w * 0.085)));
+  return (w - pad) - pad;
+};
+
+const RENDER160 = await import('../js/render.js').catch(e => ({ err: (e && e.message) || String(e) }));
+
+// 量一次版面。`layout()` 讀的是 `getBoundingClientRect()`，所以要有一個真的進了
+// 文件流、寬高寫死的 canvas；`position:fixed` 移到畫面外不影響 rect 的尺寸。
+//
+// ⚠ 不要用遊戲頁面上那張 canvas 去量：預覽窗隱藏時 `requestAnimationFrame` 不跑、
+// `layout()` 不會被呼叫，量到的是上一次（或初值 0）的 `view`。這裡自己叫 `layout()`。
+function measure160(w, h){
+  const cv = document.createElement('canvas');
+  cv.style.cssText = `position:fixed;left:-99999px;top:0;width:${w}px;height:${h}px`;
+  document.body.appendChild(cv);
+  try {
+    // 48 層、4 井：#160 工單量那張表用的配置（`up.shaft = 3` → `derived().shafts = 4`）。
+    const st = S.newGame();
+    st.floors = 48; st.up.shaft = 3;
+    const sim = M.createSim(st);
+    if (!RENDER160.layout(cv, cv.getContext('2d'), st, sim)) return null;
+    const v = RENDER160.view;
+    return {
+      w, h, W: v.W, H: v.H, bw: v.bw, bx0: v.bx0, bx1: v.bx1, wall: v.wall,
+      fx0: v.fx0, fx1: v.fx1, horizon: v.horizon, skyTop: v.skyTop, roofH: v.roofH,
+      deck: v.deck, shaftX: v.shaftX, shaftW: v.shaftW, colW: v.colW,
+      shafts: sim.shafts.length,
+      towerH: v.horizon - (v.skyTop + v.roofH + v.deck),
+    };
+  } finally { cv.remove(); }
+}
+
+// canvas 的尺寸，不是視窗的尺寸——`#stage` 兩側有 HUD，所以 1920 的視窗上
+// canvas 大約 1574 寬（工單那張表的 1450 = 1574 − 2×62 就是這麼來的）。
+// 最後一列是矮視窗：工單警告「固定像素上限在矮視窗上一樣會壞」，1200px 的上限
+// 配 500px 高還是 2.4 : 1。用長寬比的話這一列自然跟著收。
+const CASES160 = [
+  ['視窗 375（手機直式）',   375,  620],
+  ['視窗 768（平板）',       690,  700],
+  ['視窗 1280',             1150,  700],
+  ['視窗 1920',             1574,  780],
+  ['視窗 2560',             2140,  900],
+  ['1920 寬但只有 500 高',  1574,  500],
+];
+
+const M160 = RENDER160.layout ? CASES160.map(([label, w, h]) => {
+  let r = null, err = null;
+  try { r = measure160(w, h); } catch (e){ err = (e && e.message) || String(e); }
+  return { label, w, h, r, err };
+}) : [];
+
+// 全部四條共用的前置：模組載進來了、`layout()` 真的跑了、量到的 W 就是我設定的寬。
+function ready160(){
+  if (!RENDER160.layout)
+    return `TODO: 匯入 js/render.js 失敗（${RENDER160.err || '沒有匯出 layout'}），這一組沒有驗到任何東西`;
+  const bad = M160.filter(c => c.err || !c.r).map(c => `${c.label}：${c.err || 'layout() 回傳 false'}`);
+  if (bad.length) return `TODO: layout() 量不到（${bad.join('；')}），這一組沒有驗到任何東西`;
+  // 儀器自檢：canvas 的 rect 要真的是我寫的那個寬。fixed + 負座標如果被某個
+  // 瀏覽器摺成 0，下面每一條都會在一個 0×0 的版面上「通過」。
+  const wrong = M160.filter(c => Math.abs(c.r.W - c.w) > 0.5 || Math.abs(c.r.H - c.h) > 0.5)
+                    .map(c => `${c.label}：要 ${c.w}×${c.h}，layout() 看到 ${c.r.W}×${c.r.H}`);
+  if (wrong.length) return `TODO: 探針的 canvas 尺寸沒有生效（${wrong.join('；')}），這一組量的不是我指定的版面`;
+  return null;
+}
+
+check('1 上限：每個寬度的 view.bw 都 ≤ towerH × 0.75', () => {
+  const gate = ready160(); if (gate) return gate;
+  // 母體非空：這一條要有意義，至少要有一個寬度是**現行算法會超過上限**的。
+  // 全部都在上限以下的話它是一條永遠通過的檢查（例如有人把 CASES160 全改成手機）。
+  const bites = M160.filter(c => bw160Legacy(c.w) > c.r.towerH * K160 + 1);
+  const ne = nonEmpty(bites.length,
+    '沒有任何一個測試寬度會撞到上限——這一條沒有機會紅（#160 的紅點在 1920 / 2560）');
+  if (ne !== true) return ne;
+  const bad = [], rows = [];
+  for (const c of M160){
+    const cap = c.r.towerH * K160;
+    const ratio = (c.r.bw / c.r.towerH).toFixed(2);
+    rows.push(`${c.label}：${c.r.bw}px 寬／塔高 ${c.r.towerH}px = ${ratio} : 1`);
+    if (c.r.bw > cap + 1)
+      bad.push(`${c.label}：bw ${c.r.bw} > 上限 ${cap.toFixed(1)}（塔高 ${c.r.towerH} × ${K160}），寬高比 ${ratio} : 1`);
+  }
+  return ok(bad.length === 0, bad.length ? bad.join('｜') : rows.join('｜')
+    + `｜其中 ${bites.length} 個寬度是被上限夾過的（現行算法會給 ${bites.map(c => bw160Legacy(c.w)).join(' / ')}）`);
+});
+
+check('2 置中：左邊的天空與右邊的天空一樣寬', () => {
+  const gate = ready160(); if (gate) return gate;
+  const bad = [], rows = [];
+  for (const c of M160){
+    const left = c.r.bx0, right = c.r.W - c.r.bx1;
+    rows.push(`${c.label}：左 ${left} / 右 ${right.toFixed(1)}`);
+    if (Math.abs(left - right) > 1)
+      bad.push(`${c.label}：左邊留 ${left}px、右邊留 ${right.toFixed(1)}px，差 ${Math.abs(left - right).toFixed(1)}px`);
+    // 順手擋一個算錯就會靜靜過去的：bw 要真的等於兩緣的差。
+    if (Math.abs((c.r.bx1 - c.r.bx0) - c.r.bw) > 0.01)
+      bad.push(`${c.label}：bx1-bx0 = ${(c.r.bx1 - c.r.bx0).toFixed(1)} 但 view.bw = ${c.r.bw}`);
+  }
+  return ok(bad.length === 0, bad.length ? bad.join('｜') : rows.join('｜'));
+});
+
+check('3 窄螢幕一格都沒有變窄（375 逐位相同）', () => {
+  const gate = ready160(); if (gate) return gate;
+  const bad = [];
+  // 375 要**逐位相同**：新的上限只准讓大樓變窄，不准在手機上動到它。
+  const narrow = M160.find(c => c.w === 375);
+  if (!narrow) return 'TODO: CASES160 裡沒有 375 這一列，這一條沒有驗到手機';
+  const want = bw160Legacy(375);
+  if (narrow.r.bw !== want)
+    bad.push(`375：view.bw = ${narrow.r.bw}，#160 之前是 ${want}（差 ${narrow.r.bw - want}）`);
+  // 而且**任何**寬度都不可以比改動前更寬——上限只能往內夾。
+  for (const c of M160){
+    const before = bw160Legacy(c.w);
+    if (c.r.bw > before + 0.01)
+      bad.push(`${c.label}：view.bw = ${c.r.bw} 比 #160 之前的 ${before} 更寬，上限只能往內夾`);
+  }
+  return ok(bad.length === 0, bad.join('｜')
+    || `375 的 bw = ${narrow.r.bw}（跟 #160 之前逐位相同）、`
+     + `768 的 bw = ${M160.find(c => c.w === 690).r.bw}（之前 ${bw160Legacy(690)}）；`
+     + `${M160.length} 個寬度沒有一個比之前更寬`);
+});
+
+check('4 井道與樓層幾何跟著大樓一起動（擋「跑完之後補一刀改 bx」）', () => {
+  const gate = ready160(); if (gate) return gate;
+  const bad = [], rows = [];
+  for (const c of M160){
+    const r = c.r;
+    // 樓層的可畫範圍 = 大樓寬減兩道外牆。補一刀只改 bx 的話這一條就對不上。
+    if (Math.abs((r.fx1 - r.fx0) - (r.bw - 2 * r.wall)) > 0.01)
+      bad.push(`${c.label}：fx1-fx0 = ${(r.fx1 - r.fx0).toFixed(1)}，但 bw-2*wall = ${(r.bw - 2 * r.wall).toFixed(1)}（wall=${r.wall}）`);
+    if (Math.abs(r.fx0 - (r.bx0 + r.wall)) > 0.01 || Math.abs(r.fx1 - (r.bx1 - r.wall)) > 0.01)
+      bad.push(`${c.label}：fx0/fx1 (${r.fx0.toFixed(1)}/${r.fx1.toFixed(1)}) 不是 bx0+wall / bx1-wall (${(r.bx0 + r.wall).toFixed(1)}/${(r.bx1 - r.wall).toFixed(1)})`);
+    // 井道：每一座的左右緣都要落在樓層的可畫範圍裡面。
+    if (!(r.shafts > 0)) { bad.push(`${c.label}：一座井都沒有，這一條在量空氣`); continue; }
+    for (let i = 0; i < r.shafts; i++){
+      const x0 = r.shaftX + i * r.colW, x1 = x0 + r.colW;
+      if (x0 < r.fx0 - 0.01 || x1 > r.fx1 + 0.01)
+        bad.push(`${c.label}：第 ${i} 座井在 [${x0.toFixed(1)}, ${x1.toFixed(1)}]，跑出樓層範圍 [${r.fx0.toFixed(1)}, ${r.fx1.toFixed(1)}]`);
+    }
+    if (Math.abs((r.shaftX + r.shaftW) - r.fx1) > 0.01)
+      bad.push(`${c.label}：井道右緣 ${(r.shaftX + r.shaftW).toFixed(1)} 沒有貼齊 fx1 ${r.fx1.toFixed(1)}`);
+    rows.push(`${c.label}：${r.shafts} 井、fx [${r.fx0.toFixed(0)}, ${r.fx1.toFixed(0)}]、井道 ${r.shaftW.toFixed(0)}px`);
+  }
+  return ok(bad.length === 0, bad.length ? bad.join('｜') : rows.join('｜'));
+});

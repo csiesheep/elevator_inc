@@ -23,6 +23,11 @@ import { roofHeight, drawRoof } from './roof.js';
 import { MOTIFS, SIGNATURES, GLOW, MOTIF_W, MOTIF_H } from './interior.js';
 import { drawNum, drawPlate, numWidth, GLYPH_H } from './digits.js';
 
+// 大樓寬度的上限，單位是「塔高的幾倍」（#160）。
+// **owner 裁決（#160，逐字）：「大樓在寬螢幕上太寬，改成 k = 0.75」**——他是看了
+// 幾張不同 k 的算圖之後挑的，所以這個數字的授權在 owner，不在這個檔案裡的任何推導。
+const TOWER_MAX_ASPECT = 0.75;
+
 export const view = {
   W:0, H:0, pad:10, fh:0, shaftX:0, shaftW:0, colW:0,
   bx0:0, bx1:0, bw:0,        // 大樓的外緣（含外牆）
@@ -39,20 +44,46 @@ export function layout(cv, ctx, st, sim){
   cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-  // 左右讓給天空。畫面很窄的時候（手機直式）少讓一點，不然樓會細到沒法玩。
-  const skyPad = Math.round(Math.min(62, Math.max(14, W * 0.085)));
-  view.bx0 = skyPad; view.bx1 = W - skyPad; view.bw = view.bx1 - view.bx0;
-  view.wall = view.bw >= 220 ? 6 : 3;
-  view.fx0 = view.bx0 + view.wall; view.fx1 = view.bx1 - view.wall;
-
+  // 垂直方向先算完，因為大樓的**寬度**現在要看塔有多高（見下面 TOWER_MAX_ASPECT）。
+  // 這一段以前在 bx0/bx1 之後，順序是被 #160 換過來的。
   const groundH = Math.round(Math.max(10, Math.min(22, H * 0.055)));
   view.horizon = H - groundH;
-  view.roofH = roofHeight(view.bw);
-
   // 上方留一條真的天空。不留的話屋頂會頂到畫面邊緣，而且太陽在正午
   // 會整個躲在大樓後面——那就等於沒有「日月隨時間變化」這件事。
   view.skyTop = Math.round(Math.max(30, Math.min(58, H * 0.11)));
   view.arc = view.horizon - view.skyTop * 0.42;
+
+  // 左右讓給天空。畫面很窄的時候（手機直式）少讓一點，不然樓會細到沒法玩。
+  const skyPad = Math.round(Math.min(62, Math.max(14, W * 0.085)));
+  const bwFull = (W - skyPad) - skyPad;
+
+  // 夾寬度（#160）。`skyPad` 的上限是 62px，所以在那之前**畫布多寬、大樓就多寬**：
+  // 1920 上是 1450px 寬配 743px 高的塔（1.95 : 1），2560 上 2.73 : 1——那不是一棟塔。
+  // 夾的是**大樓**，不是畫布：天空、地平線、遠景城市都吃 `W`（`drawFar(ctx, W, …)`），
+  // 所以多出來的寬度變成天空，兩側的城市照樣延伸到畫面邊緣。
+  //
+  // ⚠ 上限是**長寬比**不是固定像素：1200px 的上限配 500px 高的視窗還是 2.4 : 1。
+  // ⚠ 一律 `Math.min`，所以窄螢幕逐位不變（手機上 `bwFull` 本來就遠小於上限）。
+  //
+  // `roofH` 吃 `bw`、而 `bw` 又要吃含 `roofH` 的塔高，兩者互相依賴。夾兩次收尾：
+  // 第一次用滿版寬度的屋頂高（較高，上限較嚴），第二次用夾窄後真正的屋頂高。
+  // 因為每一次都取 min，`bw` 單調遞減 → `roofHeight(bw)` 單調遞減 → 上限單調遞增，
+  // 所以第二次之後 `bw <= towerH × k` 一定成立，而且不會來回跳。
+  let bw = bwFull;
+  for (let i = 0; i < 2; i++){
+    const h = view.horizon - (view.skyTop + roofHeight(bw) + view.deck);
+    bw = Math.min(bw, Math.round(h * TOWER_MAX_ASPECT));
+  }
+  view.bw = bw;
+  view.roofH = roofHeight(bw);
+  // 置中。`W - bwFull` 恰好是 `2 * skyPad`，所以沒被夾到的寬度上 `bx0` 逐位還是 `skyPad`。
+  view.bx0 = Math.round((W - bw) / 2); view.bx1 = view.bx0 + bw;
+
+  // ⚠ 外牆與樓層的可畫範圍要在夾完之後才算。在 `layout()` 跑完之後補一刀改
+  // `view.bx*` 的話，`fx*` 與底下的井道都還是舊的——大樓的外牆會離開它的樓層。
+  view.wall = view.bw >= 220 ? 6 : 3;
+  view.fx0 = view.bx0 + view.wall; view.fx1 = view.bx1 - view.wall;
+
   const towerH = view.horizon - (view.skyTop + view.roofH + view.deck);
   view.fh = Math.max(2, towerH / st.floors);
   view.towerTop = view.horizon - st.floors * view.fh;
