@@ -35,7 +35,11 @@ const SPEC = {
   orbitCash: 1e7,          // §5.7（已過期，見上）
   orbitBp: 20,             // §5.7
   daySeconds: 180,         // §4.x
-  prestigeDiv: 1e4,        // §5.7
+  // **owner 裁決（#161，逐字）：「藍圖的除數從 $10,000 改成 $100,000。」**
+  // 1e4 → 1e5，藍圖少 √10 ≈ 3.16 倍。第 29 組是這次改動的另外兩條 guard。
+  // ⚠ 這一格與產品是同一個 commit 一起改的（BE，#161），所以下面那條 `C.PRESTIGE_DIV === SPEC.prestigeDiv`
+  //   在這一趟驗不到東西——擋這件事的是**第 29 組的定錨值**（從 issue #161 的表抄，不碰 C.PRESTIGE_DIV）。
+  prestigeDiv: 1e5,        // §5.7（見上）
   ratingMin: 0.8,          // §5.7
   churnRating: 1.0,        // §5.7
   leaseBlock: 1.6,         // §5.7
@@ -4272,4 +4276,82 @@ check('4 井道與樓層幾何跟著大樓一起動（擋「跑完之後補一�
     rows.push(`${c.label}：${r.shafts} 井、fx [${r.fx0.toFixed(0)}, ${r.fx1.toFixed(0)}]、井道 ${r.shaftW.toFixed(0)}px`);
   }
   return ok(bad.length === 0, bad.length ? bad.join('｜') : rows.join('｜'));
+});
+
+// ---------------------------------------------------------------- 29（#161）
+// ⚠ **這一組是 BE 寫的，不是 orchestrator。** TEAM.md 寫「tests/ 是 orchestrator 的：
+// peer 可以跑、可以證偽、不編輯」，而 #161 的「驗收」欄指名了兩條檢查。
+// 照 #152（第 26 組）的先例：整組集中在檔尾一塊、上面點名是誰寫的，
+// 要收回去、改寫或整塊搬走都只動這一塊。
+//
+// 這一組守的**不是**「1e5 是好的平衡」——那是 owner 的判斷，harness 沒有立場。
+// 守的是兩種**改法**：
+//
+//   1. **動公式而不是動常數。** 第 0 組的抄寫檢查對這件事是瞎的：它只比 CONFIG
+//      那一格，公式被偷偷改成 `/ 3e4`、`* 2` 或 `sqrt` 換成 `cbrt`，它照樣是綠的。
+//   2. **抄本與產品被同一個人在同一個 commit 一起搬走。** SPEC.orbitCash 上面那段
+//      註解已經記著這個洞（`C.X === SPEC.X` 兩邊同時改就驗不到東西），而這一趟
+//      `prestigeDiv` 正是這樣改的（BE 同一個 commit 改了產品與抄本）。
+//      **定錨值擋的是這件事**：數字從 issue #161 的產出表抄下來，這一組**刻意不出現
+//      `C.PRESTIGE_DIV`**，所以下一個人把兩邊一起搬的時候，它還是紅的。
+section('31 藍圖除數（#161）');
+
+// 抄寫自 `js/state.js` 的 `prestigeGain`，除數以外一個字都沒動（#161 之前就是這一行）：
+//
+//     return Math.floor(Math.sqrt(st.runRevenue / C.PRESTIGE_DIV));
+//
+// 下面這個抄本是**去掉所有空白之後**的樣子（比對前兩邊都會被正規化）。
+// 這樣重排版、加註解、換行都不會讓它假紅——會讓它紅的只有**算式本身**被動過。
+// ⚠ 第一版把抄本寫成有空白的 `return Math.floor(...)`，這一條就**立刻紅了**
+//   （印出「returnMath.floor(...)」）。那次紅是這條 guard 的第一個證據：它真的在比字。
+const PRESTIGE_FORMULA = 'returnMath.floor(Math.sqrt(st.runRevenue/C.PRESTIGE_DIV));';
+const PRESTIGE_FORMULA_READABLE = 'return Math.floor(Math.sqrt(st.runRevenue / C.PRESTIGE_DIV));';
+
+check('公式沒被動到：prestigeGain 仍然是 floor(sqrt(runRevenue / PRESTIGE_DIV))', () => {
+  if (typeof S.prestigeGain !== 'function')
+    return 'TODO: state.js 沒有匯出 prestigeGain，這條沒有驗到任何東西';
+  const src = String(S.prestigeGain);
+  // 儀器活著嗎？`toString()` 拿不到原始碼（被壓縮、`[native code]`、包了一層）的話，
+  // 下面的逐字比對量的是空氣，而且會**假紅**——要分得出「公式被改了」跟「我看不到公式」。
+  if (src.indexOf('[native code]') >= 0 || src.indexOf('prestigeGain') < 0)
+    return 'TODO: prestigeGain.toString() 拿不到原始碼（「' + src.slice(0, 60)
+         + '…」），這條沒有驗到任何東西';
+  const body = src.slice(src.indexOf('{') + 1, src.lastIndexOf('}'))
+                  .replace(/\/\/[^\n]*/g, '')          // 行註解（先做，這時換行還在）
+                  .replace(/\/\*[\s\S]*?\*\//g, '')     // 區塊註解
+                  .replace(/\s+/g, '');                 // 空白與換行不算差異
+  return ok(body === PRESTIGE_FORMULA, body === PRESTIGE_FORMULA
+    ? `逐字相符（空白正規化後）：${PRESTIGE_FORMULA_READABLE}`
+    : `公式被動過了（#161 只該動 CONFIG 那一格）｜期望「${PRESTIGE_FORMULA}」｜實際「${body}」`
+      + `｜可讀版的期望值：${PRESTIGE_FORMULA_READABLE}`);
+});
+
+// 抄寫自 #161 的產出表。**這一條不從產品讀任何常數**——整段沒有 `C.PRESTIGE_DIV`。
+const BP_TABLE = [
+  [1e6,    3],   // $1M
+  [5e6,    7],   // $5M
+  [1e7,   10],   // $10M ← issue「驗收」第 3 點指名的定錨值
+  [3.2e7, 17],   // $32M ← 17 < ORBIT_BP(20)：就是這一列讓結局從「單輪」變成「跨輪」
+  [1e8,   31],   // $100M
+];
+
+check('定錨值：runRevenue = $10M → 10 張（抄自 #161 的表，不從產品讀）', () => {
+  if (typeof S.prestigeGain !== 'function')
+    return 'TODO: state.js 沒有匯出 prestigeGain，這條沒有驗到任何東西';
+  // 母體非空：`runRevenue` 這個欄位得先真的存在。改名之後 `st.runRevenue = rev`
+  // 只是在物件上長出一個沒有人讀的死屬性，每一列都會回 0——那看起來像「表全錯」，
+  // 而它其實是「量錯了東西」。這兩種紅要分得開。
+  const probe = S.newGame();
+  if (!('runRevenue' in probe))
+    return 'TODO: newGame() 的狀態裡沒有 runRevenue 欄位（改名了？），這條設的是死屬性，沒有驗到任何東西';
+  const bad = [], got = [];
+  for (const [rev, want] of BP_TABLE){
+    const st = S.newGame();
+    st.runRevenue = rev;
+    const n = S.prestigeGain(st);
+    got.push(`$${rev / 1e6}M→${n}`);
+    if (n !== want) bad.push(`runRevenue=${rev}：期望 ${want} 張，實際 ${n} 張`);
+  }
+  return ok(bad.length === 0, bad.join('｜')
+    || got.join('、') + '｜定錨 $10M→10 張；五列的值互不相同，所以公式真的讀到了 runRevenue');
 });

@@ -27,7 +27,9 @@ export const CONFIG = {
                           // 把整局鎖在低收入的谷底爬不出來。
   SAVE_EVERY:     15,
   // OFFLINE_CAP_H / OFFLINE_RATE 在 #155 拿掉了（離線收益整個機制不在了）。
-  PRESTIGE_DIV:   1e4,    // 藍圖 = floor(sqrt(本輪總收入 / 這個數))。收入不再有抽象層灌水，除數跟著降
+  PRESTIGE_DIV:   1e5,    // 藍圖 = floor(sqrt(本輪總收入 / 這個數))。owner 裁決（#161）：1e4 → 1e5，
+                          // 藍圖少 √10 ≈ 3.16 倍。連帶：一輪 $32M 從 56 張變 17 張，低於下面的
+                          // ORBIT_BP=20，所以結局的藍圖**單輪湊不到了**，要跨輪累積（st.bp 跨拆樓保留）。
   ENDING_FLOOR:   100,
   ORBIT_CASH:     1e7,    // 結局的價碼。要在「單一輪」裡存到，拆樓會歸零，所以這個數字
                           // 必須對得上一輪實際存得到的現金：技能點滿的一輪大約 $15~20M。
