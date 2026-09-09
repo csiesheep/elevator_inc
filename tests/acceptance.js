@@ -3869,3 +3869,225 @@ check('boostLabel 不是 rowBoost 的別名（中文那半會壞在鈕面上）'
         + `（英文兩邊剛好都是 Overdrive，所以只有中文那半分得出來）`);
   } finally { BOOST_I18N.setLang(back); }
 });
+
+// ================================================================ 29 面板重建會不會把 click 吃掉（#159）
+//
+// **這一組是 FE 寫的（分支 `fe/click-swallow`，#159）。** 照第 27 / 28 組的先例
+// 放成一組、連在一起、上面點名作者。`tests/` 是 orchestrator 的檔——
+// **land 之前請自己證偽這四條**，工單上寫明了會這麼做。
+//
+// ---- 這一組在守什麼 ----
+// owner 回報「有時候點按鈕沒反應」。成因：`js/main.js` 每 0.2 秒呼叫一次
+// `refreshUI()`，而 `js/ui.js` 的 `render()` 用 `body.innerHTML = html` 把整個
+// 面板砍掉重建。**瀏覽器只有在 pointerdown 與 pointerup 的目標有共同祖先時
+// 才會派送 click**（UI Events：click 派在兩者「最近的共同包含祖先」上）。
+// 卡片在按下與放開之間被換掉 → 兩邊沒有共同祖先 → **那一下完全沒有 click**。
+//
+// ---- 這四條，以及為什麼不是一條 ----
+// 1. **身分**：兩次 `refreshUI()` 之間，面板上每一張 `[data-act]` 卡片都是同一個物件。
+//    這條直接對應成因。母體非空由「面板上有幾張卡」證明。
+// 2. **對照組**：沒有重建的時候，按下 → 放開真的會買到東西。
+//    **沒有這條，第 3 條在「這支儀器根本按不到任何東西」時會永遠是綠的**
+//    （harness.js 開頭第 3 點：母體是空的儀器會回報一個充滿自信的零）。
+// 3. **本體**：按下 → `refreshUI()` → 放開，一樣要買到東西。現行 main 上必須是紅的。
+// 4. **反向**：`refreshUI()` 之後文字與 class 要真的跟著資料變。
+//    **沒有這條，把 `refreshUI()` 改成空函式可以讓 1～3 全部變綠**——
+//    那是這一組最貴的假綠，因為面板會安靜地凍住而沒有任何一條紅。
+//
+// ⚠ 第 1 / 3 條要先讓面板**真的有東西要改**（`clkNudge()`），而且要**證明它改了**。
+// 這是被自己的證偽逼出來的：第一版拿「動現金」當差異，但現金在升級頁不印在卡片上，
+// 字串一模一樣，於是「字沒變就整段跳過」的實作根本不進 DOM——把 `patch()` 注回
+// `innerHTML` 之後，第 1 條紅了而**第 3 條照樣是綠的**。現在兩條都會先斷言
+// 那一次 `refreshUI()` 真的動過面板的 HTML，動不了就直接說自己沒驗到東西。
+//
+// ⚠ **它守不到的（誠實寫在這裡）：** 真的滑鼠。harness 派不出 trusted 事件，
+// 所以第 2 / 3 條是拿 UI Events 那條規則（最近共同包含祖先）自己算出 click 的目標，
+// **規則是從規格抄的，不是從產品讀的**，跟 SPEC 常數同一個性質。
+// 2026-09-08 在 `201a2d5` 上用真的滑鼠對過一次（127.0.0.1 起的 game.html，
+// 在 pointerdown 裡同步呼叫 `refreshUI()` 讓重建必定卡在按下與放開之間）：
+//   · `[data-act]` 卡片 → **一個 click 都沒有派送**（不是派到祖先上），升級沒有買到
+//   · `#home` / `#lang` / `#sound` / `#evac` / `#tabs` 的鈕 → click 照常，動作照常
+// 下面第 1 條的後半（頂欄那些元素不會被換掉）就是後者的 harness 版。
+section('29 面板重建會不會把 click 吃掉（#159）');
+
+const CLK_UI = await import('../js/ui.js').catch(e => ({ __err: (e && e.message) || String(e) }));
+
+// 面板要跑起來需要 game.html 那幾個 id。harness 頁沒有，所以這裡自己搭一份**同名**的骨架。
+// 搭得不對的話下面每一條都會變成 TODO，而不是安靜地綠。
+function clkMount(){
+  if (CLK_UI.__err) return { todo: `TODO: 匯入 js/ui.js 失敗（${CLK_UI.__err}）` };
+  if (typeof CLK_UI.buildUI !== 'function' || typeof CLK_UI.refreshUI !== 'function')
+    return { todo: 'TODO: js/ui.js 沒有同時匯出 buildUI(app) 與 refreshUI()，這一組沒有可以驗的入口' };
+  const host = document.createElement('div');
+  host.style.display = 'none';
+  host.innerHTML = `
+    <div id="cash"></div><div id="rate"></div><div id="bp"></div>
+    <div id="rating"></div><div id="hud"></div>
+    <div id="grabber"></div>
+    <nav id="tabs">
+      <button data-tab="up" class="on"></button><button data-tab="auto"></button>
+      <button data-tab="skill"></button><button data-tab="codex"></button>
+      <button data-tab="stats"></button><button data-tab="pres"></button>
+    </nav>
+    <div id="panelBody"></div>`;
+  document.body.appendChild(host);
+  const st = S.newGame();
+  st.cash = 1e9;                                   // 卡片要買得起，不然點了本來就沒事
+  const bought = [];
+  const app = { st, sim: M.createSim(st), onBuy: id => bought.push(id),
+                onPrestige(){}, onOrbit(){}, onWipe(){} };
+  try { CLK_UI.buildUI(app); }
+  catch (e){ host.remove(); return { todo: `TODO: buildUI() 丟出 ${(e && e.message) || e}，面板沒有掛起來` }; }
+  const body = document.querySelector('#panelBody');
+  return { host, st, app, bought, body, done: () => host.remove() };
+}
+
+// UI Events 那條規則的實作：click 派在 down 與 up 兩個目標「最近的共同包含祖先」上。
+// 兩邊沒有共同祖先（其中一邊已經被換掉、離開文件樹）時回 null＝**根本沒有 click**。
+// **這是從規格抄的，不是從產品讀的。**
+function clkNCA(a, b){
+  const up = new Set();
+  for (let n = a; n; n = n.parentNode) up.add(n);
+  for (let n = b; n; n = n.parentNode) if (up.has(n)) return n;
+  return null;
+}
+// 「指標沒有移動」＝放開的時候落在同一個位置上。位置用 root 底下的索引路徑表示：
+// 沒有被重建的話，這條路徑會走回同一個物件；被重建的話，會走到一個新的物件。
+function clkPath(root, node){
+  const p = [];
+  for (let n = node; n && n !== root && n.parentNode; n = n.parentNode)
+    p.unshift([].indexOf.call(n.parentNode.childNodes, n));
+  return p;
+}
+function clkAt(root, p){
+  let n = root;
+  for (const i of p){ if (!n) return null; n = n.childNodes[i]; }
+  return n || null;
+}
+// **讓面板真的有東西要改。**
+//
+// 這一支是被自己的證偽逼出來的。原本用「動現金」當差異來源，結果現金在升級頁
+// **根本不出現在 HTML 裡**（只影響 `.dis`，而測試用的金額兩邊都買得起），
+// 所以字串一模一樣。任何一個「這一輪跟上一輪的字相同就整段跳過」的實作
+// ——包括修好之後的 `js/ui.js` 就有這條捷徑——都會讓那次 `refreshUI()`
+// 一個節點都不碰，於是「重建之後還是同一個物件」變成廢話。
+// 證據：把 `patch()` 注回 `innerHTML` 之後，第 1 條紅了、**第 3 條照樣是綠的**。
+// 升級的等級與價錢是直接印在卡片上的，動它保證字串會變。
+function clkNudge(st){ st.up.accel = (st.up.accel + 1) % 12; }
+
+// 一次「按下 →（可能有一次重建）→ 放開」。回傳這一下有沒有變成 click，
+// 以及 `between` 期間面板的 HTML 到底有沒有動過（沒動過的話這一次量的是空氣）。
+function clkPress(body, sel, between){
+  const card = body.querySelector(sel);
+  if (!card) return { err: `面板上找不到 ${sel}` };
+  const down = card.querySelector('.cName') || card;
+  const path = clkPath(body, down);
+  down.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+  const h0 = body.innerHTML;
+  if (between) between();
+  const changed = body.innerHTML !== h0;
+  const upEl = clkAt(body, path);
+  const tgt = clkNCA(down, upEl);
+  if (tgt) tgt.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  return { dispatched: !!tgt, sameNode: down === upEl, downConnected: down.isConnected, changed };
+}
+
+check('兩次 refreshUI() 之間，面板的卡片是同一個物件（頂欄那幾個也是）', () => {
+  const m = clkMount(); if (m.todo) return m.todo;
+  try {
+    const key = el => el.dataset.act + ':' + el.dataset.id;
+    const before = [...m.body.querySelectorAll('[data-act]')];
+    // 母體非空：面板上真的有卡片可以被換掉。0 張的話下面那圈是量空氣。
+    const ne = nonEmpty(before.length, '面板上一張 [data-act] 都沒有，這條沒有驗到任何東西');
+    if (ne !== true) return ne;
+    // 頂欄是 game.html 的靜態元素，#159 的預測說它們不受影響——一起量。
+    const chrome = ['#cash', '#rate', '#bp', '#rating', '#hud', '#tabs', '#grabber']
+      .map(s => [s, document.querySelector(s)]);
+    // **先讓面板真的有東西要改**（理由見 clkNudge 上面那段），
+    // 而且要**證明它真的改了**：字串沒動的實作可以什麼都不寫就通過這一條。
+    const h0 = m.body.innerHTML;
+    clkNudge(m.st);
+    CLK_UI.refreshUI();
+    if (m.body.innerHTML === h0)
+      return `refreshUI() 前後面板的 HTML 一個字都沒變——這一次根本沒有重建，`
+           + `這條沒有驗到任何東西（探針要挑一個真的會印在卡片上的差異）`;
+    const after = [...m.body.querySelectorAll('[data-act]')];
+    if (before.length !== after.length)
+      return `refreshUI() 之後卡片數從 ${before.length} 變成 ${after.length}（資料沒變，數量不該變）`;
+    const swapped = [];
+    for (let i = 0; i < before.length; i++) if (before[i] !== after[i]) swapped.push(key(before[i]));
+    const chromeSwapped = chrome.filter(([s, el]) => document.querySelector(s) !== el).map(([s]) => s);
+    if (chromeSwapped.length)
+      return `頂欄的靜態元素被換掉了：${chromeSwapped.join(' ')}（#159 的預測說它們不該被重建）`;
+    return ok(swapped.length === 0,
+      swapped.length
+        ? `refreshUI() 之後 ${swapped.length}/${before.length} 張卡片變成新物件（例如 ${swapped.slice(0, 3).join('、')}）`
+          + `——按下與放開之間卡到這一次重建的話，那一下不會有 click`
+        : `${before.length} 張 [data-act] 卡片與 7 個頂欄元素在 refreshUI() 前後都是同一個物件`);
+  } finally { m.done(); }
+});
+
+check('對照組：沒有重建的時候，按下 → 放開真的買得到東西', () => {
+  const m = clkMount(); if (m.todo) return m.todo;
+  try {
+    const lv0 = m.st.up.speed;
+    const r = clkPress(m.body, '[data-act="up"][data-id="speed"]');
+    if (r.err) return `TODO: ${r.err}，這條沒有驗到任何東西`;
+    return ok(m.bought.length === 1 && m.st.up.speed === lv0 + 1,
+      m.bought.length !== 1 || m.st.up.speed !== lv0 + 1
+        ? `沒有重建、按下與放開都落在同一張卡上（dispatched=${r.dispatched}），`
+          + `結果 onBuy 收到 ${m.bought.length} 次、巡航速度 ${lv0}→${m.st.up.speed}`
+          + `——這支儀器根本按不到東西，下一條的紅綠都不算數`
+        : `按下 → 放開 → onBuy('speed')、巡航速度 ${lv0}→${m.st.up.speed}`);
+  } finally { m.done(); }
+});
+
+check('按下 → refreshUI() → 放開，這一下也要買得到東西（#159 的本體）', () => {
+  const m = clkMount(); if (m.todo) return m.todo;
+  try {
+    const lv0 = m.st.up.speed;
+    // 重建之前先動一格等級（理由見 clkNudge），不然「沒有差異就整段跳過」的實作
+    // 會讓這一條在完全沒有重建發生的情況下變綠。動的是加速度那張，不是要按的那張。
+    const r = clkPress(m.body, '[data-act="up"][data-id="speed"]',
+      () => { clkNudge(m.st); CLK_UI.refreshUI(); });
+    if (r.err) return `TODO: ${r.err}，這條沒有驗到任何東西`;
+    // 母體非空的第二半：那一次 refreshUI() 真的重建了東西嗎？
+    if (!r.changed)
+      return `按下與放開之間那一次 refreshUI() 完全沒有動到面板的 HTML——`
+           + `這條沒有驗到任何東西（探針要挑一個真的會印在卡片上的差異）`;
+    return ok(m.bought.length === 1 && m.st.up.speed === lv0 + 1,
+      m.bought.length !== 1 || m.st.up.speed !== lv0 + 1
+        ? `按下之後、放開之前插進一次 refreshUI()：按下的那張卡 isConnected=${r.downConnected}、`
+          + `放開時同一個位置上還是同一個物件嗎=${r.sameNode}、有沒有派出 click=${r.dispatched}；`
+          + `結果 onBuy 收到 ${m.bought.length} 次、巡航速度 ${lv0}→${m.st.up.speed}`
+          + `——這就是 owner 說的「有時候點了沒反應」`
+        : `重建（面板 HTML 真的變了）卡在按下與放開之間，click 照樣派得出來、`
+          + `巡航速度 ${lv0}→${m.st.up.speed}`);
+  } finally { m.done(); }
+});
+
+check('refreshUI() 不是空函式：文字與 class 要跟著資料變', () => {
+  const m = clkMount(); if (m.todo) return m.todo;
+  try {
+    const sel = '[data-act="up"][data-id="speed"]';
+    const card0 = m.body.querySelector(sel);
+    if (!card0) return `TODO: 面板上找不到 ${sel}，這條沒有驗到任何東西`;
+    const txt0 = card0.textContent.replace(/\s+/g, ' ').trim();
+    const dis0 = card0.classList.contains('dis');
+    const cash0 = document.querySelector('#cash').textContent;
+    // 三個各自獨立的觀察點：卡片內文（等級）、卡片 class（買不買得起）、頂欄文字。
+    m.st.up.speed += 3;
+    m.st.cash = 0;
+    CLK_UI.refreshUI();
+    const card1 = m.body.querySelector(sel);
+    const txt1 = card1.textContent.replace(/\s+/g, ' ').trim();
+    const dis1 = card1.classList.contains('dis');
+    const cash1 = document.querySelector('#cash').textContent;
+    const dead = [];
+    if (txt1 === txt0) dead.push(`卡片內文沒變（一直是「${txt0}」，等級加了 3）`);
+    if (!(dis0 === false && dis1 === true)) dead.push(`買不起的 .dis 沒有跟著現金變（${dis0} → ${dis1}）`);
+    if (cash1 === cash0) dead.push(`頂欄現金沒變（一直是「${cash0}」）`);
+    return ok(dead.length === 0, dead.join('｜')
+      || `等級「${txt0}」→「${txt1}」、.dis ${dis0}→${dis1}、頂欄 ${cash0}→${cash1}`);
+  } finally { m.done(); }
+});

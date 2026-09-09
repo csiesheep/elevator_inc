@@ -61,6 +61,42 @@ function header(){
 }
 
 // ------------------------------------------------------------ 分頁
+//
+// **面板不可以每 0.2 秒重建（#159）。** 主迴圈每 0.2 秒叫一次 `refreshUI()`，
+// 這裡原本是 `body.innerHTML = html`——整個面板砍掉重來。而**瀏覽器只有在
+// pointerdown 與 pointerup 的目標有共同祖先時才派送 click**（click 派在兩者
+// 最近的共同包含祖先上）：卡片在按下與放開之間被換掉，兩邊就沒有共同祖先，
+// **那一下完全沒有 click**——不是慢，是事件根本沒發生。一次點擊按住 80–150ms、
+// 重建每 200ms 一次，所以大約每兩下吃掉一下，正好是 owner 說的「有時候」。
+//
+// 2026-09-08 在 `201a2d5` 上用真的滑鼠量過（在 pointerdown 裡同步呼叫
+// `refreshUI()`，讓重建必定卡在按下與放開之間）：
+//   · 面板的 `[data-act]` 卡片 → **一個 click 都沒有派送**（連祖先都沒有），升級沒買到
+//   · `#home` / `#lang` / `#sound` / `#evac` / `#tabs` → click 照常
+// 後者是 `game.html` 的靜態元素，從來不經過這裡，所以 #159 的預測成立：
+// **只有面板裡的卡片會被吃掉。**
+//
+// ---- 為什麼是 patch()，不是把六個 tab 拆成「建立 + 更新」兩段 ----
+// #159 的甲案（只寫 textContent / class，不重建結構）說的是**結果**，
+// 而它建議的做法是把 `tabUpgrades()` 那批從「回傳一整段 HTML」改成兩支函式。
+// 那會讓每一種卡片的規則同時存在於兩個地方，而**這個 repo 為那個形狀付過學費**：
+// #149 圖鑑在兩個介面各寫一份，兩邊的規則就漂開了，#153 才把它收回一個產出點。
+// 下面的 patch() 拿到同一段 HTML 字串，只把「不一樣的地方」寫回既有的節點上，
+// 結果與甲案相同（結構沿用、只改文字與屬性），但**產出點仍然只有一個**：
+// 以後新增一張卡只要改那一支 tab 函式，identity 自動就是對的。
+// 乙案（按下時暫停重建）與丙案（改用 pointerup）都只是繞過那條規則，留著不修。
+//
+// ---- 代價（2026-09-08 在 1280×720 上量的，每一次 render 的平均）----
+//   升級頁（64 個節點，玩家真正坐著的那一頁）  patch 0.05ms、innerHTML 0.05ms
+//   圖鑑頁（78 張卡全開、1400 個節點，最重的） patch 4.38ms、innerHTML 0.95ms
+// 最壞情況一秒五次 = 22ms，而且圖鑑頁的字幾乎不動，多數幀走的是下面那條
+// 「一個字都沒變就不要碰」的捷徑（0.19ms）。**沒有拉長那個 0.2 秒的間隔。**
+
+// 上一次真正寫進面板的那一段，以及寫進哪一個 #panelBody。
+// **兩個都要記**：只記字串的話，換掉一個空的 #panelBody 之後字串還對得上，
+// 這裡會以為不用動，面板就空在那裡。`null` = 不知道，下一次一定寫。
+let lastHTML = null, lastBody = null;
+
 function render(full){
   header();
   document.querySelectorAll('#tabs [data-tab]').forEach(b =>
@@ -68,8 +104,57 @@ function render(full){
   const body = $('#panelBody');
   const html = ({ up: tabUpgrades, auto: tabAuto, skill: tabSkills,
                   codex: tabCodex, stats: tabStats, pres: tabPrestige })[tab]();
-  if (body.dataset.k !== tab) { body.dataset.k = tab; body.scrollTop = 0; }
-  body.innerHTML = html;
+  // 換分頁：整段換掉是對的（使用者剛放開手，而且兩邊的結構本來就不一樣），
+  // 沿用節點反而會把上一頁的狀態帶過去。
+  if (body.dataset.k !== tab || body !== lastBody){
+    body.dataset.k = tab; body.scrollTop = 0;
+    body.innerHTML = html;
+  }
+  // 同一頁、而且一個字都沒變（圖鑑、統計大多數時候如此）：什麼都不要碰。
+  // 面板最貴的一頁是圖鑑（78 張卡、每張一張 7×9 的 SVG），這一行讓它在
+  // 靜止的時候完全不進 DOM。
+  else if (html !== lastHTML) patch(body, html);
+  lastHTML = html; lastBody = body;
+}
+
+// 把一段 HTML「貼」到既有的樹上：形狀相同的節點沿用**同一個物件**，
+// 只改文字與屬性；形狀不同的才換掉。#159 要的就是「沿用同一個物件」這件事。
+function patch(el, html){
+  const next = document.createElement('div');
+  next.innerHTML = html;
+  patchChildren(el, next);
+}
+
+// 只有「同一種節點」才談得上沿用。元素比 tagName（SVG 的 tagName 有大小寫，
+// 兩邊都是同一個 parser 產的，比得起來）；文字與註解一律沿用，改 nodeValue 就好。
+function sameShape(a, b){
+  if (a.nodeType !== b.nodeType) return false;
+  if (a.nodeType === 1) return a.tagName === b.tagName;
+  return a.nodeType === 3 || a.nodeType === 8;
+}
+
+function patchAttrs(cur, nxt){
+  for (const a of nxt.attributes)
+    if (cur.getAttribute(a.name) !== a.value) cur.setAttribute(a.name, a.value);
+  // 反向：新的那邊沒有的屬性要拿掉（例如 .card 從 dis 變回買得起）。
+  // 邊改邊刪會動到正在走的 NamedNodeMap，所以先抄成陣列。
+  for (const a of [...cur.attributes])
+    if (!nxt.hasAttribute(a.name)) cur.removeAttribute(a.name);
+}
+
+function patchChildren(cur, nxt){
+  // 兩邊都先抄成陣列：下面會把 nxt 的節點搬進 cur，邊搬邊走 childNodes 會漏。
+  const olds = [...cur.childNodes], news = [...nxt.childNodes];
+  const n = Math.min(olds.length, news.length);
+  let i = 0;
+  for (; i < n; i++){
+    const o = olds[i], w = news[i];
+    if (!sameShape(o, w)){ cur.replaceChild(w, o); continue; }
+    if (o.nodeType === 1){ patchAttrs(o, w); patchChildren(o, w); }
+    else if (o.nodeValue !== w.nodeValue) o.nodeValue = w.nodeValue;
+  }
+  for (; i < news.length; i++) cur.appendChild(news[i]);
+  for (let j = olds.length - 1; j >= news.length; j--) cur.removeChild(olds[j]);
 }
 
 function card(o){
