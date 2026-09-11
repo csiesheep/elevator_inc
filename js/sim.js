@@ -491,14 +491,13 @@ const EVENT_STREAM_ORDER = ['all', ...BANDS.map(b => b.key)];
 // 這是刻意的自我維護：以後往某一帶加一列，那一帶的速率自動上升，
 // **既有的每一列頻率不變**。用單一常數的話各帶的中位數會落在 26–108 分之間。
 //
-// 0.0267 是 owner 從「目標 60 真實分鐘一列」反解出來的實測值（不是紙上的
-// 0.5×n/24 = 0.0208n——`hours` 窗會讓實際命中低於名目）。
+// 那個係數是 `CONFIG.EVENT_RATE_PER_ROW`（`content.js`）。0.0267 是 owner 從「目標 60
+// 真實分鐘一列」反解出來的實測值（不是紙上的 0.5×n/24 = 0.0208n——`hours` 窗會讓
+// 實際命中低於名目）。
 //
-// ⚠ **它不在 `CONFIG` 裡**，因為 `CONFIG` 住在 `content.js`，而這一趟的約束是
-// 「`content.js` 一個位元組都不要改」。兩者只能擇一，我選了不動資料檔。
-// `CONFIG.EVENT_CHANCE`（0.55）從這一版起**沒有任何呼叫端**——留著沒動是因為
-// 拿掉它要改 `content.js`。這一條已回報 orchestrator（#87）裁決。
-const EVENT_RATE_PER_ROW = 0.0267;
+// #87 的時候它是這裡的模組常數，因為那一趟不准動 `content.js`；**#164 搬進 `CONFIG`**，
+// 讓第 0 組的抄寫檢查看得到它。`CONFIG.EVENT_CHANCE` 同一趟拿掉（#87 之後沒有讀者）。
+// ⚠ **不要再在這支檔案裡寫一個字面值的費率**——第 32 組會掃這支檔案。
 
 const EVENT_BAND_KEYS = new Set(BANDS.map(b => b.key));
 // 一列事件屬於哪一條串流。
@@ -1339,7 +1338,7 @@ export function step(st, sim, dt){
     if (sim.eventT[i] >= C.EVENT_EVERY) sim.eventT[i] = 0;
     // 費率正比於這條串流的列數。**不是全域一份預算**——這正是這一趟的重點。
     const key = EVENT_STREAM_ORDER[i];
-    if (Math.random() < EVENT_RATE_PER_ROW * streamRows(key).length)
+    if (Math.random() < C.EVENT_RATE_PER_ROW * streamRows(key).length)
       fireEvent(st, sim, key);
   }
 
