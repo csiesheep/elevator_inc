@@ -6,6 +6,7 @@ import { createSim, syncShafts, step, requestFloor, evacuate, fmtShort, hourOf }
 import { layout, draw, floorAt, view, rejectIfBlocked } from './render.js';
 import { buildUI, refreshUI, toast, overlay } from './ui.js';
 import { t, L, getLang, toggleLang } from './i18n.js';
+import { DIFFICULTIES } from './content.js';
 import { applyChrome } from './theme.js';
 
 const cv = document.getElementById('c');
@@ -20,9 +21,14 @@ const app = {
     if (id === 'fifo')  toast(t('itRuns'));
     save(app.st);
   },
-  onPrestige(){
-    const { st, gain } = doPrestige(app.st);
+  // 難度（#165）：拆樓頁挑的那一級跟著進來。**鎖住的話 doPrestige() 回 null**，
+  // 而且什麼都不做——這裡只負責把拒絕講給玩家聽，不自己判斷解鎖條件（那只有一份，在 state.js）。
+  onPrestige(lv){
+    const r = doPrestige(app.st, lv);
+    if (!r){ toast(t('diffRejected')); return; }
+    const { st, gain } = r;
     app.st = st; app.sim = createSim(st);
+    shownCleared = st.difficultyCleared;
     save(st);
     overlay(t('presTitle'), t('presBody', gain), t('presBtn'));
     refreshUI();
@@ -36,7 +42,8 @@ const app = {
   },
   onWipe(){
     if (!confirm(t('wipeConfirm'))) return;
-    wipe(); app.st = newGame(); app.sim = createSim(app.st); refreshUI();
+    wipe(); app.st = newGame(); app.sim = createSim(app.st);
+    shownCleared = app.st.difficultyCleared; refreshUI();
     toast(t('wiped'));
   },
 };
@@ -140,7 +147,7 @@ function frame(now){
   dingIfArrived();
 
   uiT += dt;
-  if (uiT > 0.2){ uiT = 0; refreshUI(); drawToasts(); refreshEvac(); }
+  if (uiT > 0.2){ uiT = 0; refreshUI(); drawToasts(); refreshEvac(); announceUnlock(); }
   saveT += dt;
   if (saveT > C.SAVE_EVERY){ saveT = 0; save(app.st); }
 
@@ -148,6 +155,17 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+
+// 解鎖新難度要說出來（#165）。判斷在 state.js 的 noteCleared()，這裡只比對它的結果——
+// 「蓋到 100 樓」那一刻可能發生在買樓層、也可能發生在別的路徑，所以看結果不看事件。
+let shownCleared = app.st.difficultyCleared;
+function announceUnlock(){
+  const c = app.st.difficultyCleared;
+  if (!(c > shownCleared)) { shownCleared = c; return; }
+  shownCleared = c;
+  const nxt = DIFFICULTIES[c + 1];
+  if (nxt) toast(t('diffUnlocked', L(nxt, 'name', 'difficulties')));
+}
 
 let shownToasts = new Set();
 function drawToasts(){
@@ -175,5 +193,7 @@ window.__dbg = {
   cost: id => upgradeCost(app.st, id),
   tap: f => requestFloor(app.st, app.sim, f),
   gain: () => prestigeGain(app.st),
+  diff: lv => { const r = doPrestige(app.st, lv); if (!r) return false;
+                app.st = r.st; app.sim = createSim(app.st); shownCleared = app.st.difficultyCleared; return true; },
   reset: () => { wipe(); app.st = newGame(); app.sim = createSim(app.st); },
 };

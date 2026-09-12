@@ -1,8 +1,8 @@
 // ui.js — 面板。手機用底部抽屜，桌機用右側欄。
-import { UPGRADES, AUTOMATION, SKILLS, PASSENGERS, BANDS, ACHIEVEMENTS,
+import { UPGRADES, AUTOMATION, SKILLS, PASSENGERS, BANDS, ACHIEVEMENTS, DIFFICULTIES,
          CONFIG as C } from './content.js';
 import { derived, upgradeCost, upgradeMaxed, buyUpgrade, buyAutomation, skillCost, buySkill,
-         prestigeGain, algoName, save } from './state.js';
+         prestigeGain, algoName, save, difficultyOf, difficultyUnlocked } from './state.js';
 import { fmtShort, dayName, hourOf } from './sim.js';
 import { STYLES as ROOF_STYLES } from './roof.js';
 import { codexTile, unknownTile } from './spritedom.js';
@@ -10,6 +10,15 @@ import { t, L } from './i18n.js';
 
 const $ = s => document.querySelector(s);
 let app, tab = 'up';
+// 拆樓頁上「下一輪要選哪個難度」（#165）。**只是一個待選狀態，不進存檔**：
+// 真正生效的那一刻是按下「拆掉重蓋」，那時它才變成 `st.difficulty`。
+// null = 還沒挑過 → 沿用這一輪的難度。
+let nextDiff = null;
+// 待選值永遠夾在「已解鎖」裡面：清空存檔、或以後刪掉一級，都不會留下一個選不得的選擇。
+function chosenDiff(st){
+  const lv = nextDiff == null ? (st.difficulty || 0) : nextDiff;
+  return difficultyUnlocked(st, lv) ? lv : 0;
+}
 
 export function buildUI(a){
   app = a;
@@ -29,7 +38,10 @@ export function buildUI(a){
     if (act === 'up')     { if (buyUpgrade(st, id)) app.onBuy(id); }
     if (act === 'auto')   { if (buyAutomation(st, id)) app.onBuy(id); }
     if (act === 'skill')  { buySkill(st, id); }
-    if (act === 'prestige') app.onPrestige();
+    // 難度（#165）：先在拆樓頁挑下一輪的難度，按「拆掉重蓋」才生效。鎖住的那幾張卡
+    // 沒有 data-act（按不到），這裡再擋一次，doPrestige() 本身也會拒絕。
+    if (act === 'diff')   { const lv = +id; if (difficultyUnlocked(st, lv)) nextDiff = lv; }
+    if (act === 'prestige') app.onPrestige(chosenDiff(st));
     if (act === 'orbit')  app.onOrbit();
     if (act === 'roof')   { st.roofStyle = id; save(st); }
     if (act === 'wipe')   app.onWipe();
@@ -54,7 +66,10 @@ function header(){
     `<span class="dim">×${d.fareMult.toFixed(2)} ${t('fareMult')} · ×${d.womMult.toFixed(2)} ${t('footfall')}</span>`;
   $('#rating').className = stars >= 4 ? 'good' : stars >= 2.5 ? '' : 'bad';
   const mood = sim.mood >= 1.25 ? t('busy') : sim.mood <= 0.75 ? t('quiet') : t('normal');
+  // 這一輪的難度放在最前面（#165：「玩家要知道自己在哪一級」）。普通也印——
+  // 只在高難度才出現的字，玩家第一次看到時不會知道它一直都在那個位置。
   $('#hud').textContent =
+    `${L(difficultyOf(st), 'name', 'difficulties')} · ` +
     `${st.floors} ${t('floorsUnit')} · ${sim.shafts.length} ${t('shaftsUnit')} · ${algoName(st)} · ` +
     `${t('waiting')} ${sim.waiting.length}` +
     ` · ${dayName(st)} ${mood}`;
@@ -325,6 +340,31 @@ function tabStats(){
   return h;
 }
 
+// 難度選擇（#165）。**鎖住的看得見但選不了**，而且要寫出解鎖條件——
+// 一個沒有說明為什麼按不下去的灰卡片，跟沒有那張卡片一樣。
+// 鎖住的卡**不給 data-act**（`card()` 只有 `o.act` 才寫），所以連 click 都收不到；
+// `buildUI` 的處理器與 `doPrestige()` 各自再擋一次。
+function diffCards(st){
+  const pick = chosenDiff(st);
+  const cleared = Number.isInteger(st.difficultyCleared) ? st.difficultyCleared : -1;
+  let h = `<div class="sect">${t('secDifficulty')}</div>`
+        + `<div class="note">${t('diffIntro', C.ENDING_FLOOR)}</div>`;
+  DIFFICULTIES.forEach((dd, i) => {
+    const open = difficultyUnlocked(st, i);
+    const name = L(dd, 'name', 'difficulties');
+    h += card({
+      act: open ? 'diff' : null, id: i,
+      icon: open ? (i === pick ? '✅' : '') : '🔒',
+      name,
+      cost: i === pick ? t('diffChosen') : (i <= cleared ? t('diffCleared') : ''),
+      detail: t('diffMults', dd.traffic, dd.patience, dd.income),
+      hint: open ? '' : t('diffLocked', L(DIFFICULTIES[i - 1], 'name', 'difficulties'), C.ENDING_FLOOR),
+      dis: !open,
+    });
+  });
+  return h;
+}
+
 function tabPrestige(){
   const st = app.st;
   const gain = prestigeGain(st);
@@ -340,9 +380,11 @@ function tabPrestige(){
   // 保留／歸零是「說明」，不是「可以按的東西」。用 .card 會長得跟購買鍵
   // 一模一樣（同樣的邊框、陰影、hover），玩家會一直想去點它。
   h += `<div class="ledger">${col('presKeep', 'presKeepList', 'keep')}${col('presLose', 'presLoseList', 'lose')}</div>`;
+  h += diffCards(st);
   // 拆樓沒有門檻，隨時都能拆。藍圖是 0 的時候只提醒，不擋。
   h += `<div class="card danger" data-act="prestige" data-id="p">
-    <div class="cardTop"><span class="cName">${t('presDo')}</span></div>
+    <div class="cardTop"><span class="cName">${t('presDo')}</span>
+      <span class="cCost">${L(DIFFICULTIES[chosenDiff(st)], 'name', 'difficulties')}</span></div>
     <div class="cHint">${gain > 0 ? t('presReady') : t('presZero')}</div></div>`;
   // 清空存檔跟拆樓放在一起：兩個都是「重來」，只差重來多少。
   // 放在升級頁很怪——那一頁其他每一張卡都是花錢買東西。

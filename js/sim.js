@@ -3,7 +3,7 @@
 import { CONFIG as C, PASSENGERS, BANDS, EVENTS, WEEKDAYS, bandOf, tierAt,
          TENANTS, tenantById, defaultTenant, passengerById } from './content.js';
 import { t, L, getLang } from './i18n.js';
-import { derived, builtInBand, tenantMix } from './state.js';
+import { derived, builtInBand, tenantMix, difficultyOf, noteCleared } from './state.js';
 
 let nextId = 1;
 const d0 = st => derived(st);
@@ -266,7 +266,15 @@ function makePassenger(st, sim, origin, dest, h, ev, out){
   // 樓層越高，來回一趟本來就越久，耐性要跟著放大；否則 190 樓的人在物理上
   // 不可能被服務到（單程就超過他的耐性），只會變成必然的流失。
   const far = Math.max(origin, dest);
-  const patience = type.patience * (1 + far / 45);
+  // **耐性唯一的產生點。** 本尊、pair 的同伴（makeMate）、summon 的同伴都經過這一行，
+  // 所以難度的耐性乘數只寫在這裡，不去改 78 列乘客資料（#165）。
+  // ⚠ **`patience:999` 不打折**：owner 在 #140 裁決那幾種本來就是「不會放棄」的設定。
+  // ⚠ 事件的 `ev.panic` 是 `runEvent()` 事後乘在這個結果上的（stampFromEvent），
+  //   所以它自動吃到難度的乘數，不用另外處理。
+  // ⚠ **底下沒有第二個基礎乘數**（#164 的 `PATIENCE_MULT` 被 owner 取消了）：
+  //   這一行只有難度那一個乘數，加第二個之前先找得到一句裁決。
+  const dmult = type.patience >= 999 ? 1 : difficultyOf(st).patience;
+  const patience = type.patience * dmult * (1 + far / 45);
   const p = {
     id: nextId++, origin, dest, type: type.id, t: type,
     born: st.t, patience, left: patience,
@@ -410,7 +418,10 @@ function arrivalRate(st, sim){
   if (sim.rateAt != null && st.t - sim.rateAt < 0.5) return sim.rateVal;
   sim.rateAt = st.t;
   const W = bandDemand(st, hourOf(st), 0, st.floors - 1);
-  sim.rateVal = C.RATE_PER_WEIGHT * Math.pow(Math.max(0, W), C.RATE_EXP) * derived(st).womMult;
+  // 難度的人流乘數跟 `womMult` 同一層（#165）。**只在這裡**——事件的費率
+  // （`C.EVENT_RATE_PER_ROW`）不乘難度，那是 orchestrator 解讀的第四點。
+  const dd = derived(st);
+  sim.rateVal = C.RATE_PER_WEIGHT * Math.pow(Math.max(0, W), C.RATE_EXP) * dd.womMult * dd.trafficMult;
   return sim.rateVal;
 }
 
@@ -1069,7 +1080,11 @@ function openDoors(st, sim, s, f){
       // 那個計數器是 #25 那條成就的，混進來會讓那句文案變成假的。
       const inTime = !!p.t.bonus && wait <= p.t.bonus.secs;
       const bonus = inTime ? fare * (p.t.bonus.mult || 0) : 0;
-      const money = fare + tip + bonus;
+      // 難度的收入乘數（#165）。**車資、小費、獎金走同一本帳**，所以乘在合計上，
+      // 而不是三個地方各乘一次。它會流進 `runRevenue` → 藍圖跟著 √ 成長（獎勵的一部分）。
+      // ⚠ 這支檔案還有**第二個入帳點**：十三樓幽靈那筆意外之財（往下約 90 行），
+      //   它也乘同一個 `d.incomeMult`。#165 的工單說「唯一的入帳點」，實際上是兩個。
+      const money = (fare + tip + bonus) * d.incomeMult;
       st.cash += money; st.runRevenue += money; st.lifetimeRevenue += money;
       sim.rateAcc += money;
       st.stats.served++; s.st.carried++;
@@ -1159,7 +1174,8 @@ function openDoors(st, sim, s, f){
       // 跟 `fareOf()` 用同一個判斷（`fareBoostMult` > 1）。
       if (fareBoostMult(st, sim) > 1) st.codex.boostRides = (st.codex.boostRides || 0) + 1;
       if (p.t.ghost){
-        const bonus = 50 * st.floors;
+        // 第二個入帳點（見上面 `money` 那一段）。同一個難度乘數。
+        const bonus = 50 * st.floors * d.incomeMult;
         st.cash += bonus; st.runRevenue += bonus; sim.rateAcc += bonus;
         sim.toasts.push({ txt:t('ghostBonus', Math.round(bonus)), life:4 });
       }
@@ -1286,6 +1302,10 @@ function openDoors(st, sim, s, f){
 export function step(st, sim, dt){
   const d = derived(st);
   st.t += dt;
+  // 難度通關（#165）：**蓋到 100 樓那一刻**就算通關這一輪的難度。真正的入口是
+  // `buyUpgrade('floor')`（state.js），這裡再看一次，讓「改了 st.floors 的其他路」
+  // （除錯鉤子、以後的新機制）不會安靜地漏掉解鎖。判斷只有一份，在 noteCleared()。
+  noteCleared(st);
 
   // --- 封鎖到期就消失。isFloorBlocked 自己會比時間，這裡只是不要讓表無限長大。
   if (sim.blocked) for (const k in sim.blocked) if (sim.blocked[k] <= st.t) delete sim.blocked[k];

@@ -142,12 +142,30 @@ const DICT = {
   presGain:      ['這次拆樓可以拿到的藍圖', 'Blueprints this demolition would pay'],
   presFormula:   ['= √(本輪收入 ÷ {0})', '= √(this run ÷ {0})'],
   presKeep:      ['保留', 'Kept'],
-  presKeepList:  ['藍圖|技能樹|乘客圖鑑|成就|藍圖階的調度演算法|屋頂樣式',
-                  'Blueprints|Skill tree|Codex|Achievements|Blueprint-tier dispatch|Roof style'],
+  // #165：已解鎖的難度也跨拆樓保留（`doPrestige` 的 carry 明列 difficultyCleared），
+  // 所以這張「保留」清單要多一項——清單漏掉的東西，玩家只能靠拆一次來發現。
+  presKeepList:  ['藍圖|技能樹|乘客圖鑑|成就|藍圖階的調度演算法|屋頂樣式|已解鎖的難度',
+                  'Blueprints|Skill tree|Codex|Achievements|Blueprint-tier dispatch|Roof style|Unlocked difficulties'],
   presLose:      ['歸零', 'Reset'],
   presLoseList:  ['現金|樓層數|現金買的升級|現金階的調度演算法|評價',
                   'Cash|Floors|Every cash upgrade|Cash-tier dispatch|Rating'],
   presDo:        ['🏗 拆掉重蓋', '🏗 Demolish and rebuild'],
+  // ---- 難度（#165）----
+  // ⚠ **這七個鍵是 BE 加的，字本身還沒有 writer 簽過。** 照 #149 / #152 的先例：
+  //   現有格式、大聲點名是誰加的、交付時列出來，**譯文以 writer 為準，改掉不用問我**。
+  //   四個難度名（普通／惡夢／地獄／折磨）不在這裡：它們是資料，跟屋頂樣式一樣
+  //   住在 `content.js` 的 `DIFFICULTIES`，英文在 `i18n-content.js` 的 `difficulties`。
+  // ⚠ `diffIntro` 與 `diffLocked` 的「{0} 樓」吃的是 `C.ENDING_FLOOR`，不要寫死 100——
+  //   那個常數改過一次（#150 的教訓：規則書裡寫死的價碼會變成謊話）。
+  secDifficulty: ['下一輪的難度', 'Next run'],
+  diffIntro:     ['在一個難度上蓋到 {0} 樓，就解鎖下一級。這一輪選的難度會一直跟著這一輪。',
+                  'Reach floor {0} on a difficulty to unlock the next one. What you pick here lasts the whole run.'],
+  diffMults:     ['人流 ×{0} · 耐性 ×{1} · 收入 ×{2}', 'Traffic ×{0} · patience ×{1} · income ×{2}'],
+  diffChosen:    ['下一輪', 'Next run'],
+  diffCleared:   ['已通關', 'cleared'],
+  diffLocked:    ['在「{0}」蓋到 {1} 樓才解鎖', 'Reach floor {1} on {0} to unlock this'],
+  diffUnlocked:  ['🔓 解鎖「{0}」——拆樓的時候選得到了', '🔓 {0} unlocked — pick it when you rebuild'],
+  diffRejected:  ['那個難度還沒解鎖', 'That difficulty is still locked'],
   presReady:     ['按下去就開新的一輪。', 'This starts a fresh run.'],
   presZero:      ['這輪還沒賺到半張藍圖，現在拆掉等於白拆一次。',
                   'This run has not earned a blueprint yet — rebuilding now buys you nothing.'],

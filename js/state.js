@@ -1,5 +1,5 @@
 // state.js — 單一個可序列化的 GameState。無法 JSON.stringify 的東西不准進來。
-import { CONFIG as C, UPGRADES, AUTOMATION, SKILLS, ACHIEVEMENTS,
+import { CONFIG as C, UPGRADES, AUTOMATION, SKILLS, ACHIEVEMENTS, DIFFICULTIES,
          defaultTenant, tenantById } from './content.js';
 
 import { t, L } from './i18n.js';
@@ -25,6 +25,14 @@ export function newGame(carry){
     stats: { served:0, abandoned:0, trips:0, floorsTravelled:0, boostTime:0, overheats:0,
              tips:0, shafts:[], bestRun:(carry && carry.bestRun) || 0 },
     ending: (carry && carry.ending) || false,
+    // 難度（#165）。兩個都是 `DIFFICULTIES` 的**索引**（0 = 普通）。
+    //   difficulty        這一輪的難度。拆樓時選（doPrestige 的第二個參數），選了就帶進新的一輪。
+    //   difficultyCleared **已經通關的最高一級**；-1 = 一級都還沒通關。
+    //                     可以選的是 0 … difficultyCleared + 1（逐級解鎖，不能跳）。
+    // 「通關」= 在那個難度上蓋到 `ENDING_FLOOR`（owner 裁決，#165）——**不是發射、不是 `st.ending`**。
+    // 判斷在 noteCleared()。兩個都跨拆樓保留（doPrestige 的 carry 明列）。
+    difficulty: (carry && carry.difficulty) || 0,
+    difficultyCleared: (carry && carry.difficultyCleared != null) ? carry.difficultyCleared : -1,
     roofStyle: (carry && carry.roofStyle) || 'chinese',   // 外觀，跨拆樓保留
     // 跨 Prestige 保留的永久解鎖（自動化的藍圖階段）
     autoPerm: (carry && carry.autoPerm) || {},
@@ -80,6 +88,12 @@ export function derived(st){
   d.ratingGain = 1 + 0.2 * (sk.a_rate || 0);
   // 11 口碑迴圈：評價不只影響票價，也影響「有多少人願意上門」
   d.womMult = C.WOM_MIN + (C.WOM_MAX - C.WOM_MIN) * (st.rating / C.RATING_MAX);
+  // 難度（#165）。人流跟 womMult 同一層（sim.js 的 arrivalRate 把兩個一起乘上去），
+  // **但分成兩個欄位**：womMult 在頂欄與統計頁印成「口碑對人流」，混進難度那句話就不對了。
+  // 人流**只乘到達率，不乘事件機率**（orchestrator 解讀第四點）。耐性那一欄在 sim.js 的產生點讀。
+  const diff = difficultyOf(st);
+  d.trafficMult = diff.traffic;
+  d.incomeMult  = diff.income;
   // 5.6 的 B：事件工具
   d.surgeMult = 1 + 0.18 * (sk.o_surge || 0);               // 事件乘客的票價加給
   d.evacLevel = sk.o_evac || 0;
@@ -119,7 +133,31 @@ export function buyUpgrade(st, id){
   if (st.cash < c) return false;
   st.cash -= c; st.up[id]++;
   // 加蓋就是把樓蓋起來，沒有第二步。蓋好的那一刻就有人搭電梯。
-  if (id === 'floor') st.floors = Math.min(C.MAX_FLOORS, st.floors + 5);
+  if (id === 'floor'){ st.floors = Math.min(C.MAX_FLOORS, st.floors + 5); noteCleared(st); }
+  return true;
+}
+
+// ------------------------------------------------------------ 難度（#165）
+// 這一輪的那一列。索引壞掉（手改的存檔、以後刪掉一級）就退回普通，不要讓乘數變成 undefined → NaN。
+export function difficultyOf(st){
+  return DIFFICULTIES[st && st.difficulty] || DIFFICULTIES[0];
+}
+// 這一級現在選不選得到。普通永遠可以；其他要「前一級已經通關」。
+export function difficultyUnlocked(st, lv){
+  if (!Number.isInteger(lv) || lv < 0 || lv >= DIFFICULTIES.length) return false;
+  const cleared = (st && Number.isInteger(st.difficultyCleared)) ? st.difficultyCleared : -1;
+  return lv <= cleared + 1;
+}
+// **「通關」的唯一判斷點**（owner 裁決，#165）：在這一輪的難度上蓋到 ENDING_FLOOR。
+// 呼叫點：buyUpgrade('floor')（玩家唯一會碰到的路）與 sim.js 的 step()（其他任何改 st.floors
+// 的路，例如除錯鉤子）。只會往上：在普通蓋到 100 樓不會把已經通關的地獄降回去。
+// 回傳這一次是不是**新**解鎖了一級（main.js 拿它跳提示）。
+export function noteCleared(st){
+  if (st.floors < C.ENDING_FLOOR) return false;
+  const lv = Number.isInteger(st.difficulty) ? st.difficulty : 0;
+  const before = Number.isInteger(st.difficultyCleared) ? st.difficultyCleared : -1;
+  if (lv <= before) return false;
+  st.difficultyCleared = lv;
   return true;
 }
 
@@ -158,7 +196,12 @@ export function isManual(st){
 export function prestigeGain(st){
   return Math.floor(Math.sqrt(st.runRevenue / C.PRESTIGE_DIV));
 }
-export function doPrestige(st){
+// `difficulty`：下一輪的難度（#165）。省略 = 沿用這一輪的。
+// **鎖住的難度回傳 null，而且什麼都不做**（不發藍圖、不重置）——呼叫端要自己處理拒絕。
+// 閘在這裡而不是只在 UI：UI 只是不給按，真正不准的是這支函式。
+export function doPrestige(st, difficulty){
+  const lv = difficulty == null ? (st.difficulty || 0) : difficulty;
+  if (!difficultyUnlocked(st, lv)) return null;
   const gain = prestigeGain(st);
   const carry = {
     bp: st.bp + gain,
@@ -171,6 +214,8 @@ export function doPrestige(st){
     bestRun: Math.max(st.stats.bestRun, st.runRevenue),
     autoPerm: st.autoPerm,
     ending: st.ending,
+    difficulty: lv,
+    difficultyCleared: st.difficultyCleared,
     roofStyle: st.roofStyle,
   };
   return { st: newGame(carry), gain };
@@ -200,6 +245,18 @@ export function load(){
     if (!raw) return null;
     const st = JSON.parse(raw);
     if (!st || st.v !== 1) return null;
+    migrate(st);
+    return st;
+  } catch(e){ return null; }
+}
+// 讀檔的遷移，從 load() 拆出來（#165），驗收才叫得到——`load()` 讀 localStorage，
+// 測試去寫玩家的存檔是不行的。行為跟拆出來之前逐字相同，只多了難度那一段。
+export function migrate(st){
+    // 難度（#165）：**舊存檔沒有 difficultyCleared。** 已經蓋到 100 樓、或已經有 `st.ending` 的，
+    // 視為普通已通關（owner 裁決，#165）——他們已經打完這個遊戲了。
+    // 要在下面「補齊欄位」**之前**判斷：補完之後就分不出「沒有這一欄」和「-1」了。
+    if (!('difficultyCleared' in st))
+      st.difficultyCleared = (st.floors >= C.ENDING_FLOOR || st.ending) ? 0 : -1;
     // 補齊新增的欄位，舊存檔不會炸
     const fresh = newGame();
     for (const k in fresh) if (!(k in st)) st[k] = fresh[k];
@@ -217,7 +274,6 @@ export function load(){
       for (const k in st.skills) if (!known.has(k)) delete st.skills[k];
     }
     return st;
-  } catch(e){ return null; }
 }
 export function wipe(){ try { localStorage.removeItem(SAVE_KEY); } catch(e){} }
 
