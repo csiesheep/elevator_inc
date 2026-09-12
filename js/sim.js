@@ -10,7 +10,9 @@ const d0 = st => derived(st);
 
 // sim.waiting 的硬上限。原本是 spawn 迴圈裡的一個字面值 160；「招來同伴」是第二條
 // 會把人推進 waiting 的路徑，兩條共用同一條線，所以把它拉成具名常數，不要各寫一份。
-const WAIT_CAP = 160;
+// **#165 從這裡搬進 `CONFIG`**（跟 `EVENT_RATE_PER_ROW` 同一個理由：模組常數沒有
+// 抄寫 guard，改掉它不會有任何東西紅），三個使用點改讀 `C.WAIT_CAP`。
+// ⚠ **不要在這支檔案裡再寫一個字面值的上限。**
 
 export function createSim(st){
   const sim = {
@@ -315,7 +317,7 @@ function makePassenger(st, sim, origin, dest, h, ev, out){
 let pairing = false;
 function makeMate(st, sim, p, out){
   if (pairing) return null;                                     // 規則 1
-  if (sim.waiting.length + (out ? out.length : 0) >= WAIT_CAP) return null;   // 規則 2
+  if (sim.waiting.length + (out ? out.length : 0) >= C.WAIT_CAP) return null;   // 規則 2
   pairing = true;
   let q = null;
   try {
@@ -363,7 +365,7 @@ function summonCompanions(st, sim, p, h, when, out){
   summonDepth++;
   try {
     for (let i = 0; i < want; i++){
-      if (sim.waiting.length + (out ? out.length : 0) >= WAIT_CAP) break;   // 閘 2
+      if (sim.waiting.length + (out ? out.length : 0) >= C.WAIT_CAP) break;   // 閘 2
       const q = makePassenger(st, sim, o, to, h, cfg.type ? { type: cfg.type } : null, out);
       q.summoned = true;
       crew.push(q);
@@ -1325,7 +1327,7 @@ export function step(st, sim, dt){
   sim.spawnT -= dt;
   let guard = 0;
   while (sim.spawnT <= 0 && guard++ < 40){
-    if (sim.waiting.length < WAIT_CAP) spawn(st, sim);
+    if (sim.waiting.length < C.WAIT_CAP) spawn(st, sim);
     sim.spawnT += -Math.log(1 - Math.random()) / Math.max(1e-4, rate);
   }
 
