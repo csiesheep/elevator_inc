@@ -3,14 +3,16 @@
 import { CONFIG as C, PASSENGERS, BANDS, EVENTS, WEEKDAYS, bandOf, tierAt,
          TENANTS, tenantById, defaultTenant, passengerById } from './content.js';
 import { t, L, getLang } from './i18n.js';
-import { derived, builtInBand, tenantMix } from './state.js';
+import { derived, builtInBand, tenantMix, difficultyOf, noteCleared } from './state.js';
 
 let nextId = 1;
 const d0 = st => derived(st);
 
 // sim.waiting 的硬上限。原本是 spawn 迴圈裡的一個字面值 160；「招來同伴」是第二條
 // 會把人推進 waiting 的路徑，兩條共用同一條線，所以把它拉成具名常數，不要各寫一份。
-const WAIT_CAP = 160;
+// **#165 從這裡搬進 `CONFIG`**（跟 `EVENT_RATE_PER_ROW` 同一個理由：模組常數沒有
+// 抄寫 guard，改掉它不會有任何東西紅），三個使用點改讀 `C.WAIT_CAP`。
+// ⚠ **不要在這支檔案裡再寫一個字面值的上限。**
 
 export function createSim(st){
   const sim = {
@@ -266,7 +268,15 @@ function makePassenger(st, sim, origin, dest, h, ev, out){
   // 樓層越高，來回一趟本來就越久，耐性要跟著放大；否則 190 樓的人在物理上
   // 不可能被服務到（單程就超過他的耐性），只會變成必然的流失。
   const far = Math.max(origin, dest);
-  const patience = type.patience * (1 + far / 45);
+  // **耐性唯一的產生點。** 本尊、pair 的同伴（makeMate）、summon 的同伴都經過這一行，
+  // 所以難度的耐性乘數只寫在這裡，不去改 78 列乘客資料（#165）。
+  // ⚠ **`patience:999` 不打折**：owner 在 #140 裁決那幾種本來就是「不會放棄」的設定。
+  // ⚠ 事件的 `ev.panic` 是 `runEvent()` 事後乘在這個結果上的（stampFromEvent），
+  //   所以它自動吃到難度的乘數，不用另外處理。
+  // ⚠ **底下沒有第二個基礎乘數**（#164 的 `PATIENCE_MULT` 被 owner 取消了）：
+  //   這一行只有難度那一個乘數，加第二個之前先找得到一句裁決。
+  const dmult = type.patience >= 999 ? 1 : difficultyOf(st).patience;
+  const patience = type.patience * dmult * (1 + far / 45);
   const p = {
     id: nextId++, origin, dest, type: type.id, t: type,
     born: st.t, patience, left: patience,
@@ -307,7 +317,7 @@ function makePassenger(st, sim, origin, dest, h, ev, out){
 let pairing = false;
 function makeMate(st, sim, p, out){
   if (pairing) return null;                                     // 規則 1
-  if (sim.waiting.length + (out ? out.length : 0) >= WAIT_CAP) return null;   // 規則 2
+  if (sim.waiting.length + (out ? out.length : 0) >= C.WAIT_CAP) return null;   // 規則 2
   pairing = true;
   let q = null;
   try {
@@ -355,7 +365,7 @@ function summonCompanions(st, sim, p, h, when, out){
   summonDepth++;
   try {
     for (let i = 0; i < want; i++){
-      if (sim.waiting.length + (out ? out.length : 0) >= WAIT_CAP) break;   // 閘 2
+      if (sim.waiting.length + (out ? out.length : 0) >= C.WAIT_CAP) break;   // 閘 2
       const q = makePassenger(st, sim, o, to, h, cfg.type ? { type: cfg.type } : null, out);
       q.summoned = true;
       crew.push(q);
@@ -410,7 +420,10 @@ function arrivalRate(st, sim){
   if (sim.rateAt != null && st.t - sim.rateAt < 0.5) return sim.rateVal;
   sim.rateAt = st.t;
   const W = bandDemand(st, hourOf(st), 0, st.floors - 1);
-  sim.rateVal = C.RATE_PER_WEIGHT * Math.pow(Math.max(0, W), C.RATE_EXP) * derived(st).womMult;
+  // 難度的人流乘數跟 `womMult` 同一層（#165）。**只在這裡**——事件的費率
+  // （`C.EVENT_RATE_PER_ROW`）不乘難度，那是 orchestrator 解讀的第四點。
+  const dd = derived(st);
+  sim.rateVal = C.RATE_PER_WEIGHT * Math.pow(Math.max(0, W), C.RATE_EXP) * dd.womMult * dd.trafficMult;
   return sim.rateVal;
 }
 
@@ -491,14 +504,13 @@ const EVENT_STREAM_ORDER = ['all', ...BANDS.map(b => b.key)];
 // 這是刻意的自我維護：以後往某一帶加一列，那一帶的速率自動上升，
 // **既有的每一列頻率不變**。用單一常數的話各帶的中位數會落在 26–108 分之間。
 //
-// 0.0267 是 owner 從「目標 60 真實分鐘一列」反解出來的實測值（不是紙上的
-// 0.5×n/24 = 0.0208n——`hours` 窗會讓實際命中低於名目）。
+// 那個係數是 `CONFIG.EVENT_RATE_PER_ROW`（`content.js`）。0.0267 是 owner 從「目標 60
+// 真實分鐘一列」反解出來的實測值（不是紙上的 0.5×n/24 = 0.0208n——`hours` 窗會讓
+// 實際命中低於名目）。
 //
-// ⚠ **它不在 `CONFIG` 裡**，因為 `CONFIG` 住在 `content.js`，而這一趟的約束是
-// 「`content.js` 一個位元組都不要改」。兩者只能擇一，我選了不動資料檔。
-// `CONFIG.EVENT_CHANCE`（0.55）從這一版起**沒有任何呼叫端**——留著沒動是因為
-// 拿掉它要改 `content.js`。這一條已回報 orchestrator（#87）裁決。
-const EVENT_RATE_PER_ROW = 0.0267;
+// #87 的時候它是這裡的模組常數，因為那一趟不准動 `content.js`；**#164 搬進 `CONFIG`**，
+// 讓第 0 組的抄寫檢查看得到它。`CONFIG.EVENT_CHANCE` 同一趟拿掉（#87 之後沒有讀者）。
+// ⚠ **不要再在這支檔案裡寫一個字面值的費率**——第 32 組會掃這支檔案。
 
 const EVENT_BAND_KEYS = new Set(BANDS.map(b => b.key));
 // 一列事件屬於哪一條串流。
@@ -1070,7 +1082,11 @@ function openDoors(st, sim, s, f){
       // 那個計數器是 #25 那條成就的，混進來會讓那句文案變成假的。
       const inTime = !!p.t.bonus && wait <= p.t.bonus.secs;
       const bonus = inTime ? fare * (p.t.bonus.mult || 0) : 0;
-      const money = fare + tip + bonus;
+      // 難度的收入乘數（#165）。**車資、小費、獎金走同一本帳**，所以乘在合計上，
+      // 而不是三個地方各乘一次。它會流進 `runRevenue` → 藍圖跟著 √ 成長（獎勵的一部分）。
+      // ⚠ 這支檔案還有**第二個入帳點**：十三樓幽靈那筆意外之財（往下約 90 行），
+      //   它也乘同一個 `d.incomeMult`。#165 的工單說「唯一的入帳點」，實際上是兩個。
+      const money = (fare + tip + bonus) * d.incomeMult;
       st.cash += money; st.runRevenue += money; st.lifetimeRevenue += money;
       sim.rateAcc += money;
       st.stats.served++; s.st.carried++;
@@ -1160,7 +1176,8 @@ function openDoors(st, sim, s, f){
       // 跟 `fareOf()` 用同一個判斷（`fareBoostMult` > 1）。
       if (fareBoostMult(st, sim) > 1) st.codex.boostRides = (st.codex.boostRides || 0) + 1;
       if (p.t.ghost){
-        const bonus = 50 * st.floors;
+        // 第二個入帳點（見上面 `money` 那一段）。同一個難度乘數。
+        const bonus = 50 * st.floors * d.incomeMult;
         st.cash += bonus; st.runRevenue += bonus; sim.rateAcc += bonus;
         sim.toasts.push({ txt:t('ghostBonus', Math.round(bonus)), life:4 });
       }
@@ -1287,6 +1304,10 @@ function openDoors(st, sim, s, f){
 export function step(st, sim, dt){
   const d = derived(st);
   st.t += dt;
+  // 難度通關（#165）：**蓋到 100 樓那一刻**就算通關這一輪的難度。真正的入口是
+  // `buyUpgrade('floor')`（state.js），這裡再看一次，讓「改了 st.floors 的其他路」
+  // （除錯鉤子、以後的新機制）不會安靜地漏掉解鎖。判斷只有一份，在 noteCleared()。
+  noteCleared(st);
 
   // --- 封鎖到期就消失。isFloorBlocked 自己會比時間，這裡只是不要讓表無限長大。
   if (sim.blocked) for (const k in sim.blocked) if (sim.blocked[k] <= st.t) delete sim.blocked[k];
@@ -1306,7 +1327,7 @@ export function step(st, sim, dt){
   sim.spawnT -= dt;
   let guard = 0;
   while (sim.spawnT <= 0 && guard++ < 40){
-    if (sim.waiting.length < WAIT_CAP) spawn(st, sim);
+    if (sim.waiting.length < C.WAIT_CAP) spawn(st, sim);
     sim.spawnT += -Math.log(1 - Math.random()) / Math.max(1e-4, rate);
   }
 
@@ -1339,7 +1360,7 @@ export function step(st, sim, dt){
     if (sim.eventT[i] >= C.EVENT_EVERY) sim.eventT[i] = 0;
     // 費率正比於這條串流的列數。**不是全域一份預算**——這正是這一趟的重點。
     const key = EVENT_STREAM_ORDER[i];
-    if (Math.random() < EVENT_RATE_PER_ROW * streamRows(key).length)
+    if (Math.random() < C.EVENT_RATE_PER_ROW * streamRows(key).length)
       fireEvent(st, sim, key);
   }
 

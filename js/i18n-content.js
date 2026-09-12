@@ -323,6 +323,14 @@ export const EN = {
     laureled:     { name:'The laureate',     note:'Deliver 2 Nobel laureates — a party of 7 fills a whole car, and the research escort is counted separately.' },
   },
 
+  // 難度（#165）。⚠ 這四個英文名是 BE 加的，還沒有 writer 簽過（同 i18n.js 那七個鍵）。
+  difficulties: {
+    normal:    { name:'Normal' },
+    nightmare: { name:'Nightmare' },
+    hell:      { name:'Hell' },
+    torment:   { name:'Torment' },
+  },
+
   roofs: {
     chinese: { name:'Chinese' },
     roman:   { name:'Roman' },
