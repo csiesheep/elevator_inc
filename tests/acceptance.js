@@ -102,15 +102,6 @@ const SPEC = {
   // §5.7 樓層帶表的 pop 欄，順序同 bandRanges（retail…roof）。
   // #151 之後的值；原值 [1.15, 1.00, 0.75, 0.90, 0.55, 0.45, 0.30] × (1 + 1.5×i/6)。
   bandPops: [1.15, 1.25, 1.125, 1.575, 1.10, 1.0125, 0.75],
-  // ---- #164：基礎難度（BE 加的兩格，照 #155 / #163 的先例點名）----
-  // **owner（#164，逐字）：「基礎難度:事件出現機率 ×1.5、耐性 −20%。」**
-  // 事件費率原本是 `sim.js` 的模組常數 0.0267（#87），這一趟搬進 `CONFIG`，
-  // 所以**這一格在 #164 之前根本沒有抄本**——那正是搬家的理由。
-  // ⚠ 這兩格與產品是同一條分支改的，所以 `C.X === SPEC.X` 擋不到「兩邊一起搬」。
-  //   擋那件事的是第 32 組的定錨值（60 秒的乘客生出來是 48 秒，數字從 #164 抄，不讀 CONFIG）。
-  // **紅過的證據**寫在第 32 組上面。
-  eventRatePerRow: 0.04005,  // 0.0267 × 1.5
-  patienceMult: 0.8,         // 耐性 −20%；`patience:999` 不打折（#140）
 };
 
 // ---------------------------------------------------------------- 0 對照
@@ -154,9 +145,6 @@ check('ORBIT_BP',       () => eq(C.ORBIT_BP, SPEC.orbitBp, 'ORBIT_BP'));
 check('DAY_SECONDS',    () => eq(C.DAY_SECONDS, SPEC.daySeconds, 'DAY_SECONDS'));
 check('PRESTIGE_DIV',   () => eq(C.PRESTIGE_DIV, SPEC.prestigeDiv, 'PRESTIGE_DIV'));
 check('RATING_MIN',     () => eq(C.RATING_MIN, SPEC.ratingMin, 'RATING_MIN'));
-// #164（BE 加的兩行，理由在 SPEC 那兩格上面）
-check('EVENT_RATE_PER_ROW', () => eq(C.EVENT_RATE_PER_ROW, SPEC.eventRatePerRow, 'EVENT_RATE_PER_ROW'));
-check('PATIENCE_MULT',      () => eq(C.PATIENCE_MULT, SPEC.patienceMult, 'PATIENCE_MULT'));
 // 這兩個常數是「離散懲罰」的門檻，owner 2026-09-05 裁決『沒有懲罰』之後要整個消失。
 // 招商還在的時候比對數值；拿掉之後改成斷言它們不存在——留著一個沒有人讀的常數，
 // 下一個人會照它去找不存在的機制。
@@ -4445,135 +4433,4 @@ check('定錨值：runRevenue = $10M → 10 張（抄自 #161 的表，不從產
   }
   return ok(bad.length === 0, bad.join('｜')
     || got.join('、') + '｜定錨 $10M→10 張；五列的值互不相同，所以公式真的讀到了 runRevenue');
-});
-
-// ================================================================ 32 基礎難度（#164）
-// ⚠ **這一組是 BE 寫的（分支 `be/difficulty`，#164），不是 orchestrator。**
-// 照 #152（第 26 組）與 #161（第 31 組）的先例：整組集中在檔尾、上面點名作者，
-// 要收回、改寫或整塊搬走都只動這一塊。第 0 組另外多了兩行抄寫（SPEC 那兩格旁邊有點名）。
-//
-// **owner（#164，逐字）：「基礎難度:事件出現機率 ×1.5、耐性 −20%。」**
-//
-// 這一組守的是三種**改法**，不是「0.8 是好的平衡」：
-//   1. 耐性的乘數**有沒有真的乘在產生點上**。第 0 組只比 CONFIG 那一格，
-//      把 `sim.js` 的使用點拿掉它照樣是綠的。定錨值從 #164 抄（60 秒 → 48 秒），
-//      **這一組刻意不出現 `C.PATIENCE_MULT`**，兩邊一起搬的時候它還是紅的。
-//   2. `patience:999` 有沒有被一起打折（#140：那九種本來就是「不會放棄」的設定）。
-//   3. 事件的費率有沒有又變回 `sim.js` 裡一個第 0 組看不到的字面值。
-//
-// ---- 紅過的證據 ----
-// 產品只搬了家（`c4d19b7`：費率進 CONFIG 但仍是 0.0267、還沒有 PATIENCE_MULT）、
-// 本檔已經加上這一組與第 0 組兩行的那一趟：**117 通過 / 4 失敗 / 3 尚未實作**
-// （搬家之前的 8d65b62 是 116 / 0 / 3；尚未實作是第 24 組的飽和 TODO；第 21 組七個數字逐位相同）。
-//   · 0 · EVENT_RATE_PER_ROW 「期望 0.04005，實際 0.0267」
-//   · 0 · PATIENCE_MULT      「期望 0.8，實際 undefined」
-//   · 32 · 1「patience 60 的乘客換算回 far=0 是 60.0000 秒，期望 48（14/14 個不對，例：newlywed）
-//            ｜全體 703 個自然生成的乘客裡 643 個不是 base × 0.8 × (1 + far/45)」
-//   · 32 · 2「本尊場上 28.7222，期望 55 × 0.8 × panic 0.5 × (1+2/45) = 22.9778」
-//   第 3 條在那一趟已經是綠的（搬家就是它要的東西）；它的紅在交付留言裡另外證偽。
-section('32 基礎難度：事件 ×1.5、耐性 −20%（#164）');
-
-const P164_MULT = 0.8;           // 抄自 #164：「耐性 −20%」
-const P164_ANCHOR = [60, 48];    // 抄自 #164 驗收第 2 條：patience 60、far 0 → 48
-const P164_EXEMPT = 999;         // #140：`type.patience >= 999` 不打折
-
-// 自然生成的乘客（不是事件生的）。45 層、LOOK、3 井：飯店帶（21–45 樓）蓋得到，
-// `newlywed`（patience 60、pair）與 `guard`（999、band any）都會出現。
-// ⚠ 事件生的人**要排除**：`stampFromEvent` 會再乘 `ev.panic`，那是第 2 條的事。
-// 每 5 tick 掃一次佇列就夠——`patience` 生出來之後除了 panic 沒有人改，晚一點看到是同一個值。
-function spawn164(seed, days){
-  return withSeed(seed, () => {
-    const st = S.newGame();
-    st.floors = 45; st.cash = 1e9;
-    st.auto.autodoor = st.auto.fifo = st.auto.look = true;
-    st.up.shaft = 2; st.up.cap = 2; st.up.speed = 3; st.up.accel = 3; st.up.door = 5;
-    const sim = M.createSim(st); M.syncShafts(st, sim);
-    const seen = new Map();
-    const n = Math.round(days * C.DAY_SECONDS / C.STEP);
-    for (let i = 0; i < n; i++){
-      M.step(st, sim, C.STEP);
-      if (i % 5) continue;
-      for (const p of sim.waiting) if (!seen.has(p.id)) seen.set(p.id, p);
-    }
-    return [...seen.values()].filter(p => !p.fromEvent);
-  });
-}
-const P164_SAMPLES = spawn164(0x164, 3);
-
-check('1 定錨值：patience 60 的乘客上場是 48 × (1 + far/45)，999 不打折（抄自 #164，不讀 CONFIG）', () => {
-  const stage = p => 1 + Math.max(p.origin, p.dest) / 45;
-  const sixty = P164_SAMPLES.filter(p => p.t && p.t.patience === P164_ANCHOR[0]);
-  const exempt = P164_SAMPLES.filter(p => p.t && p.t.patience >= P164_EXEMPT);
-  const ne1 = nonEmpty(sixty.length, `3 遊戲日 45 層沒有生出任何 patience ${P164_ANCHOR[0]} 的乘客——定錨值沒有母體`);
-  if (ne1 !== true) return ne1;
-  const ne2 = nonEmpty(exempt.length, '3 遊戲日 45 層沒有生出任何 patience:999 的乘客——豁免那一半沒有母體');
-  if (ne2 !== true) return ne2;
-  const bad = [];
-  // 定錨：除掉 far 的那一項，剩下的就是「far = 0 的時候生出來是幾秒」。
-  const anchorVals = sixty.map(p => p.patience / stage(p));
-  const offAnchor = sixty.filter((p, i) => Math.abs(anchorVals[i] - P164_ANCHOR[1]) > 1e-9);
-  if (offAnchor.length)
-    bad.push(`patience ${P164_ANCHOR[0]} 的乘客換算回 far=0 是 ${anchorVals[sixty.indexOf(offAnchor[0])].toFixed(4)} 秒，`
-      + `期望 ${P164_ANCHOR[1]}（${offAnchor.length}/${sixty.length} 個不對，例：${offAnchor[0].type}）`);
-  const offExempt = exempt.filter(p => Math.abs(p.patience / stage(p) - P164_EXEMPT) > 1e-9);
-  if (offExempt.length)
-    bad.push(`patience:999 的乘客被打折了：${offExempt[0].type} 換算回 far=0 是 `
-      + `${(offExempt[0].patience / stage(offExempt[0])).toFixed(4)}，期望 999（#140）｜${offExempt.length}/${exempt.length} 個`);
-  // 全體：每一個自然生成的人都要對得上同一條式子（擋「只對某幾種型別生效」）。
-  const offAll = P164_SAMPLES.filter(p => {
-    const m = p.t.patience >= P164_EXEMPT ? 1 : P164_MULT;
-    return Math.abs(p.patience - p.t.patience * m * stage(p)) > 1e-9;
-  });
-  if (offAll.length)
-    bad.push(`全體 ${P164_SAMPLES.length} 個自然生成的乘客裡 ${offAll.length} 個不是 base × ${P164_MULT} × (1 + far/45)`
-      + `（例：${offAll[0].type} base ${offAll[0].t.patience}、場上 ${offAll[0].patience.toFixed(3)}）`);
-  // makeMate 規則 3：一對的 patience 逐字相同（兩個人走同一個產生點）。
-  const pairs = P164_SAMPLES.filter(p => p.mate);
-  const split = pairs.filter(p => p.mate.patience !== p.patience);
-  if (split.length) bad.push(`${split.length}/${pairs.length} 對的 patience 分岔了（makeMate 規則 3）`);
-  return ok(bad.length === 0, bad.length ? bad.join('｜')
-    : `patience ${P164_ANCHOR[0]} 的 ${sixty.length} 個 → far=0 換算 ${P164_ANCHOR[1]}；`
-      + `patience:999 的 ${exempt.length} 個（${[...new Set(exempt.map(p => p.type))].join('/')}）沒打折；`
-      + `全體 ${P164_SAMPLES.length} 個自然生成的人都是 base × ${P164_MULT} × (1 + far/45)；`
-      + `成對 ${pairs.length} 個，patience 逐字相同`);
-});
-
-check('2 事件的 panic 疊在打過折的耐性上，一對的兩個人仍然逐字相同', () => {
-  // 跟第 22 組同一支 `fireTestEvent`、同一個事件形狀，只換 id 與種子。
-  const ev = { id:'__t164p', name:'t164p', w:1e12, n:[1,1], at:'any', to:'lobby',
-               type:'proposer', panic:0.5, exclusive:true, block:[5,5], blockOn:'deliver', text:'' };
-  const r = fireTestEvent(ev, 0x164164);
-  if (!r) return '測試事件 400 步內沒有生出本尊——儀器壞了，不是產品';
-  const { p } = r;
-  if (!p.mate) return 'proposer 沒有成對（WAIT_CAP？）——母體是空的，這條沒有試過';
-  const far = Math.max(p.origin, p.dest);
-  const want = p.t.patience * P164_MULT * ev.panic * (1 + far / 45);
-  const bad = [];
-  if (Math.abs(p.patience - want) > 1e-9)
-    bad.push(`本尊場上 ${p.patience.toFixed(4)}，期望 ${p.t.patience} × ${P164_MULT} × panic ${ev.panic} × (1+${far}/45) = ${want.toFixed(4)}`);
-  if (p.mate.patience !== p.patience) bad.push(`mate ${p.mate.patience} ≠ 本尊 ${p.patience}`);
-  // left 在生出來的同一個 tick 已經被耐性迴圈扣過一次 dt，所以差一個 STEP 是對的。
-  // ⚠ 第一版寫 `p.left !== p.patience`，在產品還沒改的 c4d19b7 上跟著一起紅了——
-  //   那一半是儀器的錯（差的正好是 1/60 秒），不是產品的。
-  if (Math.abs(p.patience - p.left) > C.STEP + 1e-9) bad.push(`left ${p.left} 沒有跟 patience 一起乘`);
-  return ok(bad.length === 0, bad.length ? bad.join('｜')
-    : `proposer ${p.t.patience} × ${P164_MULT} × ${ev.panic} × (1+${far}/45) = ${p.patience.toFixed(4)}，mate 逐字相同`
-      + `｜panic 是乘在產生點算好的 patience 上，所以自動吃到 ${P164_MULT}，不用另外處理（#164）`);
-});
-
-check('3 事件費率讀的是 C.EVENT_RATE_PER_ROW，sim.js 裡沒有字面值；EVENT_CHANCE 已經拿掉', () => {
-  if (!SIM_SRC) return 'TODO: 抓不到 js/sim.js 的原始碼，這條沒有驗到任何東西';
-  const code = SIM_SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-  const bad = [];
-  const reads = (code.match(/\bC\.EVENT_RATE_PER_ROW\b/g) || []).length;
-  if (!reads) bad.push('找不到任何一個 `C.EVENT_RATE_PER_ROW` 的讀取點');
-  const bare = (code.match(/(^|[^.\w])EVENT_RATE_PER_ROW\b/g) || []).length;
-  if (bare) bad.push(`還有 ${bare} 處不經過 C. 的 \`EVENT_RATE_PER_ROW\`（模組常數又長回來了？）`);
-  for (const lit of ['0.0267', '0.04005', '.0267', '.04005'])
-    if (code.indexOf(lit) >= 0){ bad.push(`程式碼裡有字面值 ${lit}`); break; }
-  if (/\bEVENT_CHANCE\b/.test(code)) bad.push('sim.js 的程式碼還在讀 EVENT_CHANCE');
-  if (C.EVENT_CHANCE !== undefined) bad.push(`CONFIG.EVENT_CHANCE 還在（${C.EVENT_CHANCE}），#87 之後沒有讀者`);
-  return ok(bad.length === 0, bad.length ? bad.join('｜')
-    : `sim.js 讀 C.EVENT_RATE_PER_ROW ${reads} 處、沒有字面值、沒有 EVENT_CHANCE`
-      + `｜這條擋的是「費率又變回第 0 組看不到的模組常數」`);
 });
