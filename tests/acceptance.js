@@ -5,7 +5,8 @@
 // 不是從 content.js 讀的。這是刻意的：見 harness.js 開頭第 1 點。
 
 import { section, check, eq, near, ok, nonEmpty, R, summary } from './harness.js';
-import { CONFIG as C, BANDS, UPGRADES, PASSENGERS, ACHIEVEMENTS, SKILLS, EVENTS, TENANTS, AUTOMATION } from '../js/content.js';
+import { CONFIG as C, BANDS, UPGRADES, PASSENGERS, ACHIEVEMENTS, SKILLS, EVENTS, TENANTS, AUTOMATION,
+         DIFFICULTIES } from '../js/content.js';
 import { EN } from '../js/i18n-content.js';
 import { PEOPLE } from '../js/sprites.js';
 import { MOTIFS, GLOW } from '../js/interior.js';
@@ -114,6 +115,15 @@ const SPEC = {
   // §5.7 樓層帶表的 pop 欄，順序同 bandRanges（retail…roof）。
   // #151 之後的值；原值 [1.15, 1.00, 0.75, 0.90, 0.55, 0.45, 0.30] × (1 + 1.5×i/6)。
   bandPops: [1.15, 1.25, 1.125, 1.575, 1.10, 1.0125, 0.75],
+  // ---- #165：`WAIT_CAP`（BE 加的一格，照 #155 / #163 的先例點名）----
+  // **owner（#165，逐字）：「`WAIT_CAP` 160 → 200」**，並且指定「搬進 `CONFIG`
+  // （跟 `EVENT_RATE_PER_ROW` 同一個理由:模組常數沒有抄寫 guard),再改值」。
+  // 在 `sim.js` 的時候它**沒有抄本**——這一格是搬家換來的東西。
+  // ⚠ 它是所有送達率讀數的分母的一部分：沒出現過的人不進分母（#163：160 → 無上限，
+  //   同一個劇本 74.28% → 35.36%）。**第 21 組那七個下限跟這一格綁在一起。**
+  // **紅過的證據（#165）**：本檔已改 200、`js/content.js` 還是 160 的那一趟
+  //（在 9ff0b2e 上），這一條的紅訊息逐字是「WAIT_CAP: 期望 200，實際 160」。
+  waitCap: 200,
 };
 
 // ---------------------------------------------------------------- 0 對照
@@ -157,6 +167,8 @@ check('ORBIT_BP',       () => eq(C.ORBIT_BP, SPEC.orbitBp, 'ORBIT_BP'));
 check('DAY_SECONDS',    () => eq(C.DAY_SECONDS, SPEC.daySeconds, 'DAY_SECONDS'));
 check('PRESTIGE_DIV',   () => eq(C.PRESTIGE_DIV, SPEC.prestigeDiv, 'PRESTIGE_DIV'));
 check('RATING_MIN',     () => eq(C.RATING_MIN, SPEC.ratingMin, 'RATING_MIN'));
+// #165（BE 加的一行，理由在 SPEC 的 waitCap 那一格上面）
+check('WAIT_CAP',       () => eq(C.WAIT_CAP, SPEC.waitCap, 'WAIT_CAP'));
 // 這兩個常數是「離散懲罰」的門檻，owner 2026-09-05 裁決『沒有懲罰』之後要整個消失。
 // 招商還在的時候比對數值；拿掉之後改成斷言它們不存在——留著一個沒有人讀的常數，
 // 下一個人會照它去找不存在的機制。
@@ -4445,4 +4457,274 @@ check('定錨值：runRevenue = $10M → 10 張（抄自 #161 的表，不從產
   }
   return ok(bad.length === 0, bad.join('｜')
     || got.join('、') + '｜定錨 $10M→10 張；五列的值互不相同，所以公式真的讀到了 runRevenue');
+});
+
+// ================================================================ 32 轉生難度（#165）
+// ⚠ **這一組是 BE 寫的（分支 `be/difficulty`，#165），不是 orchestrator。**
+// 照 #152（第 26 組）與 #161（第 31 組）的先例：整組集中在檔尾、上面點名作者，
+// 要收回、改寫或整塊搬走都只動這一塊。第 0 組另外多一行 `WAIT_CAP` 的抄寫（同樣點了名）。
+// （#164 原本占用的第 32 組已經 revert 掉了——那張單 owner 取消，號碼重編給這一組。）
+//
+// **owner 修訂（#165，逐字）：「每一格是**該難度的絕對乘數**,不是在前一級上再乘。」**
+// **owner 裁決（#165，逐字）：「在某個難度上蓋到 `ENDING_FLOOR`(100 樓)那一刻,就算通關那個難度」**
+//
+// 這一組守五種**改法**，不是「×1.2 是好的平衡」：
+//   1. 表被偷偷搬走（複利那一版就是被取代掉的一版）。
+//   2. 解鎖的閘只寫在 UI —— `doPrestige()` 自己也要拒絕。
+//   3. 解鎖跨不過拆樓（`carry` 少列一項，玩家要重打一次）。
+//   4. 乘數接到一半（表對、但沒有人讀它）——**三個乘數各有一個施力點，三個都量**。
+//   5. 舊存檔：已經打完的人被鎖回普通。
+section('32 轉生難度：普通 / 惡夢 / 地獄 / 折磨（#165）');
+
+// **抄自 #165 owner 修訂那張表**，不從 `DIFFICULTIES` 讀。順序就是解鎖順序。
+const D165 = [
+  ['normal',    1,   1,   1  ],
+  ['nightmare', 1.2, 0.9, 1.2],
+  ['hell',      1.5, 0.8, 1.5],
+  ['torment',   2,   0.7, 2  ],
+];
+const D165_FLOOR = 100;     // = ENDING_FLOOR，owner 裁決的通關條件
+
+check('1 難度表抄寫：四級 × 三個乘數（從 #165 的表抄，不是複利那一版）', () => {
+  if (!Array.isArray(DIFFICULTIES))
+    return 'TODO: content.js 還沒有 DIFFICULTIES——難度表不存在';
+  const bad = [];
+  if (DIFFICULTIES.length !== D165.length)
+    bad.push(`難度數量 期望 ${D165.length}，實際 ${DIFFICULTIES.length}`);
+  D165.forEach(([id, tr, pa, inc], i) => {
+    const d = DIFFICULTIES[i];
+    if (!d) { bad.push(`第 ${i} 級不存在（期望 ${id}）`); return; }
+    if (d.id !== id) bad.push(`第 ${i} 級的 id 期望 ${id}，實際 ${d.id}`);
+    if (d.traffic !== tr) bad.push(`${id}.traffic 期望 ${tr}，實際 ${d.traffic}`);
+    if (d.patience !== pa) bad.push(`${id}.patience 期望 ${pa}，實際 ${d.patience}`);
+    if (d.income !== inc) bad.push(`${id}.income 期望 ${inc}，實際 ${d.income}`);
+  });
+  return ok(bad.length === 0, bad.length
+    ? `難度表被動過而抄本沒跟上（${bad.length} 處）：${bad.join('；')}`
+      + `｜⚠ 這張表是**絕對乘數**，不是複利——orchestrator 原本解讀成每級 ×1.5 複利，`
+      + `owner 修訂取代了它。要改要先找得到一句同等份量的原話。`
+    : D165.map(([id, tr, pa, inc]) => `${id} ${tr}/${pa}/${inc}`).join('、')
+      + `｜人流／耐性／收入，四級都是該級的絕對值`);
+});
+
+// 蓋到 100 樓（唯一的通關條件）。走玩家真的走的那條路：買加蓋。
+function build165(st){
+  st.cash = 1e12;
+  let guard = 0;
+  while (st.floors < D165_FLOOR && S.buyUpgrade(st, 'floor') && guard++ < 500);
+  return st.floors;
+}
+
+check('2 解鎖順序：新遊戲只有普通；在一個難度蓋到 100 樓只解鎖下一級', () => {
+  if (typeof S.difficultyUnlocked !== 'function')
+    return 'TODO: state.js 沒有匯出 difficultyUnlocked——解鎖機制不存在';
+  const bad = [];
+  const open = st => D165.map((_, i) => S.difficultyUnlocked(st, i) ? i : -1).filter(i => i >= 0);
+  const fresh = S.newGame();
+  if (String(open(fresh)) !== '0') bad.push(`新遊戲可以選 [${open(fresh)}]，期望只有 [0]`);
+  // 95 層還不算：通關的定義是**蓋到 100 樓**，不是「蓋得很高」。
+  const almost = S.newGame();
+  almost.cash = 1e12;
+  let g = 0;
+  while (almost.floors < 95 && S.buyUpgrade(almost, 'floor') && g++ < 500);
+  if (almost.floors >= D165_FLOOR) bad.push(`儀器壞了：想停在 95 層卻蓋到 ${almost.floors}`);
+  else if (String(open(almost)) !== '0') bad.push(`${almost.floors} 層就解鎖了 [${open(almost)}]，期望只有 [0]`);
+  // 普通蓋到 100 → 只多解鎖惡夢，不會一路開到折磨
+  const st0 = S.newGame();
+  const f0 = build165(st0);
+  if (f0 !== D165_FLOOR) bad.push(`儀器壞了：普通那一輪只蓋到 ${f0} 層`);
+  if (String(open(st0)) !== '0,1') bad.push(`普通通關後可以選 [${open(st0)}]，期望 [0,1]`);
+  // 逐級往上：惡夢那一輪蓋到 100 → 再多一級
+  const r1 = S.doPrestige(st0, 1);
+  if (!r1) bad.push('普通通關之後選惡夢被拒絕了');
+  else {
+    const st1 = r1.st;
+    if (st1.difficulty !== 1) bad.push(`拆樓之後這一輪的難度是 ${st1.difficulty}，期望 1`);
+    if (String(open(st1)) !== '0,1') bad.push(`惡夢那一輪開場可以選 [${open(st1)}]，期望 [0,1]`);
+    build165(st1);
+    if (String(open(st1)) !== '0,1,2') bad.push(`惡夢通關後可以選 [${open(st1)}]，期望 [0,1,2]`);
+    // 回頭在普通再蓋一次 100 樓，不可以把已經通關的等級降回去
+    const r0 = S.doPrestige(st1, 0);
+    if (r0){ build165(r0.st);
+      if (String(open(r0.st)) !== '0,1,2') bad.push(`回普通通關之後變成 [${open(r0.st)}]，已解鎖的等級不可以掉`); }
+  }
+  return ok(bad.length === 0, bad.length ? bad.join('｜')
+    : `新遊戲 [0] → 普通蓋到 ${D165_FLOOR} 樓 [0,1] → 惡夢蓋到 ${D165_FLOOR} 樓 [0,1,2]；`
+      + `95 層不算通關；回頭打低難度不會把已解鎖的等級降回去`);
+});
+
+check('3 選不了鎖住的難度：只通關普通的時候選地獄要被拒絕（而且什麼都沒發生）', () => {
+  if (typeof S.doPrestige !== 'function') return 'TODO: 沒有 doPrestige';
+  const st = S.newGame();
+  build165(st);
+  st.runRevenue = 1e7;                       // 有藍圖可拿，才問得出「拒絕的時候有沒有偷偷發下去」
+  const before = JSON.stringify(st);
+  const bad = [];
+  const r2 = S.doPrestige(st, 2);
+  if (r2) bad.push('選地獄居然成功了（只通關普通）');
+  if (JSON.stringify(st) !== before) bad.push('被拒絕的那一次改動了狀態（拆樓不可以發生一半）');
+  const r9 = S.doPrestige(st, 9);
+  if (r9) bad.push('選一個不存在的難度（9）居然成功了');
+  const r1 = S.doPrestige(st, 1);
+  if (!r1) bad.push('選惡夢（已解鎖）卻被拒絕了——這條的母體會變成空的');
+  return ok(bad.length === 0, bad.length ? bad.join('｜')
+    : `地獄與 9 都回 null 且狀態逐字沒變、惡夢照樣可以；`
+      + `⚠ 閘在 doPrestige() 不是只在 UI——UI 只是不給按`);
+});
+
+check('4 跨拆樓保留：已解鎖的難度與這一輪的難度都在 carry 裡', () => {
+  const st = S.newGame();
+  build165(st);                              // 普通通關 → difficultyCleared = 0
+  const r = S.doPrestige(st, 1);
+  if (!r) return '普通通關之後選惡夢被拒絕了——這條沒有母體';
+  const bad = [];
+  if (r.st.difficultyCleared !== 0) bad.push(`拆樓之後 difficultyCleared = ${r.st.difficultyCleared}，期望 0`);
+  if (r.st.difficulty !== 1) bad.push(`拆樓之後 difficulty = ${r.st.difficulty}，期望 1`);
+  // 再拆一次（不指定難度）：沿用這一輪的難度，解鎖不掉
+  const r2 = S.doPrestige(r.st);
+  if (!r2) bad.push('不指定難度的拆樓被拒絕了');
+  else {
+    if (r2.st.difficultyCleared !== 0) bad.push(`第二次拆樓之後 difficultyCleared = ${r2.st.difficultyCleared}`);
+    if (r2.st.difficulty !== 1) bad.push(`第二次拆樓之後 difficulty = ${r2.st.difficulty}，期望沿用 1`);
+  }
+  // 存檔往返：兩個欄位都要是可序列化的數字
+  const back = JSON.parse(JSON.stringify(r.st));
+  if (back.difficulty !== r.st.difficulty || back.difficultyCleared !== r.st.difficultyCleared)
+    bad.push('JSON 往返之後兩個欄位對不上');
+  return ok(bad.length === 0, bad.length ? bad.join('｜')
+    : `拆樓之後 difficulty=1、difficultyCleared=0，再拆一次沿用；JSON 往返一致`);
+});
+
+// ---- 第 5 條：三個乘數真的接上了嗎 ----
+// 三個乘數三個施力點，所以量三次：
+//   人流   `sim.rateVal`（arrivalRate 算完的到達率），同一個狀態只換難度 → 比值 = 1.2
+//   耐性   自然生成的乘客（事件生的排除，`ev.panic` 是另一件事）→ 每一個都要是
+//          base × 0.9 × (1 + far/45)，`patience:999` 除外
+//   收入   同一顆種子、同一個劇本跑完，`runRevenue` 的比值 = 1.2
+//          ⚠ 收入這一項**必須把另外兩個乘數暫時壓成 1**，否則人流與耐性會讓兩場的
+//            軌跡分岔，量到的比值是三件事的混合。壓的是 `DIFFICULTIES` 那一列，
+//            跑完 finally 還原（跟第 24 組改 `crate.w` 同一個做法）。
+const D165_NM = 1;                           // 惡夢
+function spawns165(st, seed, days){
+  return withSeed(seed, () => {
+    st.cash = 1e9;
+    st.auto.autodoor = st.auto.fifo = st.auto.look = true;
+    st.up.shaft = 2; st.up.cap = 2; st.up.speed = 3; st.up.accel = 3; st.up.door = 5;
+    const sim = M.createSim(st); M.syncShafts(st, sim);
+    const seen = new Map();
+    const n = Math.round(days * C.DAY_SECONDS / C.STEP);
+    for (let i = 0; i < n; i++){
+      M.step(st, sim, C.STEP);
+      if (i % 5) continue;
+      for (const p of sim.waiting) if (!seen.has(p.id)) seen.set(p.id, p);
+    }
+    return [...seen.values()].filter(p => !p.fromEvent);
+  });
+}
+function rateOf(lv){
+  const st = S.newGame();
+  st.floors = 45; st.difficulty = lv; st.rating = 4;
+  const sim = M.createSim(st); M.syncShafts(st, sim);
+  M.step(st, sim, C.STEP);
+  return sim.rateVal;
+}
+function revenueOf(lv, seed){
+  return withSeed(seed, () => {
+    const st = S.newGame();
+    st.floors = 45; st.difficulty = lv; st.cash = 1e9;
+    st.auto.autodoor = st.auto.fifo = st.auto.look = true;
+    st.up.shaft = 2; st.up.cap = 4; st.up.speed = 3; st.up.accel = 3; st.up.door = 5;
+    const sim = M.createSim(st); M.syncShafts(st, sim);
+    const n = Math.round(4 * C.DAY_SECONDS / C.STEP);
+    for (let i = 0; i < n; i++) M.step(st, sim, C.STEP);
+    return st.runRevenue;
+  });
+}
+// 惡夢那一列，只留收入那一個乘數（另外兩個壓成 1），跑完還原。
+const REV165 = (() => {
+  if (!Array.isArray(DIFFICULTIES) || !DIFFICULTIES[D165_NM]) return null;
+  const row = DIFFICULTIES[D165_NM];
+  const tr = row.traffic, pa = row.patience;
+  try {
+    row.traffic = 1; row.patience = 1;
+    return { normal: revenueOf(0, 0x165), night: revenueOf(D165_NM, 0x165) };
+  } finally { row.traffic = tr; row.patience = pa; }
+})();
+
+check('5 三個乘數真的生效：到達率 ×1.2、耐性 ×0.9（999 除外）、收入 ×1.2（惡夢 vs 普通）', () => {
+  if (!Array.isArray(DIFFICULTIES)) return 'TODO: 沒有 DIFFICULTIES';
+  const [, WTR, WPA, WINC] = D165[D165_NM];
+  const bad = [], rows = [];
+  // ---- 人流
+  const r0 = rateOf(0), r1 = rateOf(D165_NM);
+  if (!(r0 > 0)) bad.push('普通的到達率是 0——這一條在量一棟沒有人的樓');
+  else {
+    rows.push(`到達率 ${r0.toFixed(4)} → ${r1.toFixed(4)}（比 ${(r1 / r0).toFixed(4)}）`);
+    if (Math.abs(r1 / r0 - WTR) > 1e-9) bad.push(`到達率比 ${(r1 / r0).toFixed(4)}，期望 ${WTR}`);
+  }
+  // ---- 耐性
+  const nmSt = S.newGame(); nmSt.floors = 45; nmSt.difficulty = D165_NM;
+  const list = spawns165(nmSt, 0x165, 3);
+  const plain = list.filter(p => p.t.patience < 999);
+  const exempt = list.filter(p => p.t.patience >= 999);
+  const ne1 = nonEmpty(plain.length, '惡夢那一場沒有生出任何一般乘客——耐性這一半沒有母體');
+  if (ne1 !== true) return ne1;
+  const ne2 = nonEmpty(exempt.length, '惡夢那一場沒有生出任何 patience:999 的乘客——豁免那一半沒有母體');
+  if (ne2 !== true) return ne2;
+  const stage = p => 1 + Math.max(p.origin, p.dest) / 45;
+  const offPlain = plain.filter(p => Math.abs(p.patience - p.t.patience * WPA * stage(p)) > 1e-9);
+  if (offPlain.length)
+    bad.push(`${offPlain.length}/${plain.length} 個一般乘客的耐性不是 base × ${WPA} × (1+far/45)`
+      + `（例：${offPlain[0].type} base ${offPlain[0].t.patience} → 場上 ${offPlain[0].patience.toFixed(3)}，`
+      + `期望 ${(offPlain[0].t.patience * WPA * stage(offPlain[0])).toFixed(3)}）`);
+  const offExempt = exempt.filter(p => Math.abs(p.patience - 999 * stage(p)) > 1e-9);
+  if (offExempt.length)
+    bad.push(`patience:999 的被打折了（#140 裁決不打折）：${offExempt[0].type} 場上 ${offExempt[0].patience.toFixed(2)}，`
+      + `期望 ${(999 * stage(offExempt[0])).toFixed(2)}｜${offExempt.length}/${exempt.length} 個`);
+  rows.push(`耐性：一般 ${plain.length} 個都是 base × ${WPA} × (1+far/45)、999 的 ${exempt.length} 個沒打折`);
+  // 一對的兩個人仍然逐字相同（makeMate 規則 3）
+  const pairs = list.filter(p => p.mate);
+  const split = pairs.filter(p => p.mate.patience !== p.patience);
+  if (split.length) bad.push(`${split.length}/${pairs.length} 對的 patience 分岔了（makeMate 規則 3）`);
+  // ---- 收入
+  if (!REV165) bad.push('收入那一半沒有跑（DIFFICULTIES 不存在）');
+  else if (!(REV165.normal > 0)) bad.push('普通那一場一毛錢都沒賺到——收入這一條在量空氣');
+  else {
+    const ratio = REV165.night / REV165.normal;
+    rows.push(`收入 $${REV165.normal.toFixed(0)} → $${REV165.night.toFixed(0)}（比 ${ratio.toFixed(4)}）`);
+    if (Math.abs(ratio - WINC) > 1e-6)
+      bad.push(`收入比 ${ratio.toFixed(4)}，期望 ${WINC}（量的時候人流與耐性乘數已經壓成 1，所以兩場的軌跡逐字相同）`);
+  }
+  return ok(bad.length === 0, bad.length ? bad.join('｜') : rows.join('｜')
+    + `｜三個乘數三個施力點，各量一次；收入那一次把另外兩個壓成 1，不然量到的是三件事的混合`);
+});
+
+check('6 舊存檔遷移：已經蓋到 100 樓或已經有 ending 的存檔，視為普通已通關', () => {
+  if (typeof S.migrate !== 'function')
+    return 'TODO: state.js 沒有匯出 migrate——讀檔的遷移叫不到，這條沒有驗到任何東西';
+  const oldSave = extra => {
+    const st = S.newGame();
+    Object.assign(st, extra);
+    delete st.difficulty; delete st.difficultyCleared;   // #165 之前的存檔沒有這兩欄
+    return JSON.parse(JSON.stringify(st));
+  };
+  const bad = [];
+  const cases = [
+    ['蓋到 100 樓', { floors: 100 }, 0],
+    ['發射過（ending）', { ending: true, floors: 100 }, 0],
+    ['只有 ending、樓層是舊的', { ending: true, floors: 60 }, 0],
+    ['還沒打完（60 層、沒 ending）', { floors: 60 }, -1],
+  ];
+  for (const [what, extra, want] of cases){
+    const st = S.migrate(oldSave(extra));
+    if (st.difficultyCleared !== want)
+      bad.push(`${what}：difficultyCleared = ${st.difficultyCleared}，期望 ${want}`);
+    const canNight = S.difficultyUnlocked(st, 1);
+    if (canNight !== (want >= 0))
+      bad.push(`${what}：惡夢${canNight ? '可以' : '不可以'}選，期望${want >= 0 ? '可以' : '不可以'}`);
+    if (st.difficulty !== 0) bad.push(`${what}：difficulty = ${st.difficulty}，舊存檔應該補成 0`);
+  }
+  return ok(bad.length === 0, bad.length ? bad.join('｜')
+    : `四種舊存檔：蓋到 100 樓／有 ending／只有 ending／都沒有 → 前三種解鎖惡夢，第四種還是只有普通`
+      + `｜⚠ 判斷要在「補齊缺的欄位」之前，補完就分不出「沒有這一欄」與「-1」了`);
 });
