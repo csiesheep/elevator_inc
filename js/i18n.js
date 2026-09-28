@@ -201,6 +201,7 @@ const DICT = {
   btnRules:      ['玩法說明', 'How to play'],
   btnLedger:     ['帳本', 'Ledger'],
   btnMore:       ['更多遊戲', 'More games'],
+  privacyLink:   ['隱私權政策', 'Privacy'],
   landSaveLine:  ['{0} 樓 · 送達 {1} 人次 · ★{2}', '{0} floors · {1} delivered · ★{2}'],
   landNoSave:    ['還沒有存檔', 'No save yet'],
   rulesTitle:    ['玩法說明', 'How to play'],
